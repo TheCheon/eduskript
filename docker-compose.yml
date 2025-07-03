@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: edugarden
+      POSTGRES_USER: edugarden
+      POSTGRES_PASSWORD: edugarden_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - edugarden-network
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: "postgresql://edugarden:edugarden_password@db:5432/edugarden"
+      NEXTAUTH_SECRET: "change-this-secret-in-production"
+      NEXTAUTH_URL: "http://localhost:3000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+    networks:
+      - edugarden-network
+    volumes:
+      - ./public/uploads:/app/public/uploads
+
+volumes:
+  postgres_data:
+
+networks:
+  edugarden-network:
+    driver: bridge

@@ -1,0 +1,159 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// NextAuth.js Models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Core Models
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  hashedPassword String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Teacher-specific fields
+  subdomain     String?   @unique
+  bio           String?
+  title         String?
+  
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  scripts       Script[]
+  chapters      Chapter[]
+  pages         Page[]
+  pageVersions  PageVersion[]
+  
+  @@map("users")
+}
+
+model Script {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  slug        String
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Multi-tenant
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  // Relations
+  chapters    Chapter[]
+  
+  @@unique([authorId, slug])
+  @@map("scripts")
+}
+
+model Chapter {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  slug        String
+  order       Int
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Multi-tenant
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  // Relations
+  scriptId    String
+  script      Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  pages       Page[]
+  
+  @@unique([scriptId, slug])
+  @@map("chapters")
+}
+
+model Page {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String
+  content     String
+  order       Int
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Multi-tenant
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  // Relations
+  chapterId   String
+  chapter     Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  versions    PageVersion[]
+  
+  @@unique([chapterId, slug])
+  @@map("pages")
+}
+
+model PageVersion {
+  id        String   @id @default(cuid())
+  content   String
+  version   Int
+  changeLog String?
+  createdAt DateTime @default(now())
+  
+  // Multi-tenant
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  // Relations
+  pageId    String
+  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  
+  @@unique([pageId, version])
+  @@map("page_versions")
+}
