@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import Link from 'next/link'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { ChevronDown, ChevronRight, Menu, X } from 'lucide-react'
+import { ReadingProgress } from './reading-progress'
 
 interface Teacher {
   name: string
@@ -35,9 +36,108 @@ interface PublicSiteLayoutProps {
 }
 
 export function PublicSiteLayout({ teacher, siteStructure, children, currentPath }: PublicSiteLayoutProps) {
+  const router = useRouter()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  
+  // Storage keys for persistence
+  const EXPANDED_SCRIPTS_KEY = `expanded-scripts-${teacher.subdomain}`
+  const EXPANDED_CHAPTERS_KEY = `expanded-chapters-${teacher.subdomain}`
+  
+  // Initialize with persistent state or defaults
   const [expandedScripts, setExpandedScripts] = useState<string[]>([])
   const [expandedChapters, setExpandedChapters] = useState<string[]>([])
+  const [isInitialized, setIsInitialized] = useState(false)
+
+  // Get initial expanded state from localStorage or defaults
+  const getInitialExpandedScripts = () => {
+    if (typeof window === 'undefined') return siteStructure.map(script => script.id)
+    
+    const stored = localStorage.getItem(EXPANDED_SCRIPTS_KEY)
+    if (stored) {
+      try {
+        return JSON.parse(stored)
+      } catch {
+        return siteStructure.map(script => script.id)
+      }
+    }
+    // Default: all scripts expanded
+    return siteStructure.map(script => script.id)
+  }
+
+  const getInitialExpandedChapters = () => {
+    if (typeof window === 'undefined') return []
+    
+    const stored = localStorage.getItem(EXPANDED_CHAPTERS_KEY)
+    let expandedFromStorage: string[] = []
+    
+    if (stored) {
+      try {
+        expandedFromStorage = JSON.parse(stored)
+      } catch {
+        expandedFromStorage = []
+      }
+    }
+    
+    // Auto-expand chapters that contain the current page
+    const expandedFromCurrentPath: string[] = []
+    if (currentPath) {
+      siteStructure.forEach(script => {
+        script.chapters.forEach(chapter => {
+          const hasCurrentPage = chapter.pages.some(page => 
+            currentPath === `/${script.slug}/${chapter.slug}/${page.slug}`
+          )
+          if (hasCurrentPage && !expandedFromStorage.includes(chapter.id)) {
+            expandedFromCurrentPath.push(chapter.id)
+          }
+        })
+      })
+    }
+    
+    return [...expandedFromStorage, ...expandedFromCurrentPath]
+  }
+
+  // Initialize state from localStorage on client side
+  useEffect(() => {
+    setExpandedScripts(getInitialExpandedScripts())
+    setExpandedChapters(getInitialExpandedChapters())
+    setIsInitialized(true)
+  }, [])
+
+  // Update expanded chapters when current path changes
+  useEffect(() => {
+    if (!isInitialized || !currentPath) return
+    
+    const newExpandedChapters = [...expandedChapters]
+    let hasChanges = false
+    
+    siteStructure.forEach(script => {
+      script.chapters.forEach(chapter => {
+        const hasCurrentPage = chapter.pages.some(page => 
+          currentPath === `/${script.slug}/${chapter.slug}/${page.slug}`
+        )
+        if (hasCurrentPage && !newExpandedChapters.includes(chapter.id)) {
+          newExpandedChapters.push(chapter.id)
+          hasChanges = true
+        }
+      })
+    })
+    
+    if (hasChanges) {
+      setExpandedChapters(newExpandedChapters)
+    }
+  }, [currentPath, isInitialized])
+
+  // Persist expanded scripts to localStorage
+  useEffect(() => {
+    if (!isInitialized) return
+    localStorage.setItem(EXPANDED_SCRIPTS_KEY, JSON.stringify(expandedScripts))
+  }, [expandedScripts, isInitialized])
+
+  // Persist expanded chapters to localStorage
+  useEffect(() => {
+    if (!isInitialized) return
+    localStorage.setItem(EXPANDED_CHAPTERS_KEY, JSON.stringify(expandedChapters))
+  }, [expandedChapters, isInitialized])
 
   const toggleScript = (scriptId: string) => {
     setExpandedScripts(prev => 
@@ -59,8 +159,16 @@ export function PublicSiteLayout({ teacher, siteStructure, children, currentPath
     return currentPath === `/${scriptSlug}/${chapterSlug}/${pageSlug}`
   }
 
+  const navigateToPage = (scriptSlug: string, chapterSlug: string, pageSlug: string) => {
+    const url = `/${teacher.subdomain}/${scriptSlug}/${chapterSlug}/${pageSlug}`
+    router.push(url)
+    setIsSidebarOpen(false)
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <ReadingProgress />
+      
       {/* Mobile menu button */}
       <div className="lg:hidden fixed top-4 left-4 z-50">
         <button
@@ -101,7 +209,11 @@ export function PublicSiteLayout({ teacher, siteStructure, children, currentPath
                   {/* Script Title */}
                   <button
                     onClick={() => toggleScript(script.id)}
-                    className="flex items-center w-full text-left px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                    className={`flex items-center w-full text-left px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                      expandedScripts.includes(script.id)
+                        ? 'text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-700'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
                   >
                     {expandedScripts.includes(script.id) ? (
                       <ChevronDown className="w-4 h-4 mr-2 flex-shrink-0" />
@@ -119,7 +231,11 @@ export function PublicSiteLayout({ teacher, siteStructure, children, currentPath
                           {/* Chapter Title */}
                           <button
                             onClick={() => toggleChapter(chapter.id)}
-                            className="flex items-center w-full text-left px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                            className={`flex items-center w-full text-left px-3 py-1 text-sm rounded-md transition-colors ${
+                              expandedChapters.includes(chapter.id)
+                                ? 'text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-600'
+                                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                            }`}
                           >
                             {expandedChapters.includes(chapter.id) ? (
                               <ChevronDown className="w-3 h-3 mr-2 flex-shrink-0" />
@@ -133,18 +249,17 @@ export function PublicSiteLayout({ teacher, siteStructure, children, currentPath
                           {expandedChapters.includes(chapter.id) && (
                             <div className="ml-5 space-y-1">
                               {chapter.pages.map((page) => (
-                                <Link
+                                <button
                                   key={page.id}
-                                  href={`/${script.slug}/${chapter.slug}/${page.slug}`}
-                                  className={`block px-3 py-1 text-sm rounded-md truncate ${
+                                  onClick={() => navigateToPage(script.slug, chapter.slug, page.slug)}
+                                  className={`block w-full text-left px-3 py-1 text-sm rounded-md truncate transition-colors ${
                                     isCurrentPage(script.slug, chapter.slug, page.slug)
                                       ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
-                                      : 'text-gray-500 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                      : 'text-gray-500 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-300'
                                   }`}
-                                  onClick={() => setIsSidebarOpen(false)}
                                 >
                                   {page.title}
-                                </Link>
+                                </button>
                               ))}
                             </div>
                           )}

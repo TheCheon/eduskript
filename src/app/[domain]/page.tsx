@@ -1,6 +1,12 @@
 import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
 import { PublicSiteLayout } from '@/components/public/layout'
+
+// Enable ISR with on-demand regeneration
+export const revalidate = 60 // Revalidate every 60 seconds
+export const dynamic = 'force-static' // Force static generation
+export const dynamicParams = true // Allow new params to be generated on-demand
 
 interface DomainIndexProps {
   params: Promise<{
@@ -8,17 +14,59 @@ interface DomainIndexProps {
   }>
 }
 
+// Generate metadata for SEO
+export async function generateMetadata({ params }: DomainIndexProps): Promise<Metadata> {
+  const { domain } = await params
+  
+  try {
+    const teacher = await prisma.user.findFirst({
+      where: { subdomain: domain }
+    })
+
+    if (!teacher) {
+      return {
+        title: 'Teacher Not Found',
+        description: 'The requested teacher could not be found.'
+      }
+    }
+
+    const title = teacher.name || 'EduGarden'
+    const description = teacher.bio || `Educational content by ${teacher.name}`
+
+    return {
+      title,
+      description,
+      authors: [{ name: teacher.name || 'Unknown' }],
+      openGraph: {
+        title,
+        description,
+        type: 'website',
+        siteName: teacher.name || 'EduGarden',
+        url: `https://${domain}`
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title,
+        description
+      }
+    }
+  } catch (error) {
+    console.error('Error generating metadata:', error)
+    return {
+      title: 'EduGarden',
+      description: 'Educational content platform'
+    }
+  }
+}
+
 export default async function DomainIndex({ params }: DomainIndexProps) {
   const { domain } = await params
 
   try {
-    // Find teacher by subdomain or custom domain
+    // Find teacher by subdomain (custom domains support will be added later)
     const teacher = await prisma.user.findFirst({
       where: {
-        OR: [
-          { subdomain: domain },
-          { customDomains: { some: { domain, isActive: true } } }
-        ]
+        subdomain: domain
       },
       include: {
         scripts: {
@@ -47,8 +95,8 @@ export default async function DomainIndex({ params }: DomainIndexProps) {
     const teacherData = {
       name: teacher.name || 'Teacher',
       subdomain: teacher.subdomain || '',
-      bio: teacher.bio,
-      title: teacher.title
+      bio: teacher.bio || undefined,
+      title: teacher.title || undefined
     }
 
     return (

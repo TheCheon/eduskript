@@ -2,12 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Import highlight.js styles for syntax highlighting */
-@import 'highlight.js/styles/github.css';
-
-/* Import KaTeX styles for math rendering */
-@import 'katex/dist/katex.min.css';
-
 /* Markdown content styles */
 .markdown-content {
   @apply text-gray-900 dark:text-gray-100;

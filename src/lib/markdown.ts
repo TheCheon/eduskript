@@ -7,6 +7,8 @@ import rehypeKatex from 'rehype-katex'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeStringify from 'rehype-stringify'
 import matter from 'gray-matter'
+import rehypeSlug from 'rehype-slug'
+import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 
 export interface ProcessedMarkdown {
   content: string
@@ -24,9 +26,22 @@ export async function processMarkdown(markdown: string): Promise<ProcessedMarkdo
     .use(remarkMath)
     .use(remarkGfm)
     .use(remarkRehype, { allowDangerousHtml: true })
+    .use(rehypeSlug) // Add IDs to headings
+    .use(rehypeAutolinkHeadings, { 
+      behavior: 'wrap',
+      properties: { className: ['heading-link'] }
+    })
     .use(rehypeKatex)
     .use(rehypeHighlight)
     .use(rehypeStringify, { allowDangerousHtml: true })
+    .use(rehypeSlug)
+    .use(rehypeAutolinkHeadings, {
+      behavior: 'wrap',
+      properties: {
+        class: 'heading-anchor',
+        'aria-hidden': 'true',
+      },
+    })
   
   const processedContent = await processor.process(content)
   

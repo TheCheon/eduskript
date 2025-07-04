@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { FileText, BookOpen, Eye, Plus } from 'lucide-react'
+import { AnalyticsDashboard } from '@/components/dashboard/analytics'
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions)
@@ -144,6 +145,9 @@ export default async function DashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Analytics Dashboard */}
+      <AnalyticsDashboard />
     </div>
   )
 }

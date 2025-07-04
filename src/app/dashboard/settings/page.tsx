@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { DomainSettings } from '@/components/dashboard/domain-settings'
+import { ProfileSettings } from '@/components/dashboard/profile-settings'
 
 export default async function SettingsPage() {
   const session = await getServerSession(authOptions)
@@ -22,32 +23,7 @@ export default async function SettingsPage() {
       </div>
 
       <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Profile Information</CardTitle>
-            <CardDescription>
-              Your account details and public profile information
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
-                <p className="text-gray-900 dark:text-white">{session.user.name || 'Not set'}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
-                <p className="text-gray-900 dark:text-white">{session.user.email}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Subdomain</label>
-                <p className="text-gray-900 dark:text-white">
-                  {session.user.subdomain ? `${session.user.subdomain}.edugarden.com` : 'Not set'}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <ProfileSettings />
 
         <Card>
           <CardHeader>

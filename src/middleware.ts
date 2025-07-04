@@ -6,11 +6,17 @@ export async function middleware(request: NextRequest) {
   const token = await getToken({ req: request })
   
   // Handle subdomain routing
-  const hostname = host?.split(':')[0] // Remove port if present
-  const subdomain = hostname?.split('.')[0]
+  // Get the full hostname (including subdomains)
+  const fullHostname = host || request.headers.get('host') || ''
+  const hostname = fullHostname.split(':')[0] // Remove port if present
+  const subdomain = hostname.split('.')[0]
+  
+  // TODO: Add custom domain support in a separate API route due to middleware limitations
+  // For now, we'll handle subdomain routing only
   
   // If subdomain exists and it's not 'www' or the main domain
-  if (subdomain && subdomain !== 'www' && !hostname?.startsWith('localhost')) {
+  // Handle both production subdomains and localhost development
+  if (subdomain && subdomain !== 'www' && subdomain !== 'localhost') {
     // Rewrite to subdomain path
     const url = request.nextUrl.clone()
     url.pathname = `/${subdomain}${pathname}`

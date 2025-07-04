@@ -1,7 +1,11 @@
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { PublicSiteLayout } from '@/components/public/layout'
-import { MarkdownRenderer } from '@/components/public/markdown-renderer'
+import { processMarkdown } from '@/lib/markdown'
+import { Breadcrumb } from '@/components/public/breadcrumb'
+import { ExportPDF } from '@/components/public/export-pdf'
+import { Comments } from '@/components/public/comments'
+import type { Metadata } from 'next'
 
 interface PageProps {
   params: Promise<{
@@ -12,21 +16,90 @@ interface PageProps {
   }>
 }
 
-// Enable ISR
-export const dynamic = 'force-dynamic'
-export const revalidate = 60
+// Enable ISR with on-demand regeneration
+export const revalidate = 60 // Revalidate every 60 seconds
+export const dynamic = 'force-static' // Force static generation
+export const dynamicParams = true // Allow new params to be generated on-demand
+
+// Generate metadata for SEO
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { domain, scriptSlug, chapterSlug, pageSlug } = await params
+  
+  try {
+    const teacher = await prisma.user.findFirst({
+      where: { subdomain: domain },
+      include: {
+        scripts: {
+          where: { isPublished: true, slug: scriptSlug },
+          include: {
+            chapters: {
+              where: { isPublished: true, slug: chapterSlug },
+              include: {
+                pages: {
+                  where: { isPublished: true, slug: pageSlug }
+                }
+              }
+            }
+          }
+        }
+      }
+    })
+
+    if (!teacher) {
+      return {
+        title: 'Page Not Found',
+        description: 'The requested page could not be found.'
+      }
+    }
+
+    const script = teacher.scripts[0]
+    const chapter = script?.chapters[0]
+    const page = chapter?.pages[0]
+
+    if (!page) {
+      return {
+        title: 'Page Not Found',
+        description: 'The requested page could not be found.'
+      }
+    }
+
+    const title = `${page.title} | ${teacher.name || 'EduGarden'}`
+    const description = chapter.description || script.description || `${page.title} by ${teacher.name}`
+
+    return {
+      title,
+      description,
+      authors: [{ name: teacher.name || 'Unknown' }],
+      openGraph: {
+        title,
+        description,
+        type: 'article',
+        siteName: teacher.name || 'EduGarden',
+        url: `https://${domain}/${scriptSlug}/${chapterSlug}/${pageSlug}`
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title,
+        description
+      }
+    }
+  } catch (error) {
+    console.error('Error generating metadata:', error)
+    return {
+      title: 'EduGarden',
+      description: 'Educational content platform'
+    }
+  }
+}
 
 export default async function PublicPage({ params }: PageProps) {
   const { domain, scriptSlug, chapterSlug, pageSlug } = await params
 
   try {
-    // Find teacher by subdomain or custom domain
+    // Find teacher by subdomain (custom domains support working at runtime)
     const teacher = await prisma.user.findFirst({
       where: {
-        OR: [
-          { subdomain: domain },
-          { customDomains: { some: { domain, isActive: true } } }
-        ]
+        subdomain: domain
       },
       include: {
         scripts: {
@@ -68,10 +141,13 @@ export default async function PublicPage({ params }: PageProps) {
       notFound()
     }
 
+    // Process markdown content server-side
+    const processedMarkdown = await processMarkdown(page.content || '')
+
     const pageData = {
       id: page.id,
       title: page.title,
-      content: page.content,
+      content: processedMarkdown.content,
       slug: page.slug,
       updatedAt: page.updatedAt.toISOString()
     }
@@ -89,9 +165,15 @@ export default async function PublicPage({ params }: PageProps) {
     const teacherData = {
       name: teacher.name || 'Teacher',
       subdomain: teacher.subdomain || '',
-      bio: teacher.bio,
-      title: teacher.title
+      bio: teacher.bio || undefined,
+      title: teacher.title || undefined
     }
+
+    const breadcrumbItems = [
+      { title: scriptData.title, href: `/${domain}/${scriptSlug}` },
+      { title: chapterData.title, href: `/${domain}/${scriptSlug}/${chapterSlug}` },
+      { title: pageData.title }
+    ]
 
     return (
       <PublicSiteLayout 
@@ -100,17 +182,32 @@ export default async function PublicPage({ params }: PageProps) {
         currentPath={`/${script.slug}/${chapter.slug}/${page.slug}`}
       >
         <div className="max-w-4xl mx-auto">
+          <Breadcrumb items={breadcrumbItems} subdomain={domain} />
+          
           <div className="mb-8">
-            <div className="text-sm text-gray-500 mb-2">
-              {scriptData.title} → {chapterData.title}
-            </div>
             <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
               {pageData.title}
             </h1>
           </div>
           
-          <div className="prose prose-lg max-w-none dark:prose-invert">
-            <MarkdownRenderer content={pageData.content} />
+          <div 
+            className="prose prose-lg max-w-none dark:prose-invert"
+            dangerouslySetInnerHTML={{ __html: pageData.content }}
+          />
+
+          <div className="mt-8">
+            <ExportPDF 
+              title={pageData.title} 
+              content={pageData.content} 
+              author={teacherData.name}
+            />
+          </div>
+
+          <div className="mt-8">
+            <Comments 
+              pageId={pageData.id} 
+              pageTitle={pageData.title}
+            />
           </div>
         </div>
       </PublicSiteLayout>
