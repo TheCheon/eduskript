@@ -66,17 +66,33 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.id = user.id
-      }
-      return token
-    },
-    async session({ session, token }) {
-      if (token && session.user) {
-        session.user.id = token.id as string
+        // Fetch additional user data once during sign-in and store in token
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+            subdomain: true,
+            title: true,
+          }
+        })
         
-        // Fetch additional user data
+        if (dbUser) {
+          token.subdomain = dbUser.subdomain
+          token.title = dbUser.title
+          token.name = dbUser.name
+          token.email = dbUser.email
+          token.image = dbUser.image
+        }
+      }
+      
+      // Only refetch user data on update trigger (not on every session check)
+      if (trigger === 'update' && token.id) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
           select: {
@@ -90,9 +106,24 @@ export const authOptions: NextAuthOptions = {
         })
         
         if (dbUser) {
-          session.user.subdomain = dbUser.subdomain
-          session.user.title = dbUser.title
+          token.subdomain = dbUser.subdomain
+          token.title = dbUser.title
+          token.name = dbUser.name
+          token.email = dbUser.email
+          token.image = dbUser.image
         }
+      }
+      
+      return token
+    },
+    async session({ session, token }) {
+      if (token && session.user) {
+        session.user.id = token.id as string
+        session.user.subdomain = token.subdomain as string
+        session.user.title = token.title as string
+        session.user.name = token.name as string
+        session.user.email = token.email as string
+        session.user.image = token.image as string
       }
       return session
     },

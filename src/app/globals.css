@@ -2,7 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent theme transition flicker */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
 
+/* Disable transitions during theme changes */
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+}
+
+/* Ensure proper theme initialization */
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
 
 /* Highlight.js theme for light mode */
 .hljs {

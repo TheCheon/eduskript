@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { withDatabaseConnection } from '@/lib/db-connection'
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -18,10 +19,12 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid theme value' }, { status: 400 })
     }
 
-    // Update user's theme preference using Prisma client
-    await prisma.user.update({
-      where: { email: session.user.email },
-      data: { themePreference: theme }
+    await withDatabaseConnection(async () => {
+      // Update user's theme preference using Prisma client
+      return await prisma.user.update({
+        where: { email: session.user.email! },
+        data: { themePreference: theme }
+      })
     })
 
     return NextResponse.json({ 
@@ -46,13 +49,15 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user's theme preference using Prisma client
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-      select: { themePreference: true }
+    const result = await withDatabaseConnection(async () => {
+      // Get user's theme preference using Prisma client
+      return await prisma.user.findUnique({
+        where: { email: session.user.email! },
+        select: { themePreference: true }
+      })
     })
 
-    const themePreference = user?.themePreference || 'system'
+    const themePreference = result?.themePreference || 'system'
 
     return NextResponse.json({ 
       themePreference

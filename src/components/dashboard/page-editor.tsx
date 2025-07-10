@@ -11,7 +11,7 @@ import { CollapsibleDrawer } from '@/components/ui/collapsible-drawer'
 import { EditModal } from '@/components/dashboard/edit-modal'
 import { PublishToggle } from '@/components/dashboard/publish-toggle'
 import { VersionHistory } from '@/components/dashboard/version-history'
-import { ArrowLeft, Save, History, Files } from 'lucide-react'
+import { ArrowLeft, Save, History, Files, Eye } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 interface PageVersion {
@@ -70,9 +70,29 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
     setHasUnsavedChanges(true)
   }
 
-  const handlePageUpdated = () => {
-    // Refresh the page data
-    window.location.reload()
+  const handlePageUpdated = async () => {
+    try {
+      // Fetch the updated page data to check if slug changed
+      const response = await fetch(`/api/pages/${page.id}`)
+      if (response.ok) {
+        const updatedPage = await response.json()
+        if (updatedPage.slug !== page.slug) {
+          // Slug changed, redirect to new URL
+          const newUrl = `/dashboard/scripts/${script.slug}/chapters/${chapter.slug}/pages/${updatedPage.slug}/edit`
+          router.push(newUrl)
+        } else {
+          // Just reload the page data
+          window.location.reload()
+        }
+      } else {
+        // If API call fails, just reload
+        window.location.reload()
+      }
+    } catch (error) {
+      console.error('Error fetching updated page:', error)
+      // If fetch fails, just reload
+      window.location.reload()
+    }
   }
 
   const handleFileInsert = (file: {
@@ -126,6 +146,7 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
     }
 
     setIsSaving(true)
+    const originalSlug = page.slug
     try {
       const response = await fetch(`/api/pages/${page.id}`, {
         method: 'PATCH',
@@ -144,8 +165,10 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
         // Reload versions to show the new version
         loadVersions()
         // Update URL if slug changed
-        if (slug !== page.slug) {
-          router.replace(`/dashboard/scripts/${script.slug}/chapters/${chapter.slug}/pages/${slug}/edit`)
+        if (slug !== originalSlug) {
+          const newUrl = `/dashboard/scripts/${script.slug}/chapters/${chapter.slug}/pages/${slug}/edit`
+          router.push(newUrl)
+          return // Don't continue with other updates since we're navigating
         }
       } else {
         const data = await response.json()
@@ -248,7 +271,18 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
             type="page"
             item={page}
             onItemUpdated={handlePageUpdated}
+            buttonText="Edit Pa ge Details"
           />
+          <Link 
+            href={`/${(session?.user as { subdomain?: string })?.subdomain}/${script.slug}/${chapter.slug}/${page.slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Button variant="outline" size="sm">
+              <Eye className="w-4 h-4 mr-2" />
+              Preview
+            </Button>
+          </Link>
           <Button onClick={handleSave} disabled={isSaving}>
             <Save className="w-4 h-4 mr-2" />
             {isSaving ? 'Saving...' : 'Save'}

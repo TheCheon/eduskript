@@ -11,9 +11,11 @@ interface ThemeToggleProps {
 }
 
 export function ThemeToggle({ isCollapsed = false }: ThemeToggleProps) {
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme, resolvedTheme } = useTheme()
   const { data: session } = useSession()
   const [mounted, setMounted] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [hasLoadedPreference, setHasLoadedPreference] = useState(false)
 
   // Only render after mounting to avoid hydration mismatch
   useEffect(() => {
@@ -21,25 +23,32 @@ export function ThemeToggle({ isCollapsed = false }: ThemeToggleProps) {
   }, [])
 
   const loadThemePreference = useCallback(async () => {
+    if (!session?.user?.email || hasLoadedPreference || isLoading) return
+    
+    setIsLoading(true)
     try {
       const response = await fetch('/api/user/theme')
       if (response.ok) {
         const data = await response.json()
-        if (data.themePreference && data.themePreference !== theme) {
+        // Only set theme if it's different and not already in sync
+        if (data.themePreference && data.themePreference !== theme && data.themePreference !== resolvedTheme) {
           setTheme(data.themePreference)
         }
+        setHasLoadedPreference(true)
       }
     } catch (error) {
       console.error('Failed to load theme preference:', error)
+    } finally {
+      setIsLoading(false)
     }
-  }, [theme, setTheme])
+  }, [session, theme, resolvedTheme, setTheme, hasLoadedPreference, isLoading])
 
   // Load user's theme preference when session is available
   useEffect(() => {
-    if (session?.user?.email && mounted) {
+    if (session?.user?.email && mounted && !hasLoadedPreference) {
       loadThemePreference()
     }
-  }, [session, mounted, loadThemePreference])
+  }, [session, mounted, loadThemePreference, hasLoadedPreference])
 
   const saveThemePreference = async (newTheme: string) => {
     if (!session?.user?.email) return
@@ -69,18 +78,36 @@ export function ThemeToggle({ isCollapsed = false }: ThemeToggleProps) {
     )
   }
 
-  const cycleTheme = () => {
-    const newTheme = theme === 'dark' ? 'light' : 'dark'
+  const cycleTheme = async () => {
+    if (isLoading) return
+    
+    // Use resolvedTheme for more accurate current state
+    const currentTheme = resolvedTheme || 'light'
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark'
+    
+    // Temporarily disable transitions to prevent flicker
+    document.documentElement.classList.add('theme-transitioning')
+    
+    // Set theme immediately for instant feedback
     setTheme(newTheme)
-    saveThemePreference(newTheme)
+    
+    // Re-enable transitions after a brief delay
+    setTimeout(() => {
+      document.documentElement.classList.remove('theme-transitioning')
+    }, 100)
+    
+    // Save to database asynchronously
+    if (session?.user?.email) {
+      saveThemePreference(newTheme)
+    }
   }
 
   const getThemeIcon = () => {
-    return theme === 'dark' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />
+    return resolvedTheme === 'dark' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />
   }
 
   const getThemeLabel = () => {
-    return theme === 'dark' ? 'Dark' : 'Light'
+    return resolvedTheme === 'dark' ? 'Dark' : 'Light'
   }
 
   return (
@@ -88,7 +115,8 @@ export function ThemeToggle({ isCollapsed = false }: ThemeToggleProps) {
       variant="ghost"
       size="sm"
       onClick={cycleTheme}
-      className={`${isCollapsed ? 'w-10 h-10 p-0' : 'w-full justify-start'} transition-colors`}
+      disabled={isLoading}
+      className={`${isCollapsed ? 'w-10 h-10 p-0' : 'w-full justify-start'} transition-none`}
       title={isCollapsed ? `Theme: ${getThemeLabel()} (click to cycle)` : undefined}
     >
       {getThemeIcon()}

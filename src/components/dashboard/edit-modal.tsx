@@ -28,9 +28,10 @@ interface EditModalProps {
   }
   onItemUpdated: () => void
   triggerClassName?: string
+  buttonText?: string
 }
 
-export function EditModal({ type, item, onItemUpdated, triggerClassName }: EditModalProps) {
+export function EditModal({ type, item, onItemUpdated, triggerClassName, buttonText }: EditModalProps) {
   const [open, setOpen] = useState(false)
   const [formData, setFormData] = useState({
     title: '',
@@ -123,7 +124,7 @@ export function EditModal({ type, item, onItemUpdated, triggerClassName }: EditM
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className={triggerClassName}>
           <Edit className="w-4 h-4 mr-2" />
-          Edit
+          {buttonText || 'Edit'}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">

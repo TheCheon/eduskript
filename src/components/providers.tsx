@@ -10,7 +10,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         attribute="class"
         defaultTheme="system"
         enableSystem
-        disableTransitionOnChange
+        disableTransitionOnChange={false}
+        storageKey="eduscript-theme"
+        themes={['light', 'dark', 'system']}
       >
         {children}
       </ThemeProvider>
