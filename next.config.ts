@@ -1,13 +1,11 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  // Add webpack configuration for Prisma
-  // webpack: (config, { isServer }) => {
-  //   if (isServer) {
-  //     config.externals.push('@prisma/client')
-  //   }
-  //   return config
-  // },
+  env: {
+    DATABASE_URL: process.env.DATABASE_URL,
+    NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
+    NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+  },
 }
 
 export default nextConfig
