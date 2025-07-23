@@ -2,12 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { writeFile, mkdir } from 'fs/promises'
-import { existsSync } from 'fs'
-import path from 'path'
-import crypto from 'crypto'
+import { getS3Client } from '@/lib/utils'
+import { PutObjectCommand } from '@aws-sdk/client-s3'
+import { ListObjectsV2Command } from '@aws-sdk/client-s3'
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || './public/uploads'
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '10485760') // 10MB
 const ALLOWED_TYPES = (process.env.ALLOWED_FILE_TYPES || 'jpg,jpeg,png,gif,webp,svg,pdf,doc,docx,txt,md,zip,mp4,mp3,wav').split(',')
 
@@ -28,9 +26,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate file size
-    if (file.size > MAX_FILE_SIZE) {
+    if (file.size > MAX_FILE_SIZE) { // 10MB
       return NextResponse.json({ 
-        error: `File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB` 
+        error: `File too large. Maximum size is ${MAX_FILE_SIZE / 1048576}MB` 
       }, { status: 400 })
     }
 
@@ -52,59 +50,52 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User subdomain not found' }, { status: 400 })
     }
 
-    let uploadPath: string
-    let relativePath: string
+    // In POST handler, require chapterId and only allow uploadType 'chapter'
+    if (!chapterId) {
+      return NextResponse.json({ error: 'Chapter ID is required for file upload' }, { status: 400 })
+    }
 
-    if (uploadType === 'global') {
-      // Global upload directory: /uploads/{subdomain}/global/
-      uploadPath = path.join(UPLOAD_DIR, user.subdomain, 'global')
-      relativePath = `/uploads/${user.subdomain}/global`
-    } else {
-      // Chapter-specific upload: verify chapter ownership
-      const chapter = await prisma.chapter.findFirst({
-        where: {
-          id: chapterId,
-          authorId: session.user.id
-        }
-      })
-
-      if (!chapter) {
-        return NextResponse.json({ error: 'Chapter not found or access denied' }, { status: 403 })
+    // Verify chapter ownership
+    const chapter = await prisma.chapter.findFirst({
+      where: {
+        id: chapterId,
+        authorId: session.user.id
       }
+    })
 
-      // Chapter upload directory: /uploads/{subdomain}/chapters/{chapterId}/
-      uploadPath = path.join(UPLOAD_DIR, user.subdomain, 'chapters', chapterId)
-      relativePath = `/uploads/${user.subdomain}/chapters/${chapterId}`
+    if (!chapter) {
+      return NextResponse.json({ error: 'Chapter not found or access denied' }, { status: 403 })
     }
 
-    // Create directory if it doesn't exist
-    if (!existsSync(uploadPath)) {
-      await mkdir(uploadPath, { recursive: true })
-    }
-
-    // Generate unique filename to prevent conflicts
-    const timestamp = Date.now()
-    const randomString = crypto.randomBytes(6).toString('hex')
-    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-    const uniqueFilename = `${timestamp}_${randomString}_${sanitizedName}`
-
-    // Save file
-    const fullPath = path.join(uploadPath, uniqueFilename)
+    // Chapter upload directory: uploads/{subdomain}/chapters/{chapterId}/
+    const s3KeyPrefix = `${user.subdomain}/chapters/${chapterId}`
+    const bucket = process.env.CELLAR_ADDON_BUCKET!
+    const s3 = getS3Client()
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    
-    await writeFile(fullPath, buffer)
+
+    // Upload to S3/Cellar
+    await s3.send(new PutObjectCommand({
+      Bucket: bucket,
+      Key: `${s3KeyPrefix}/${file.name}`, // Use original filename as S3 key
+      Body: buffer,
+      ContentType: file.type,
+      ACL: 'public-read',
+    }))
+
+    // Construct S3 URL (Cellar public URL format)
+    const s3Url = `https://${bucket}.${process.env.CELLAR_ADDON_HOST}/${s3KeyPrefix}/${file.name}`
 
     // Return file info
     const fileInfo = {
-      filename: uniqueFilename,
+      filename: file.name,
       originalName: file.name,
       size: file.size,
       type: file.type,
       extension: fileExtension,
-      url: `${relativePath}/${uniqueFilename}`,
+      url: s3Url,
       uploadType,
-      chapterId: uploadType === 'chapter' ? chapterId : null,
+      chapterId: chapterId,
       uploadedAt: new Date().toISOString()
     }
 
@@ -138,8 +129,58 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User subdomain not found' }, { status: 400 })
     }
 
-    const files = await getDirectoryFiles(user.subdomain, chapterId)
-    
+    // In GET handler, require chapterId and only list chapter files
+    if (!chapterId) {
+      return NextResponse.json({ error: 'Chapter ID is required for file listing' }, { status: 400 })
+    }
+
+    // Verify chapter ownership
+    const chapter = await prisma.chapter.findFirst({
+      where: {
+        id: chapterId,
+        authorId: session.user.id
+      }
+    })
+
+    if (!chapter) {
+      return NextResponse.json({ error: 'Chapter not found or access denied' }, { status: 403 })
+    }
+
+    const bucket = process.env.CELLAR_ADDON_BUCKET!
+    const s3 = getS3Client()
+    const prefix = `${user.subdomain}/chapters/${chapterId}/`
+
+    // List objects in S3/Cellar
+    const listRes = await s3.send(new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: prefix,
+    }))
+
+    interface S3Object {
+      Key?: string
+      Size?: number
+      LastModified?: Date
+    }
+
+    const files = (listRes.Contents || [])
+      .filter((obj: S3Object) => obj.Key && !obj.Key.endsWith('/'))
+      .map((obj: S3Object) => {
+        const key = obj.Key!
+        const filename = key.split('/').pop()!
+        const url = `https://${bucket}.${process.env.CELLAR_ADDON_HOST}/${key}`
+        const uploadedAt = obj.LastModified ? obj.LastModified.toISOString() : ''
+        return {
+          filename,
+          size: obj.Size || 0,
+          url,
+          uploadType: 'chapter' as const,
+          chapterId: chapterId,
+          uploadedAt,
+          isDirectory: false,
+        }
+      })
+      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
+
     return NextResponse.json({ files })
   } catch (error) {
     console.error('File listing error:', error)
@@ -148,66 +189,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
-
-async function getDirectoryFiles(subdomain: string, chapterId?: string | null) {
-  const { readdir, stat } = await import('fs/promises')
-  const files: {
-    filename: string
-    size: number
-    url: string
-    uploadType: string
-    uploadedAt: string
-    isDirectory: boolean
-    chapterId?: string
-  }[] = []
-
-  // Get global files
-  const globalPath = path.join(UPLOAD_DIR, subdomain, 'global')
-  if (existsSync(globalPath)) {
-    try {
-      const globalFiles = await readdir(globalPath)
-      for (const filename of globalFiles) {
-        const filePath = path.join(globalPath, filename)
-        const stats = await stat(filePath)
-        files.push({
-          filename,
-          size: stats.size,
-          url: `/uploads/${subdomain}/global/${filename}`,
-          uploadType: 'global',
-          uploadedAt: stats.birthtime.toISOString(),
-          isDirectory: false
-        })
-      }
-    } catch {
-      // Directory doesn't exist or is empty
-    }
-  }
-
-  // Get chapter-specific files if chapterId provided
-  if (chapterId) {
-    const chapterPath = path.join(UPLOAD_DIR, subdomain, 'chapters', chapterId)
-    if (existsSync(chapterPath)) {
-      try {
-        const chapterFiles = await readdir(chapterPath)
-        for (const filename of chapterFiles) {
-          const filePath = path.join(chapterPath, filename)
-          const stats = await stat(filePath)
-          files.push({
-            filename,
-            size: stats.size,
-            url: `/uploads/${subdomain}/chapters/${chapterId}/${filename}`,
-            uploadType: 'chapter',
-            chapterId,
-            uploadedAt: stats.birthtime.toISOString(),
-            isDirectory: false
-          })
-        }
-      } catch {
-        // Directory doesn't exist or is empty
-      }
-    }
-  }
-
-  return files.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
 }

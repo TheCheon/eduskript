@@ -6,7 +6,6 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { FileText, BookOpen, Settings, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { ThemeToggle } from './theme-toggle'
 
 const navigation = [
   { name: 'Overview', href: '/dashboard', icon: FileText },
@@ -76,11 +75,6 @@ export function DashboardSidebar() {
             )
           })}
         </nav>
-        
-        {/* Theme Toggle */}
-        <div className="pt-4 border-t border-border">
-          <ThemeToggle isCollapsed={isCollapsed} />
-        </div>
       </div>
     </div>
   )

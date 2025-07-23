@@ -55,7 +55,7 @@ export function getChapterUploadDir(domain: string, chapterId: string): string {
  * @returns The path to the domain's global upload directory
  */
 export function getGlobalUploadDir(domain: string): string {
-  return path.join(process.cwd(), 'public', 'uploads', domain)
+  return path.join(process.cwd(), 'public', 'uploads', domain, 'global')
 }
 
 /**

@@ -9,7 +9,7 @@ import rehypeStringify from 'rehype-stringify'
 import matter from 'gray-matter'
 import rehypeSlug from 'rehype-slug'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
-import { remarkImageResolver } from './remark-plugins/image-resolver'
+import { remarkFileResolver } from './remark-plugins/file-resolver'
 
 export interface ProcessedMarkdown {
   content: string
@@ -36,10 +36,7 @@ export async function processMarkdown(
   // Process markdown to HTML
   const processor = unified()
     .use(remarkParse)
-    .use(remarkImageResolver, { 
-      domain: context?.domain, 
-      chapterId: context?.chapterId,
-      isClient: false, // This runs server-side, so file system access is available
+    .use(remarkFileResolver, { 
       fileList: context?.fileList
     })
     .use(remarkMath)

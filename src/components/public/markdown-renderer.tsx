@@ -8,7 +8,6 @@ import rehypeKatex from 'rehype-katex'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeStringify from 'rehype-stringify'
 import { useEffect, useState } from 'react'
-import { remarkImageResolver } from '@/lib/remark-plugins/image-resolver'
 
 interface MarkdownRendererProps {
   content: string
@@ -24,7 +23,6 @@ export function MarkdownRenderer({ content, domain, chapterId }: MarkdownRendere
     const processMarkdown = async () => {
       try {
         const result = await remark()
-          .use(remarkImageResolver, { domain, chapterId, isClient: true })
           .use(remarkGfm)
           .use(remarkMath)
           .use(remarkRehype)

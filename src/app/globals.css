@@ -334,7 +334,7 @@ html.dark {
 }
 
 .prose-theme img {
-  @apply rounded-lg;
+  @apply rounded-lg mx-auto block;
 }
 
 .prose-theme code {

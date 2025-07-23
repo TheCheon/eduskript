@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { 
   File, 
   Image, 
@@ -8,10 +8,7 @@ import {
   Video, 
   Music, 
   Archive,
-  Trash2,
-  Upload,
-  Globe,
-  FolderOpen
+  Trash2
 } from 'lucide-react'
 
 interface FileItem {
@@ -29,35 +26,13 @@ interface FileBrowserProps {
   chapterId?: string
   onFileSelect?: (file: FileItem) => void
   className?: string
+  onUploadComplete?: () => void
+  files: FileItem[]
+  loading: boolean
 }
 
-export function FileBrowser({ chapterId, onFileSelect, className = '' }: FileBrowserProps) {
-  const [files, setFiles] = useState<FileItem[]>([])
-  const [loading, setLoading] = useState(true)
+export function FileBrowser({ chapterId, onFileSelect, className = '', onUploadComplete, files, loading }: FileBrowserProps) {
   const [dragOver, setDragOver] = useState(false)
-  const [uploadingFiles, setUploadingFiles] = useState<string[]>([])
-
-  const loadFiles = useCallback(async () => {
-    try {
-      const params = new URLSearchParams()
-      if (chapterId) params.set('chapterId', chapterId)
-      
-      const response = await fetch(`/api/upload?${params}`)
-      const data = await response.json()
-      
-      if (response.ok) {
-        setFiles(data.files || [])
-      }
-    } catch (error) {
-      console.error('Error loading files:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [chapterId])
-
-  useEffect(() => {
-    loadFiles()
-  }, [loadFiles])
 
   const getFileIcon = (filename: string) => {
     const extension = filename.split('.').pop()?.toLowerCase()
@@ -100,16 +75,12 @@ export function FileBrowser({ chapterId, onFileSelect, className = '' }: FileBro
   const handleDrop = async (e: React.DragEvent, uploadType: 'global' | 'chapter' = 'chapter') => {
     e.preventDefault()
     setDragOver(false)
-
     const droppedFiles = Array.from(e.dataTransfer.files)
     await uploadFiles(droppedFiles, uploadType)
   }
 
   const uploadFiles = async (fileList: File[], uploadType: 'global' | 'chapter' = 'chapter') => {
     const uploadPromises = fileList.map(async (file) => {
-      const fileId = `${file.name}-${Date.now()}`
-      setUploadingFiles(prev => [...prev, fileId])
-
       try {
         const formData = new FormData()
         formData.append('file', file)
@@ -124,27 +95,17 @@ export function FileBrowser({ chapterId, onFileSelect, className = '' }: FileBro
         })
 
         if (response.ok) {
-          await loadFiles() // Refresh file list
+          if (onUploadComplete) onUploadComplete()
         } else {
           const error = await response.json()
           console.error('Upload failed:', error.error)
         }
       } catch (error) {
         console.error('Upload error:', error)
-      } finally {
-        setUploadingFiles(prev => prev.filter(id => id !== fileId))
       }
     })
 
     await Promise.all(uploadPromises)
-  }
-
-  const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>, uploadType: 'global' | 'chapter' = 'chapter') => {
-    const fileList = e.target.files
-    if (fileList) {
-      await uploadFiles(Array.from(fileList), uploadType)
-    }
-    e.target.value = '' // Reset input
   }
 
   const handleFileDragStart = (e: React.DragEvent, file: FileItem) => {
@@ -169,7 +130,8 @@ export function FileBrowser({ chapterId, onFileSelect, className = '' }: FileBro
       })
 
       if (response.ok) {
-        await loadFiles() // Refresh file list
+        // await loadFiles() // Refresh file list // This line is removed
+        if (onUploadComplete) onUploadComplete()
       } else {
         const error = await response.json()
         console.error('Delete failed:', error.error)
@@ -178,9 +140,6 @@ export function FileBrowser({ chapterId, onFileSelect, className = '' }: FileBro
       console.error('Delete error:', error)
     }
   }
-
-  const globalFiles = files.filter(f => f.uploadType === 'global')
-  const chapterFiles = files.filter(f => f.uploadType === 'chapter')
 
   if (loading) {
     return (
@@ -195,119 +154,24 @@ export function FileBrowser({ chapterId, onFileSelect, className = '' }: FileBro
 
   return (
     <div className={`p-4 space-y-4 ${className}`}>
-      {/* Global Files Section */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center space-x-2">
-            <Globe className="w-4 h-4 text-blue-500" />
-            <h4 className="font-medium text-foreground">Global Files</h4>
-          </div>
-          <div>
-            <input
-              type="file"
-              multiple
-              className="hidden"
-              id="global-upload"
-              onChange={(e) => handleFileInput(e, 'global')}
-            />
-            <label
-              htmlFor="global-upload"
-              className="cursor-pointer inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-800"
-            >
-              <Upload className="w-3 h-3 mr-1" />
-              Upload
-            </label>
-          </div>
-        </div>
-        
-        <div
-          className={`border-2 border-dashed rounded-lg p-3 transition-colors ${
-            dragOver ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/10' : 'border-gray-300 dark:border-gray-600'
-          }`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={(e) => handleDrop(e, 'global')}
-        >
-          {globalFiles.length === 0 ? (
-            <div className="text-center py-2 text-muted-foreground text-sm">
-              No global files. Drop files here or click upload.
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {globalFiles.map((file) => (
-                <div
-                  key={file.url}
-                  className="flex items-center space-x-2 p-2 rounded hover:bg-muted group"
-                >
-                  <div
-                    className="flex items-center space-x-2 flex-1 cursor-pointer"
-                    draggable
-                    onDragStart={(e) => handleFileDragStart(e, file)}
-                    onClick={() => onFileSelect?.(file)}
-                  >
-                    {getFileIcon(file.filename)}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">
-                        {file.originalName || file.filename}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleFileDelete(file)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-destructive hover:text-destructive/80 transition-opacity"
-                    title="Delete file"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Chapter Files Section */}
       {chapterId && (
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center space-x-2">
-              <FolderOpen className="w-4 h-4 text-green-500" />
-              <h4 className="font-medium text-foreground">Chapter Files</h4>
-            </div>
-            <div>
-              <input
-                type="file"
-                multiple
-                className="hidden"
-                id="chapter-upload"
-                onChange={(e) => handleFileInput(e, 'chapter')}
-              />
-              <label
-                htmlFor="chapter-upload"
-                className="cursor-pointer inline-flex items-center px-2 py-1 text-xs font-medium text-success hover:text-success/80"
-              >
-                <Upload className="w-3 h-3 mr-1" />
-                Upload
-              </label>
-            </div>
-          </div>
-          
           <div
             className={`border-2 border-dashed rounded-lg p-3 transition-colors ${
-              dragOver ? 'border-success bg-success/10' : 'border-border'
+              dragOver ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/10' : 'border-border'
             }`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, 'chapter')}
           >
-            {chapterFiles.length === 0 ? (
+            {files.filter(f => f.uploadType === 'chapter').length === 0 ? (
               <div className="text-center py-2 text-muted-foreground text-sm">
                 No chapter files. Drop files here or click upload.
               </div>
             ) : (
               <div className="space-y-1">
-                {chapterFiles.map((file) => (
+                {files.filter(f => f.uploadType === 'chapter').map((file) => (
                   <div
                     key={file.url}
                     className="flex items-center space-x-2 p-2 rounded hover:bg-muted group"
@@ -338,15 +202,6 @@ export function FileBrowser({ chapterId, onFileSelect, className = '' }: FileBro
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {/* Upload Progress */}
-      {uploadingFiles.length > 0 && (
-        <div className="border rounded-lg p-3 bg-blue-50 dark:bg-blue-900/20">
-          <p className="text-sm text-blue-800 dark:text-blue-200">
-            Uploading {uploadingFiles.length} file(s)...
-          </p>
         </div>
       )}
     </div>

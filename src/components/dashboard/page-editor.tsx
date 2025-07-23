@@ -58,7 +58,62 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
   const [versions, setVersions] = useState<PageVersion[]>([])
   const contentRef = useRef(content)
   const router = useRouter()
-  const { data: session } = useSession()
+  const { data: session, status: sessionStatus } = useSession()
+
+  // Shared file list state
+  const [fileList, setFileList] = useState<Array<{
+    filename: string
+    url: string
+    relativePath: string
+    size: number
+    uploadType: 'chapter' | 'global'
+    uploadedAt: string
+    chapterId?: string
+    originalName?: string
+    extension?: string
+  }>>([])
+  const [fileListLoading, setFileListLoading] = useState(false)
+
+  // Fetch file list from API
+  const refreshFileList = useCallback(async () => {
+    setFileListLoading(true)
+    try {
+      const response = await fetch(`/api/upload?chapterId=${chapter.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        const transformedFiles = data.files.map((file: {
+          filename: string
+          url: string
+          size?: number
+          uploadType?: string
+          uploadedAt?: string
+          chapterId?: string
+          originalName?: string
+          extension?: string
+        }) => ({
+          filename: file.filename,
+          url: file.url,
+          relativePath: file.url,
+          size: file.size || 0,
+          uploadType: file.uploadType || 'chapter',
+          uploadedAt: file.uploadedAt || '',
+          chapterId: file.chapterId || chapter.id,
+          originalName: file.originalName,
+          extension: file.extension
+        }))
+        setFileList(transformedFiles)
+      }
+    } catch (error) {
+      console.error('Error fetching file list:', error)
+    } finally {
+      setFileListLoading(false)
+    }
+  }, [chapter.id])
+
+  // Fetch file list on mount and when chapter changes
+  useEffect(() => {
+    refreshFileList()
+  }, [refreshFileList])
 
   // Update ref when content changes
   useEffect(() => {
@@ -274,16 +329,19 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
             onItemUpdated={handlePageUpdated}
             buttonText="Edit Page Details"
           />
-          <Link 
-            href={`/${(session?.user as { subdomain?: string })?.subdomain}/${script.slug}/${chapter.slug}/${page.slug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Button variant="outline" size="sm">
-              <Eye className="w-4 h-4 mr-2" />
-              Preview
-            </Button>
-          </Link>
+          {sessionStatus === 'authenticated' && (session?.user as { subdomain?: string })?.subdomain && (
+            <Link 
+              href={`/${(session?.user as { subdomain?: string })?.subdomain}/${script.slug}/${chapter.slug}/${page.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              prefetch={false}
+            >
+              <Button variant="outline" size="sm">
+                <Eye className="w-4 h-4 mr-2" />
+                Preview
+              </Button>
+            </Link>
+          )}
           <Button onClick={handleSave} disabled={isSaving}>
             <Save className="w-4 h-4 mr-2" />
             {isSaving ? 'Saving...' : 'Save'}
@@ -291,14 +349,21 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
         </div>
       </div>
 
-      {/* Files - Collapsible Drawer */}
+      {/* Chapter Files - Collapsible Drawer */}
       <CollapsibleDrawer 
-        title="Files" 
+        title="Chapter Files" 
         icon={<Files className="w-5 h-5" />}
         defaultOpen={false}
       >
         <FileBrowser 
           chapterId={chapter.id}
+          files={fileList}
+          loading={fileListLoading}
+          onFileSelect={(file) => {
+            handleFileInsert(file)
+            refreshFileList()
+          }}
+          onUploadComplete={refreshFileList}
         />
       </CollapsibleDrawer>
 
@@ -318,6 +383,8 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
             onFileInsert={handleFileInsert}
             chapterId={chapter.id}
             domain={(session?.user as { subdomain?: string })?.subdomain || undefined}
+            fileList={fileList}
+            fileListLoading={fileListLoading}
           />
         </CardContent>
       </Card>

@@ -13,7 +13,7 @@ export default function HomePage() {
             Host your class materials on your own website in Europe for free
           </h1>
           <p className="text-xl text-gray-600 dark:text-gray-300 mb-8 max-w-2xl mx-auto">
-            Eduskript is a platform for teachers to easily share class materials without being trapped by big US tech companies. It's hosted in Europe, open source and expandable with plugins. 
+            Eduskript is a platform for teachers to easily share class materials without being trapped by big US tech companies. It is hosted in Europe, open source and expandable with plugins. 
           </p>
           
           <div className="flex gap-4 justify-center flex-wrap">

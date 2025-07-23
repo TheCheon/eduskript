@@ -14,6 +14,8 @@ interface MarkdownEditorProps {
   chapterId?: string
   domain?: string
   isReadOnly?: boolean
+  fileList?: Array<{filename: string, url: string, relativePath: string}>
+  fileListLoading?: boolean
 }
 
 // Create a client-only version using dynamic import
@@ -31,6 +33,6 @@ const CodeMirrorEditor = dynamic(
   }
 )
 
-export function MarkdownEditor(props: MarkdownEditorProps) {
+export const MarkdownEditor = function MarkdownEditor(props: MarkdownEditorProps) {
   return <CodeMirrorEditor {...props} />
 }

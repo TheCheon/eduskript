@@ -12,24 +12,22 @@ interface CodeMirrorEditorProps {
   content: string
   onChange: (content: string) => void
   onSave?: () => void
-  onFileInsert?: (file: {
-    filename: string
-    url: string
-    uploadType: string
-  }) => void
   chapterId?: string
   domain?: string
   isReadOnly?: boolean
+  fileList?: Array<{filename: string, url: string, relativePath: string}>
+  fileListLoading?: boolean
 }
 
-export default function CodeMirrorEditor({ 
-  content, 
-  onChange, 
+const CodeMirrorEditor = function CodeMirrorEditor({
+  content,
+  onChange,
   onSave,
-  onFileInsert,
   chapterId,
   domain,
-  isReadOnly = false 
+  isReadOnly = false,
+  fileList,
+  fileListLoading = false
 }: CodeMirrorEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
@@ -40,7 +38,6 @@ export default function CodeMirrorEditor({
   const [useSimpleEditor, setUseSimpleEditor] = useState(false)
   const [textareaContent, setTextareaContent] = useState(content || '')
   const [dragOver, setDragOver] = useState(false)
-  const [fileList, setFileList] = useState<Array<{filename: string, url: string, relativePath: string}>>([])
   const { theme } = useTheme()
   const isDark = theme === 'dark'
 
@@ -53,6 +50,18 @@ export default function CodeMirrorEditor({
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     setDragOver(true)
+    
+    // Update cursor position based on mouse position during drag
+    if (editorViewRef.current && !useSimpleEditor) {
+      const view = editorViewRef.current
+      const pos = view.posAtCoords({ x: e.clientX, y: e.clientY })
+      if (pos !== null) {
+        // Update selection to show where the file will be inserted
+        view.dispatch({
+          selection: { anchor: pos, head: pos }
+        })
+      }
+    }
   }
 
   const handleDragLeave = (e: React.DragEvent) => {
@@ -64,12 +73,18 @@ export default function CodeMirrorEditor({
     e.preventDefault()
     setDragOver(false)
 
+    // Get drop position from mouse coordinates
+    let dropPosition = null
+    if (editorViewRef.current && !useSimpleEditor) {
+      dropPosition = editorViewRef.current.posAtCoords({ x: e.clientX, y: e.clientY })
+    }
+
     // Check if it's a file from the file browser (has custom data)
     const fileData = e.dataTransfer.getData('application/Eduskript-file')
     if (fileData) {
       try {
         const file = JSON.parse(fileData)
-        onFileInsert?.(file)
+        insertFileAtPosition(file, dropPosition)
         return
       } catch (error) {
         console.error('Error parsing file data:', error)
@@ -93,11 +108,61 @@ export default function CodeMirrorEditor({
 
           if (response.ok) {
             const uploadedFile = await response.json()
-            onFileInsert?.(uploadedFile)
+            insertFileAtPosition(uploadedFile, dropPosition)
           }
         }
       } catch (error) {
         console.error('Error uploading dropped files:', error)
+      }
+    }
+  }
+
+  // Insert file at specific position (or cursor if no position provided)
+  const insertFileAtPosition = (file: { filename: string; url: string; originalName?: string }, position?: number | null) => {
+    let insertText = ''
+    
+    // Determine the type of insert based on file extension
+    const extension = file.filename.split('.').pop()?.toLowerCase()
+    
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension || '')) {
+      // Image - use regular markdown syntax with just filename for path resolution
+      const altText = file.originalName ? file.originalName.replace(/\.[^/.]+$/, '') : file.filename.replace(/\.[^/.]+$/, '')
+      insertText = `![${altText}](${file.filename})`
+    } else if (['mp4', 'avi', 'mov', 'wmv'].includes(extension || '')) {
+      // Video - use full URL for non-image files
+      insertText = `<video controls>\n  <source src="${file.url}" type="video/${extension}">\n  Your browser does not support the video tag.\n</video>`
+    } else if (['mp3', 'wav', 'ogg'].includes(extension || '')) {
+      // Audio - use full URL for non-image files
+      insertText = `<audio controls>\n  <source src="${file.url}" type="audio/${extension}">\n  Your browser does not support the audio tag.\n</audio>`
+    } else {
+      // Generic file/download link - use full URL for non-image files
+      insertText = `[${file.originalName || file.filename}](${file.url})`
+    }
+
+    if (editorViewRef.current && !useSimpleEditor) {
+      // Insert at specific position or current cursor position in CodeMirror
+      const view = editorViewRef.current
+      const insertPos = position !== null && position !== undefined ? position : view.state.selection.main.head
+      const transaction = view.state.update({
+        changes: { from: insertPos, insert: insertText },
+        selection: { anchor: insertPos + insertText.length }
+      })
+      view.dispatch(transaction)
+      onChange(view.state.doc.toString())
+    } else if (useSimpleEditor) {
+      // Insert at cursor position in textarea
+      const textarea = document.querySelector('textarea') as HTMLTextAreaElement
+      if (textarea) {
+        const start = textarea.selectionStart
+        const end = textarea.selectionEnd
+        const newContent = textareaContent.substring(0, start) + insertText + textareaContent.substring(end)
+        setTextareaContent(newContent)
+        onChange(newContent)
+        // Restore cursor position after the inserted text
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = start + insertText.length
+          textarea.focus()
+        }, 0)
       }
     }
   }
@@ -111,41 +176,15 @@ export default function CodeMirrorEditor({
     console.log('CodeMirrorEditor mounting...')
   }, [])
 
-  // Fetch file list for image resolution
-  useEffect(() => {
-    if (!domain || !chapterId) return
-
-    const fetchFileList = async () => {
-      try {
-        const response = await fetch(`/api/upload?chapterId=${chapterId}`)
-        if (response.ok) {
-          const data = await response.json()
-          // Transform API response to match our FileInfo interface
-          const transformedFiles = data.files.map((file: { filename: string; url: string }) => ({
-            filename: file.filename,
-            url: file.url,
-            relativePath: file.url // url is already the relative path we need
-          }))
-          setFileList(transformedFiles)
-          console.log('📁 Fetched file list:', transformedFiles.length, 'files')
-        }
-      } catch (error) {
-        console.error('Error fetching file list:', error)
-      }
-    }
-
-    fetchFileList()
-  }, [domain, chapterId])
-
   // Process markdown for preview
   useEffect(() => {
-    if (!isMounted) return
+    if (!isMounted || fileListLoading) return
     
     const updatePreview = async () => {
       try {
         const processed = await processMarkdown(
           useSimpleEditor ? textareaContent : editorContent, 
-          { domain, chapterId, fileList }
+          { domain, chapterId, fileList: fileList || [] }
         )
         setPreviewContent(processed.content)
       } catch (error) {
@@ -155,7 +194,7 @@ export default function CodeMirrorEditor({
     }
     
     updatePreview()
-  }, [editorContent, textareaContent, useSimpleEditor, isMounted, domain, chapterId, fileList])  // Initialize CodeMirror with dynamic imports
+  }, [editorContent, textareaContent, useSimpleEditor, isMounted, domain, chapterId, fileList, fileListLoading])
   useEffect(() => {
     if (!isMounted || !editorRef.current) return
 
@@ -231,6 +270,10 @@ export default function CodeMirrorEditor({
               '.cm-scroller': {
                 backgroundColor: 'hsl(var(--card))',
                 minHeight: '100%',
+                overflowX: 'hidden', // Prevent horizontal overflow
+              },
+              '.cm-line': {
+                wordBreak: 'break-word', // Break long words
               },
               // Fix with specific selector that causes transparent selection background issues
               '&.cm-focused .cm-line ::selection': {
@@ -240,6 +283,7 @@ export default function CodeMirrorEditor({
                 backgroundColor: isDark ? 'rgba(59, 130, 246, 0.3) !important' : 'rgba(37, 99, 235, 0.3) !important',
               },
             }),
+            EditorView.lineWrapping, // Add line wrapping extension
           ],
         })
 
@@ -395,3 +439,5 @@ export default function CodeMirrorEditor({
     </div>
   )
 }
+
+export default CodeMirrorEditor
