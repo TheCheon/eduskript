@@ -11,6 +11,7 @@ import { Edit } from 'lucide-react'
 import type { Metadata } from 'next'
 import { getS3Client } from '@/lib/utils'
 import { ListObjectsV2Command } from '@aws-sdk/client-s3'
+import { headers } from 'next/headers'
 
 interface PageProps {
   params: Promise<{
@@ -184,6 +185,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function PublicPage({ params }: PageProps) {
   const { domain, scriptSlug, chapterSlug, pageSlug } = await params
   const session = await getServerSession(authOptions)
+  
+  // Check if we're on a subdomain by examining the Host header
+  const headersList = await headers()
+  const host = headersList.get('host') || ''
+  const hostname = host.split(':')[0]
+  const isOnSubdomain = hostname !== 'localhost' && hostname.endsWith('.localhost')
 
   try {
     // Find teacher by subdomain
@@ -364,6 +371,7 @@ export default async function PublicPage({ params }: PageProps) {
               { title: page.title }
             ]}
             subdomain={domain}
+            isOnSubdomain={isOnSubdomain}
           ><a
             href={`/dashboard/topics/${script.slug}/chapters/${chapter.slug}/pages/${page.slug}/edit`}
             className="inline-flex items-center px-2 py-1 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors shadow-md"

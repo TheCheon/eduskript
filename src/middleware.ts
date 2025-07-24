@@ -6,8 +6,8 @@ export async function middleware(request: NextRequest) {
   const token = await getToken({ req: request })
   
   // Handle subdomain routing
-  // Get the full hostname (including subdomains)
-  const fullHostname = host || request.headers.get('host') || ''
+  // Get the full hostname (including subdomains) - prioritize Host header for subdomain support
+  const fullHostname = request.headers.get('host') || host || ''
   const hostname = fullHostname.split(':')[0] // Remove port if present
   
   // Determine if this is a subdomain request

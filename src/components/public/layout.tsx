@@ -161,7 +161,17 @@ export function PublicSiteLayout({ teacher, siteStructure, children, currentPath
   }
 
   const navigateToPage = (scriptSlug: string, chapterSlug: string, pageSlug: string) => {
-    const url = `/${teacher.subdomain}/${scriptSlug}/${chapterSlug}/${pageSlug}`
+    // Check if we're on a subdomain by looking at window.location.hostname
+    const isOnSubdomain = typeof window !== 'undefined' && 
+      window.location.hostname !== 'localhost' && 
+      window.location.hostname.endsWith('.localhost')
+    
+    // If on subdomain, use relative URL (middleware will handle rewrite)
+    // If on main domain, use full path with subdomain
+    const url = isOnSubdomain 
+      ? `/${scriptSlug}/${chapterSlug}/${pageSlug}`
+      : `/${teacher.subdomain}/${scriptSlug}/${chapterSlug}/${pageSlug}`
+    
     router.push(url)
     setIsSidebarOpen(false)
   }

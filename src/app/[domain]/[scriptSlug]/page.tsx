@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
 import { PublicSiteLayout } from '@/components/public/layout'
+import { getNavigationUrl } from '@/lib/utils'
 
 // Enable ISR with on-demand regeneration for previews
 export const revalidate = 0 // No caching for previews to show latest changes
@@ -307,7 +308,7 @@ export default async function TopicPreviewPage({ params }: TopicPreviewProps) {
                               return (
                                 <li key={page.id} className="text-muted-foreground">
                                   <a 
-                                    href={`/${domain}/${scriptSlug}/${chapter.slug}/${page.slug}`}
+                                    href={getNavigationUrl(domain, `/${scriptSlug}/${chapter.slug}/${page.slug}`)}
                                     className="hover:text-foreground hover:underline flex items-center"
                                   >
                                     <span className="mr-2">
