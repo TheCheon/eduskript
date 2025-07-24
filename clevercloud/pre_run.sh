@@ -8,13 +8,8 @@ set -e
 
 echo "🚀 Starting pre-run setup..."
 
-# Installing pnpm
-if ! command -v pnpm &> /dev/null; then
-    echo "🔧 Installing pnpm..."
-    corepack enable pnpm
-else
-    echo "✅ pnpm is already installed"
-fi
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+"$DIR/install_pnpm.sh"
 
 # Check if POSTGRESQL_ADDON_URI is available
 if [ -z "$POSTGRESQL_ADDON_URI" ]; then

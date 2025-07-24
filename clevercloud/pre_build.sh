@@ -6,10 +6,5 @@ set -e
 
 echo "🚀 Starting pre-build setup..."
 
-# Installing pnpm
-if ! command -v pnpm &> /dev/null; then
-    echo "🔧 Installing pnpm..."
-    corepack enable pnpm
-else
-    echo "✅ pnpm is already installed"
-fi
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+"$DIR/install_pnpm.sh"
