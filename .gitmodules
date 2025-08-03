@@ -1,4 +1,4 @@
 [submodule "deployment"]
 	path = deployment
-	url = https://github.com/marcchehab/eduskript-deployment.git
+	url = git@github.com:marcchehab/eduskript-deployment.git
 	branch = main
