@@ -34,7 +34,8 @@ export function getNavigationUrl(
   // On client-side, we can check the current hostname
   if (isClientSide && typeof window !== 'undefined') {
     const hostname = window.location.hostname
-    const isOnSubdomain = hostname !== 'localhost' && hostname.endsWith('.localhost')
+    const isMainDomain = hostname === 'localhost' || hostname === 'eduskript.org' || hostname === 'www.eduskript.org'
+    const isOnSubdomain = !isMainDomain && (hostname.endsWith('.localhost') || hostname.endsWith('.eduskript.org'))
     
     return isOnSubdomain ? path : `/${subdomain}${path}`
   }

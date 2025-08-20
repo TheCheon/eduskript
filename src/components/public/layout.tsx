@@ -162,9 +162,9 @@ export function PublicSiteLayout({ teacher, siteStructure, children, currentPath
 
   const navigateToPage = (scriptSlug: string, chapterSlug: string, pageSlug: string) => {
     // Check if we're on a subdomain by looking at window.location.hostname
-    const isOnSubdomain = typeof window !== 'undefined' && 
-      window.location.hostname !== 'localhost' && 
-      window.location.hostname.endsWith('.localhost')
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : ''
+    const isMainDomain = hostname === 'localhost' || hostname === 'eduskript.org' || hostname === 'www.eduskript.org'
+    const isOnSubdomain = !isMainDomain && (hostname.endsWith('.localhost') || hostname.endsWith('.eduskript.org'))
     
     // If on subdomain, use relative URL (middleware will handle rewrite)
     // If on main domain, use full path with subdomain
