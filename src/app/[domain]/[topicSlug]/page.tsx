@@ -13,16 +13,16 @@ export const dynamic = 'force-dynamic' // Force dynamic rendering for auth check
 interface TopicPreviewProps {
   params: Promise<{
     domain: string
-    scriptSlug: string
+    topicSlug: string
   }>
 }
 
 // Generate metadata for SEO
 export async function generateMetadata({ params }: TopicPreviewProps): Promise<Metadata> {
-  const { domain, scriptSlug } = await params
+  const { domain, topicSlug } = await params
   
   try {
-    // Find the teacher and script
+    // Find the teacher and topic
     const teacher = await prisma.user.findUnique({
       where: { subdomain: domain },
       select: { id: true, name: true, title: true }
@@ -35,9 +35,9 @@ export async function generateMetadata({ params }: TopicPreviewProps): Promise<M
       }
     }
 
-    const script = await prisma.topic.findFirst({
+    const topic = await prisma.topic.findFirst({
       where: {
-        slug: scriptSlug,
+        slug: topicSlug,
         authors: {
           some: {
             userId: teacher.id
@@ -47,23 +47,23 @@ export async function generateMetadata({ params }: TopicPreviewProps): Promise<M
       select: { title: true, description: true }
     })
 
-    if (!script) {
+    if (!topic) {
       return {
-        title: 'Script Not Found',
-        description: 'The requested script could not be found.'
+        title: 'Topic Not Found',
+        description: 'The requested topic could not be found.'
       }
     }
 
     return {
-      title: `${script.title} - Preview | ${teacher.name || domain}`,
-      description: script.description || `Preview of ${script.title} by ${teacher.name || domain}`,
+      title: `${topic.title} - Preview | ${teacher.name || domain}`,
+      description: topic.description || `Preview of ${topic.title} by ${teacher.name || domain}`,
       robots: 'noindex, nofollow' // Prevent search engines from indexing previews
     }
   } catch (error) {
-    console.error('Error generating metadata for script preview:', error)
+    console.error('Error generating metadata for topic preview:', error)
     return {
-      title: 'Script Preview',
-      description: 'Preview mode for script content'
+      title: 'Topic Preview',
+      description: 'Preview mode for topic content'
     }
   }
 }
@@ -104,7 +104,7 @@ interface TopicWithChapters {
 }
 
 export default async function TopicPreviewPage({ params }: TopicPreviewProps) {
-  const { domain, scriptSlug } = await params
+  const { domain, topicSlug } = await params
   const session = await getServerSession(authOptions)
 
   // Declare variables outside try block so they can be used in redirect logic
@@ -133,7 +133,7 @@ export default async function TopicPreviewPage({ params }: TopicPreviewProps) {
     // Find the topic
     topic = await prisma.topic.findFirst({
       where: {
-        slug: scriptSlug,
+        slug: topicSlug,
         authors: {
           some: {
             userId: teacher.id
@@ -167,7 +167,7 @@ export default async function TopicPreviewPage({ params }: TopicPreviewProps) {
     isAuthor = session?.user?.email === teacher.email
     
     if (!topic.isPublished && !isAuthor) {
-      // If script is not published and user is not the author, show access denied
+      // If topic is not published and user is not the author, show access denied
       return (
         <div className="min-h-screen flex items-center justify-center bg-background">
           <div className="text-center max-w-md mx-auto p-6">
@@ -203,9 +203,9 @@ export default async function TopicPreviewPage({ params }: TopicPreviewProps) {
   )
 
   if (firstPage && firstChapter) {
-    console.log(`Redirecting to: /${domain}/${scriptSlug}/${firstChapter.slug}/${firstPage.slug}`)
+    console.log(`Redirecting to: /${domain}/${topicSlug}/${firstChapter.slug}/${firstPage.slug}`)
     // Redirect to the first available page
-    redirect(`/${domain}/${scriptSlug}/${firstChapter.slug}/${firstPage.slug}`)
+    redirect(`/${domain}/${topicSlug}/${firstChapter.slug}/${firstPage.slug}`)
   }
 
   // Build site structure for navigation
@@ -241,7 +241,7 @@ export default async function TopicPreviewPage({ params }: TopicPreviewProps) {
       <PublicSiteLayout 
         teacher={teacherForLayout} 
         siteStructure={siteStructure}
-        currentPath={`/${scriptSlug}`}
+        currentPath={`/${topicSlug}`}
       >
         <div className="max-w-4xl mx-auto p-6">
           <div className="mb-6">
@@ -308,7 +308,7 @@ export default async function TopicPreviewPage({ params }: TopicPreviewProps) {
                               return (
                                 <li key={page.id} className="text-muted-foreground">
                                   <a 
-                                    href={getNavigationUrl(domain, `/${scriptSlug}/${chapter.slug}/${page.slug}`)}
+                                    href={getNavigationUrl(domain, `/${topicSlug}/${chapter.slug}/${page.slug}`)}
                                     className="hover:text-foreground hover:underline flex items-center"
                                   >
                                     <span className="mr-2">

@@ -53,7 +53,7 @@ export default async function DashboardPage() {
     })
   ])
 
-  const totalScripts = topics.length
+  const totalTopics = topics.length
 
   return (
     <div className="space-y-6">
@@ -82,7 +82,7 @@ export default async function DashboardPage() {
             <BookOpen className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalScripts}</div>
+            <div className="text-2xl font-bold">{totalTopics}</div>
           </CardContent>
         </Card>
         
@@ -107,11 +107,11 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      {/* Recent Scripts */}
+      {/* Recent Topics */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Scripts</CardTitle>
-          <CardDescription>Your most recently updated scripts</CardDescription>
+          <CardTitle>Recent Topics</CardTitle>
+          <CardDescription>Your most recently updated topics</CardDescription>
         </CardHeader>
         <CardContent>
           {topics.length > 0 ? (
@@ -144,15 +144,15 @@ export default async function DashboardPage() {
             <div className="text-center py-8">
               <BookOpen className="h-12 w-12 text-icon-muted mx-auto mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">
-                No scripts yet
+                No topics yet
               </h3>
               <p className="text-muted-foreground mb-4">
-                Get started by creating your first educational script.
+                Get started by creating your first educational topic.
               </p>
               <Link href="/dashboard/topics/new">
                 <Button>
                   <Plus className="w-4 h-4 mr-2" />
-                  Create Your First Script
+                  Create Your First Topic
                 </Button>
               </Link>
             </div>

@@ -16,7 +16,7 @@ async function main() {
   })
 
   // Create a test topic
-  const script = await prisma.topic.upsert({
+  const topic = await prisma.topic.upsert({
     where: { slug: 'algebra-basics' },
     update: {},
     create: {
@@ -31,13 +31,13 @@ async function main() {
   await prisma.topicAuthor.upsert({
     where: {
       topicId_userId: {
-        topicId: script.id,
+        topicId: topic.id,
         userId: teacher.id
       }
     },
     update: {},
     create: {
-      topicId: script.id,
+      topicId: topic.id,
       userId: teacher.id,
       role: 'author'
     }
@@ -47,7 +47,7 @@ async function main() {
   const chapter1 = await prisma.chapter.upsert({
     where: {
       topicId_slug: {
-        topicId: script.id,
+        topicId: topic.id,
         slug: 'introduction'
       }
     },
@@ -58,7 +58,7 @@ async function main() {
       slug: 'introduction',
       order: 1,
       isPublished: true,
-      topicId: script.id
+      topicId: topic.id
     }
   })
 
@@ -81,7 +81,7 @@ async function main() {
   const chapter2 = await prisma.chapter.upsert({
     where: {
       topicId_slug: {
-        topicId: script.id,
+        topicId: topic.id,
         slug: 'solving-equations'
       }
     },
@@ -92,7 +92,7 @@ async function main() {
       slug: 'solving-equations',
       order: 2,
       isPublished: true,
-      topicId: script.id
+      topicId: topic.id
     }
   })
 
@@ -267,7 +267,7 @@ Check: 2(4) + 3 = 8 + 3 = 11 ✓`,
 
   console.log('Seed data created successfully!')
   console.log('Teacher:', teacher.email)
-  console.log('Topic:', script.title)
+  console.log('Topic:', topic.title)
   console.log('Chapters:', chapter1.title, ',', chapter2.title)
   console.log('Pages created: 3')
 }

@@ -6,12 +6,12 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { CreateChapterModal } from './create-chapter-modal'
-import { ScriptSettingsModal } from './topic-settings-modal'
+import { TopicSettingsModal } from './topic-settings-modal'
 import { SortableChapters } from './sortable-chapters'
 import { ArrowLeft, BookOpen, FileText } from 'lucide-react'
 
-interface ScriptEditorProps {
-  script: {
+interface TopicEditorProps {
+  topic: {
     id: string
     title: string
     description: string | null
@@ -37,9 +37,9 @@ interface ScriptEditorProps {
   }
 }
 
-export function ScriptEditor({ script }: ScriptEditorProps) {
+export function TopicEditor({ topic }: TopicEditorProps) {
   const [isLoading, setIsLoading] = useState(false)
-  const [isPublished, setIsPublished] = useState(script.isPublished)
+  const [isPublished, setIsPublished] = useState(topic.isPublished)
   const router = useRouter()
 
   const handleChapterCreated = () => {
@@ -47,15 +47,15 @@ export function ScriptEditor({ script }: ScriptEditorProps) {
     window.location.reload()
   }
 
-  const handleScriptUpdated = (updatedScript?: {
+  const handleTopicUpdated = (updatedTopic?: {
     id: string
     title: string
     description: string | null
     slug: string
   }) => {
-    if (updatedScript && updatedScript.slug !== script.slug) {
+    if (updatedTopic && updatedTopic.slug !== topic.slug) {
       // If slug changed, redirect to new URL
-      router.push(`/dashboard/topics/${updatedScript.slug}`)
+      router.push(`/dashboard/topics/${updatedTopic.slug}`)
     } else {
       // Force a complete page refresh to ensure data is updated
       window.location.reload()
@@ -65,7 +65,7 @@ export function ScriptEditor({ script }: ScriptEditorProps) {
   const handlePublish = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch(`/api/topics/${script.id}`, {
+      const response = await fetch(`/api/topics/${topic.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -76,16 +76,16 @@ export function ScriptEditor({ script }: ScriptEditorProps) {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to update script')
+        throw new Error('Failed to update topic')
       }
 
-      const updatedScript = await response.json()
-      setIsPublished(updatedScript.isPublished)
+      const updatedTopic = await response.json()
+      setIsPublished(updatedTopic.isPublished)
       
       // Optionally show success message or refresh
       window.location.reload()
     } catch (error) {
-      console.error('Error publishing script:', error)
+      console.error('Error publishing topic:', error)
       // You might want to show an error toast here
     } finally {
       setIsLoading(false)
@@ -103,16 +103,16 @@ export function ScriptEditor({ script }: ScriptEditorProps) {
         </Link>
         <div className="flex-1">
           <h1 className="text-3xl font-bold text-foreground">
-            {script.title}
+            {topic.title}
           </h1>
           <p className="text-muted-foreground mt-2">
-            {script.description || 'No description'}
+            {topic.description || 'No description'}
           </p>
         </div>
         <div className="flex gap-2">
-          <ScriptSettingsModal 
-            script={script}
-            onScriptUpdated={handleScriptUpdated}
+          <TopicSettingsModal 
+            topic={topic}
+            onTopicUpdated={handleTopicUpdated}
           />
           <Button 
             onClick={handlePublish}
@@ -123,7 +123,7 @@ export function ScriptEditor({ script }: ScriptEditorProps) {
         </div>
       </div>
 
-      {/* Script Overview */}
+      {/* Topic Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -131,7 +131,7 @@ export function ScriptEditor({ script }: ScriptEditorProps) {
             <BookOpen className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{script.chapters.length}</div>
+            <div className="text-2xl font-bold">{topic.chapters.length}</div>
           </CardContent>
         </Card>
         
@@ -142,7 +142,7 @@ export function ScriptEditor({ script }: ScriptEditorProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {script.chapters.reduce((acc: number, ch) => acc + ch.pages.length, 0)}
+              {topic.chapters.reduce((acc: number, ch) => acc + ch.pages.length, 0)}
             </div>
           </CardContent>
         </Card>
@@ -168,17 +168,17 @@ export function ScriptEditor({ script }: ScriptEditorProps) {
               <CardDescription>Organize your content into chapters</CardDescription>
             </div>
             <CreateChapterModal 
-              topicId={script.id} 
+              topicId={topic.id} 
               onChapterCreated={handleChapterCreated}
             />
           </div>
         </CardHeader>
         <CardContent>
-          {script.chapters.length > 0 ? (
+          {topic.chapters.length > 0 ? (
             <SortableChapters
-              chapters={script.chapters}
-              topicId={script.id}
-              scriptSlug={script.slug}
+              chapters={topic.chapters}
+              topicId={topic.id}
+              topicSlug={topic.slug}
               onReorder={handleChapterCreated}
             />
           ) : (
@@ -191,7 +191,7 @@ export function ScriptEditor({ script }: ScriptEditorProps) {
                 Start organizing your content by creating your first chapter.
               </p>
               <CreateChapterModal 
-                topicId={script.id} 
+                topicId={topic.id} 
                 onChapterCreated={handleChapterCreated}
               />
             </div>

@@ -16,14 +16,14 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Settings } from 'lucide-react'
 
-interface ScriptSettingsModalProps {
-  script: {
+interface TopicSettingsModalProps {
+  topic: {
     id: string
     title: string
     description: string | null
     slug: string
   }
-  onScriptUpdated: (updatedScript?: {
+  onTopicUpdated: (updatedTopic?: {
     id: string
     title: string
     description: string | null
@@ -31,12 +31,12 @@ interface ScriptSettingsModalProps {
   }) => void
 }
 
-export function ScriptSettingsModal({ script, onScriptUpdated }: ScriptSettingsModalProps) {
+export function TopicSettingsModal({ topic, onTopicUpdated }: TopicSettingsModalProps) {
   const [open, setOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [title, setTitle] = useState(script.title)
-  const [slug, setSlug] = useState(script.slug)
-  const [description, setDescription] = useState(script.description || '')
+  const [title, setTitle] = useState(topic.title)
+  const [slug, setSlug] = useState(topic.slug)
+  const [description, setDescription] = useState(topic.description || '')
 
   const generateSlug = (title: string) => {
     return title
@@ -51,7 +51,7 @@ export function ScriptSettingsModal({ script, onScriptUpdated }: ScriptSettingsM
     const newTitle = e.target.value
     setTitle(newTitle)
     // Auto-generate slug from title if slug hasn't been manually edited
-    if (slug === generateSlug(script.title) || slug === script.slug) {
+    if (slug === generateSlug(topic.title) || slug === topic.slug) {
       setSlug(generateSlug(newTitle))
     }
   }
@@ -61,7 +61,7 @@ export function ScriptSettingsModal({ script, onScriptUpdated }: ScriptSettingsM
     setIsLoading(true)
 
     try {
-      const response = await fetch(`/api/topics/${script.id}`, {
+      const response = await fetch(`/api/topics/${topic.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -74,14 +74,14 @@ export function ScriptSettingsModal({ script, onScriptUpdated }: ScriptSettingsM
       })
 
       if (!response.ok) {
-        throw new Error('Failed to update script')
+        throw new Error('Failed to update topic')
       }
 
-      const updatedScript = await response.json()
+      const updatedTopic = await response.json()
       setOpen(false)
-      onScriptUpdated(updatedScript)
+      onTopicUpdated(updatedTopic)
     } catch (error) {
-      console.error('Error updating script:', error)
+      console.error('Error updating topic:', error)
       // You might want to show an error toast here
     } finally {
       setIsLoading(false)
@@ -91,9 +91,9 @@ export function ScriptSettingsModal({ script, onScriptUpdated }: ScriptSettingsM
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
       // Reset form when closing
-      setTitle(script.title)
-      setSlug(script.slug)
-      setDescription(script.description || '')
+      setTitle(topic.title)
+      setSlug(topic.slug)
+      setDescription(topic.description || '')
     }
     setOpen(newOpen)
   }
@@ -109,9 +109,9 @@ export function ScriptSettingsModal({ script, onScriptUpdated }: ScriptSettingsM
       <DialogContent className="sm:max-w-[425px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Script Settings</DialogTitle>
+            <DialogTitle>Topic Settings</DialogTitle>
             <DialogDescription>
-              Update your script&apos;s title and description.
+              Update your topic&apos;s title and description.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -121,7 +121,7 @@ export function ScriptSettingsModal({ script, onScriptUpdated }: ScriptSettingsM
                 id="title"
                 value={title}
                 onChange={handleTitleChange}
-                placeholder="Enter script title"
+                placeholder="Enter topic title"
                 required
                 disabled={isLoading}
               />
@@ -137,7 +137,7 @@ export function ScriptSettingsModal({ script, onScriptUpdated }: ScriptSettingsM
                 disabled={isLoading}
               />
               <p className="text-sm text-gray-500">
-                This will be used in the URL: /scripts/{slug || 'your-slug'}
+                This will be used in the URL: /{slug || 'your-slug'}
               </p>
             </div>
             <div className="grid gap-2">
@@ -146,7 +146,7 @@ export function ScriptSettingsModal({ script, onScriptUpdated }: ScriptSettingsM
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Enter script description (optional)"
+                placeholder="Enter topic description (optional)"
                 rows={3}
                 disabled={isLoading}
               />

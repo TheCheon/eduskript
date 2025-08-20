@@ -49,7 +49,7 @@ interface Chapter {
 interface SortableChapterItemProps {
   chapter: Chapter
   index: number
-  scriptSlug: string
+  topicSlug: string
   onChapterUpdated: () => void
   onChapterDeleted: () => void
 }
@@ -57,7 +57,7 @@ interface SortableChapterItemProps {
 function SortableChapterItem({ 
   chapter, 
   index, 
-  scriptSlug, 
+  topicSlug, 
   onChapterUpdated,
   onChapterDeleted 
 }: SortableChapterItemProps) {
@@ -112,7 +112,7 @@ function SortableChapterItem({
             </div>
           </div>
           <div>
-            <Link href={`/dashboard/topics/${scriptSlug}/chapters/${chapter.slug}`}>
+            <Link href={`/dashboard/topics/${topicSlug}/chapters/${chapter.slug}`}>
               <h3 className="font-medium text-foreground hover:text-primary cursor-pointer transition-colors">
                 {chapter.title}
               </h3>
@@ -164,7 +164,7 @@ function SortableChapterItem({
             <SortablePages
               pages={chapter.pages}
               chapterId={chapter.id}
-              scriptSlug={scriptSlug}
+              topicSlug={topicSlug}
               chapterSlug={chapter.slug}
               onReorder={onChapterUpdated}
               onPageDeleted={onChapterUpdated}
@@ -179,7 +179,7 @@ function SortableChapterItem({
 function StaticChapterItem({ 
   chapter, 
   index, 
-  scriptSlug, 
+  topicSlug, 
   onChapterUpdated,
   onChapterDeleted 
 }: SortableChapterItemProps) {
@@ -215,7 +215,7 @@ function StaticChapterItem({
             </div>
           </div>
           <div>
-            <Link href={`/dashboard/topics/${scriptSlug}/chapters/${chapter.slug}`}>
+            <Link href={`/dashboard/topics/${topicSlug}/chapters/${chapter.slug}`}>
               <h3 className="font-medium text-foreground hover:text-primary cursor-pointer transition-colors">
                 {chapter.title}
               </h3>
@@ -267,7 +267,7 @@ function StaticChapterItem({
             <SortablePages
               pages={chapter.pages}
               chapterId={chapter.id}
-              scriptSlug={scriptSlug}
+              topicSlug={topicSlug}
               chapterSlug={chapter.slug}
               onReorder={onChapterUpdated}
               onPageDeleted={onChapterUpdated}
@@ -282,14 +282,14 @@ function StaticChapterItem({
 interface SortableChaptersProps {
   chapters: Chapter[]
   topicId: string // Keep as topicId for now to match existing usage
-  scriptSlug: string
+  topicSlug: string
   onReorder: () => void
 }
 
 export function SortableChapters({ 
   chapters, 
   topicId, 
-  scriptSlug, 
+  topicSlug, 
   onReorder 
 }: SortableChaptersProps) {
   const [items, setItems] = useState(chapters)
@@ -365,7 +365,7 @@ export function SortableChapters({
                 key={chapter.id}
                 chapter={chapter}
                 index={index}
-                scriptSlug={scriptSlug}
+                topicSlug={topicSlug}
                 onChapterUpdated={onReorder}
                 onChapterDeleted={onReorder}
               />
@@ -380,7 +380,7 @@ export function SortableChapters({
               key={chapter.id}
               chapter={chapter}
               index={index}
-              scriptSlug={scriptSlug}
+              topicSlug={topicSlug}
               onChapterUpdated={onReorder}
               onChapterDeleted={onReorder}
             />

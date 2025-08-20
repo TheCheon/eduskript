@@ -27,7 +27,7 @@ interface PageVersion {
 }
 
 interface PageEditorProps {
-  script: {
+  topic: {
     id: string
     slug: string
     title: string
@@ -47,7 +47,7 @@ interface PageEditorProps {
   }
 }
 
-export function PageEditor({ script, chapter, page }: PageEditorProps) {
+export function PageEditor({ topic, chapter, page }: PageEditorProps) {
   const [title] = useState(page.title || '')
   const [slug] = useState(page.slug || '')
   const [content, setContent] = useState(page.content || '')
@@ -145,7 +145,7 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
         const updatedPage = await response.json()
         if (updatedPage.slug !== page.slug) {
           // Slug changed, redirect to new URL
-          const newUrl = `/dashboard/topics/${script.slug}/chapters/${chapter.slug}/pages/${updatedPage.slug}/edit`
+          const newUrl = `/dashboard/topics/${topic.slug}/chapters/${chapter.slug}/pages/${updatedPage.slug}/edit`
           router.push(newUrl)
         } else {
           // Just reload the page data
@@ -234,7 +234,7 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
         loadVersions()
         // Update URL if slug changed
         if (slug !== originalSlug) {
-          const newUrl = `/dashboard/topics/${script.slug}/chapters/${chapter.slug}/pages/${slug}/edit`
+          const newUrl = `/dashboard/topics/${topic.slug}/chapters/${chapter.slug}/pages/${slug}/edit`
           router.push(newUrl)
           return // Don't continue with other updates since we're navigating
         }
@@ -247,7 +247,7 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
       alert('Failed to save page')
     }
     setIsSaving(false)
-  }, [title, slug, isPublished, page.id, page.slug, script.slug, chapter.slug, router, loadVersions])
+  }, [title, slug, isPublished, page.id, page.slug, topic.slug, chapter.slug, router, loadVersions])
 
   // Handle version restoration
   const handleRestoreVersion = async (versionId: string, versionContent: string) => {
@@ -307,7 +307,7 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link href={`/dashboard/topics/${script.slug}`}>
+        <Link href={`/dashboard/topics/${topic.slug}`}>
           <Button variant="ghost" size="sm">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Topics
@@ -323,7 +323,7 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
             )}
           </div>
           <p className="text-muted-foreground">
-            {script.title} → {chapter.title}
+            {topic.title} → {chapter.title}
           </p>
         </div>
         <div className="flex gap-2 items-center">
@@ -343,7 +343,7 @@ export function PageEditor({ script, chapter, page }: PageEditorProps) {
           />
           {sessionStatus === 'authenticated' && (session?.user as { subdomain?: string })?.subdomain && (
             <Link 
-              href={`/${(session?.user as { subdomain?: string })?.subdomain}/${script.slug}/${chapter.slug}/${page.slug}`}
+              href={`/${(session?.user as { subdomain?: string })?.subdomain}/${topic.slug}/${chapter.slug}/${page.slug}`}
               target="_blank"
               rel="noopener noreferrer"
               prefetch={false}

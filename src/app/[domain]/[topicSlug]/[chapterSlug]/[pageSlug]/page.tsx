@@ -16,7 +16,7 @@ import { headers } from 'next/headers'
 interface PageProps {
   params: Promise<{
     domain: string
-    scriptSlug: string
+    topicSlug: string
     chapterSlug: string
     pageSlug: string
   }>
@@ -29,7 +29,7 @@ export const dynamicParams = true // Allow new params to be generated on-demand
 
 // Generate metadata for SEO
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { domain, scriptSlug, chapterSlug, pageSlug } = await params
+  const { domain, topicSlug, chapterSlug, pageSlug } = await params
 
   try {
     const session = await getServerSession(authOptions)
@@ -57,10 +57,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // Check if current user is the author
     const isAuthor = session?.user?.email === teacher.email
 
-    // Find the script
-    const script = await prisma.topic.findFirst({
+    // Find the topic
+    const topic = await prisma.topic.findFirst({
       where: {
-        slug: scriptSlug,
+        slug: topicSlug,
         authors: {
           some: {
             userId: teacher.id
@@ -76,15 +76,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       }
     })
 
-    if (!script) {
+    if (!topic) {
       return {
         title: 'Page Not Found',
         description: 'The requested page could not be found.'
       }
     }
 
-    // Authorization check for script
-    if (!script.isPublished && !isAuthor) {
+    // Authorization check for topic
+    if (!topic.isPublished && !isAuthor) {
       return {
         title: 'Page Not Found',
         description: 'The requested page could not be found.'
@@ -95,7 +95,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     const chapter = await prisma.chapter.findUnique({
       where: {
         topicId_slug: {
-          topicId: script.id,
+          topicId: topic.id,
           slug: chapterSlug
         }
       },
@@ -154,7 +154,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     }
 
     const title = `${page.title} | ${teacher.name || 'Eduskript'}`
-    const description = script.description || `${page.title} by ${teacher.name}`
+    const description = topic.description || `${page.title} by ${teacher.name}`
 
     return {
       title,
@@ -165,7 +165,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         description,
         type: 'article',
         siteName: teacher.name || 'Eduskript',
-        url: `https://${domain}/${scriptSlug}/${chapterSlug}/${pageSlug}`
+        url: `https://${domain}/${topicSlug}/${chapterSlug}/${pageSlug}`
       },
       twitter: {
         card: 'summary_large_image',
@@ -183,8 +183,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function PublicPage({ params }: PageProps) {
-  const { domain, scriptSlug, chapterSlug, pageSlug } = await params
+  const { domain, topicSlug, chapterSlug, pageSlug } = await params
   const session = await getServerSession(authOptions)
+  
+  // Debug logging
+  console.log('🔍 PublicPage Debug:', { domain, topicSlug, chapterSlug, pageSlug })
   
   // Check if we're on a subdomain by examining the Host header
   const headersList = await headers()
@@ -192,8 +195,11 @@ export default async function PublicPage({ params }: PageProps) {
   const hostname = host.split(':')[0]
   const isOnSubdomain = hostname !== 'localhost' && hostname.endsWith('.localhost')
 
+  console.log('🌐 Host info:', { host, hostname, isOnSubdomain })
+
   try {
     // Find teacher by subdomain
+    console.log('👨‍🏫 Looking for teacher with subdomain:', domain)
     const teacher = await prisma.user.findFirst({
       where: { subdomain: domain },
       select: {
@@ -206,17 +212,21 @@ export default async function PublicPage({ params }: PageProps) {
       }
     })
 
+    console.log('👨‍🏫 Teacher found:', teacher ? `${teacher.name} (${teacher.subdomain})` : 'null')
+
     if (!teacher) {
+      console.log('❌ Teacher not found, calling notFound()')
       notFound()
     }
 
     // Check if current user is the author
     const isAuthor = session?.user?.email === teacher.email
 
-    // Find the script, chapter, and page
-    const script = await prisma.topic.findFirst({
+    // Find the topic, chapter, and page
+    console.log('📚 Looking for topic:', topicSlug)
+    const topic = await prisma.topic.findFirst({
       where: {
-        slug: scriptSlug,
+        slug: topicSlug,
         authors: {
           some: {
             userId: teacher.id
@@ -243,16 +253,16 @@ export default async function PublicPage({ params }: PageProps) {
       }
     })
 
-    if (!script) {
+    if (!topic) {
       notFound()
     }
 
-    // Authorization check for script
-    if (!script.isPublished && !isAuthor) {
+    // Authorization check for topic
+    if (!topic.isPublished && !isAuthor) {
       notFound()
     }
 
-    const chapter = script.chapters.find(ch => ch.slug === chapterSlug)
+    const chapter = topic.chapters.find(ch => ch.slug === chapterSlug)
     if (!chapter) {
       notFound()
     }
@@ -306,10 +316,10 @@ export default async function PublicPage({ params }: PageProps) {
 
     // Build site structure for navigation
     const siteStructure = [{
-      id: script.id,
-      title: script.title,
-      slug: script.slug,
-      chapters: script.chapters
+      id: topic.id,
+      title: topic.title,
+      slug: topic.slug,
+      chapters: topic.chapters
         .filter(ch => isAuthor || ch.isPublished) // Show all chapters to author, only published to others
         .map(ch => ({
           id: ch.id,
@@ -333,7 +343,7 @@ export default async function PublicPage({ params }: PageProps) {
       title: teacher.title || undefined
     }
 
-    const currentPath = `/${scriptSlug}/${chapterSlug}/${pageSlug}`
+    const currentPath = `/${topicSlug}/${chapterSlug}/${pageSlug}`
 
     return (
       <PublicSiteLayout
@@ -343,7 +353,7 @@ export default async function PublicPage({ params }: PageProps) {
       >
         <div className="max-w-4xl mx-auto">
           {/* Preview mode indicator for unpublished content */}
-          {(!script.isPublished || !chapter.isPublished || !page.isPublished) && isAuthor && (
+          {(!topic.isPublished || !chapter.isPublished || !page.isPublished) && isAuthor && (
             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
@@ -354,7 +364,7 @@ export default async function PublicPage({ params }: PageProps) {
                 <div className="ml-3">
                   <p className="text-sm text-yellow-800 dark:text-yellow-200">
                     <strong>Preview Mode:</strong>
-                    {!script.isPublished && ' Script is not published.'}
+                    {!topic.isPublished && ' Topic is not published.'}
                     {!chapter.isPublished && ' Chapter is not published.'}
                     {!page.isPublished && ' Page is not published.'}
                     {' Only you can see this content.'}
@@ -366,14 +376,14 @@ export default async function PublicPage({ params }: PageProps) {
 
           <Breadcrumb
             items={[
-              { title: script.title, href: `/${domain}/${scriptSlug}` },
-              { title: chapter.title, href: `/${domain}/${scriptSlug}/${chapterSlug}` },
+              { title: topic.title, href: `/${domain}/${topicSlug}` },
+              { title: chapter.title, href: `/${domain}/${topicSlug}/${chapterSlug}` },
               { title: page.title }
             ]}
             subdomain={domain}
             isOnSubdomain={isOnSubdomain}
           ><a
-            href={`/dashboard/topics/${script.slug}/chapters/${chapter.slug}/pages/${page.slug}/edit`}
+            href={`/dashboard/topics/${topic.slug}/chapters/${chapter.slug}/pages/${page.slug}/edit`}
             className="inline-flex items-center px-2 py-1 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors shadow-md"
           >
               <Edit className="h-4 w-4 mr-2" />

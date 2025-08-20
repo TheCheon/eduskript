@@ -2,19 +2,19 @@ import { getServerSession } from 'next-auth'
 import { notFound } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { ScriptEditor } from '@/components/dashboard/topic-editor'
+import { TopicEditor } from '@/components/dashboard/topic-editor'
 
 // Ensure the page is dynamic and not cached
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-interface ScriptPageProps {
+interface TopicPageProps {
   params: Promise<{
     slug: string
   }>
 }
 
-export default async function ScriptPage({ params }: ScriptPageProps) {
+export default async function TopicPage({ params }: TopicPageProps) {
   const session = await getServerSession(authOptions)
   const { slug } = await params
   
@@ -22,7 +22,7 @@ export default async function ScriptPage({ params }: ScriptPageProps) {
     return null
   }
 
-  const script = await prisma.topic.findFirst({
+  const topic = await prisma.topic.findFirst({
     where: {
       slug: slug,
       authors: {
@@ -43,9 +43,9 @@ export default async function ScriptPage({ params }: ScriptPageProps) {
     }
   })
 
-  if (!script) {
+  if (!topic) {
     notFound()
   }
 
-  return <ScriptEditor script={script} />
+  return <TopicEditor topic={topic} />
 }

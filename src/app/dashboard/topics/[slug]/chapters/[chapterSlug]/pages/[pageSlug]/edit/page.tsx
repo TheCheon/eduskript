@@ -11,7 +11,7 @@ interface PageParams {
 }
 
 async function getPageData(slug: string, chapterSlug: string, pageSlug: string, userId: string) {
-  const script = await prisma.topic.findFirst({
+  const topic = await prisma.topic.findFirst({
     where: { 
       slug,
       authors: {
@@ -22,12 +22,12 @@ async function getPageData(slug: string, chapterSlug: string, pageSlug: string, 
     }
   })
 
-  if (!script) return null
+  if (!topic) return null
 
   const chapter = await prisma.chapter.findFirst({
     where: { 
       slug: chapterSlug, 
-      topicId: script.id 
+      topicId: topic.id 
     }
   })
 
@@ -48,7 +48,7 @@ async function getPageData(slug: string, chapterSlug: string, pageSlug: string, 
 
   if (!page) return null
 
-  return { script, chapter, page }
+  return { topic, chapter, page }
 }
 
 export default async function PageEditPage({ 
@@ -69,11 +69,11 @@ export default async function PageEditPage({
     return notFound()
   }
 
-  const { script, chapter, page } = data
+  const { topic, chapter, page } = data
 
   return (
     <PageEditor 
-      script={script} 
+      topic={topic} 
       chapter={chapter} 
       page={page} 
     />

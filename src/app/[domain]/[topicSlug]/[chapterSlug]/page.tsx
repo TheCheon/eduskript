@@ -12,14 +12,14 @@ export const dynamic = 'force-dynamic' // Force dynamic rendering for auth check
 interface ChapterPreviewProps {
   params: Promise<{
     domain: string
-    scriptSlug: string
+    topicSlug: string
     chapterSlug: string
   }>
 }
 
 // Generate metadata for SEO
 export async function generateMetadata({ params }: ChapterPreviewProps): Promise<Metadata> {
-  const { domain, scriptSlug, chapterSlug } = await params
+  const { domain, topicSlug, chapterSlug } = await params
   
   try {
     // Find the teacher and topic
@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: ChapterPreviewProps): Promise
 
     const topic = await prisma.topic.findFirst({
       where: {
-        slug: scriptSlug,
+        slug: topicSlug,
         authors: {
           some: {
             userId: teacher.id
@@ -58,7 +58,7 @@ export async function generateMetadata({ params }: ChapterPreviewProps): Promise
       where: {
         slug: chapterSlug,
         topic: {
-          slug: scriptSlug,
+          slug: topicSlug,
           authors: {
             some: {
               userId: teacher.id
@@ -103,7 +103,7 @@ interface TopicPage {
 
 
 export default async function ChapterPreviewPage({ params }: ChapterPreviewProps) {
-  const { domain, scriptSlug, chapterSlug } = await params
+  const { domain, topicSlug, chapterSlug } = await params
   const session = await getServerSession(authOptions)
 
   try {
@@ -130,7 +130,7 @@ export default async function ChapterPreviewPage({ params }: ChapterPreviewProps
     // Find the topic with the specific chapter
     const topic = await prisma.topic.findFirst({
       where: {
-        slug: scriptSlug,
+        slug: topicSlug,
         authors: {
           some: {
             userId: teacher.id
@@ -184,11 +184,11 @@ export default async function ChapterPreviewPage({ params }: ChapterPreviewProps
 
     if (firstPage) {
       // Redirect to the first available page
-      return <ChapterRedirect redirectUrl={`/${domain}/${scriptSlug}/${chapterSlug}/${firstPage.slug}`} />
+      return <ChapterRedirect redirectUrl={`/${domain}/${topicSlug}/${chapterSlug}/${firstPage.slug}`} />
     }
 
     // If no pages are available, redirect back to topic
-    return <ChapterRedirect redirectUrl={`/${domain}/${scriptSlug}`} />
+    return <ChapterRedirect redirectUrl={`/${domain}/${topicSlug}`} />
 
   } catch (error) {
     console.error('Error loading chapter preview:', error)
