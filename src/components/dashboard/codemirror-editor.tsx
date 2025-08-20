@@ -233,21 +233,60 @@ const CodeMirrorEditor = function CodeMirrorEditor({
         const { EditorState } = await import('@codemirror/state')
         
         console.log('Loading @codemirror/lang-markdown...')
-        const { markdown } = await import('@codemirror/lang-markdown')
+        const { markdown, markdownLanguage } = await import('@codemirror/lang-markdown')
+        const { LanguageDescription } = await import('@codemirror/language')
+        
+        console.log('Loading language support...')
+        const { javascript } = await import('@codemirror/lang-javascript')
+        const { python } = await import('@codemirror/lang-python')
+        const { sql } = await import('@codemirror/lang-sql')
+        const { php } = await import('@codemirror/lang-php')
+        const { java } = await import('@codemirror/lang-java')
+        const { cpp } = await import('@codemirror/lang-cpp')
+        const { rust } = await import('@codemirror/lang-rust')
+        const { go } = await import('@codemirror/lang-go')
+        const { html } = await import('@codemirror/lang-html')
+        const { css } = await import('@codemirror/lang-css')
+        const { json } = await import('@codemirror/lang-json')
+        const { xml } = await import('@codemirror/lang-xml')
+        const { yaml } = await import('@codemirror/lang-yaml')
         
         // Load theme extensions
-        console.log('Loading @codemirror/theme-one-dark...')
-        const { oneDark } = await import('@codemirror/theme-one-dark')
+        console.log('Loading VS Code themes...')
+        const { vsCodeLight } = await import('@fsegurai/codemirror-theme-vscode-light')
+        const { vsCodeDark } = await import('@fsegurai/codemirror-theme-vscode-dark')
         
         console.log('All CodeMirror modules loaded successfully')
 
         console.log('Creating editor state...')
+        
+        // Create enhanced markdown with language support
+        const markdownExtension = markdown({
+          base: markdownLanguage, // Use GFM-enabled markdown language
+          codeLanguages: [
+            LanguageDescription.of({ name: 'javascript', alias: ['js'], support: javascript() }),
+            LanguageDescription.of({ name: 'typescript', alias: ['ts'], support: javascript({ typescript: true }) }),
+            LanguageDescription.of({ name: 'python', alias: ['py'], support: python() }),
+            LanguageDescription.of({ name: 'sql', support: sql() }),
+            LanguageDescription.of({ name: 'php', support: php() }),
+            LanguageDescription.of({ name: 'java', support: java() }),
+            LanguageDescription.of({ name: 'cpp', alias: ['c++', 'c'], support: cpp() }),
+            LanguageDescription.of({ name: 'rust', alias: ['rs'], support: rust() }),
+            LanguageDescription.of({ name: 'go', support: go() }),
+            LanguageDescription.of({ name: 'html', support: html() }),
+            LanguageDescription.of({ name: 'css', support: css() }),
+            LanguageDescription.of({ name: 'json', support: json() }),
+            LanguageDescription.of({ name: 'xml', support: xml() }),
+            LanguageDescription.of({ name: 'yaml', alias: ['yml'], support: yaml() }),
+          ]
+        })
+        
         const startState = EditorState.create({
           doc: editorContent,
           extensions: [
             basicSetup,
-            markdown(),
-            ...(isDark ? [oneDark] : []),
+            markdownExtension,
+            ...(isDark ? [vsCodeDark] : [vsCodeLight]),
             EditorView.updateListener.of((update: ViewUpdate) => {
               if (update.docChanged) {
                 const newContent = update.state.doc.toString()
