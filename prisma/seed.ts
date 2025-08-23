@@ -89,20 +89,29 @@ async function main() {
 
   // Create test skripts
   const skript1 = await prisma.skript.upsert({
-    where: {
-      collectionId_slug: {
-        collectionId: collection.id,
-        slug: 'introduction'
-      }
-    },
+    where: { slug: 'introduction-to-variables' },
     update: {},
     create: {
       title: 'Introduction to Variables',
       description: 'Understanding what variables are and how to use them',
-      slug: 'introduction',
-      order: 1,
-      isPublished: true,
-      collectionId: collection.id
+      slug: 'introduction-to-variables',
+      isPublished: true
+    }
+  })
+
+  // Add skript1 to collection
+  await prisma.collectionSkript.upsert({
+    where: {
+      collectionId_skriptId: {
+        collectionId: collection.id,
+        skriptId: skript1.id
+      }
+    },
+    update: {},
+    create: {
+      collectionId: collection.id,
+      skriptId: skript1.id,
+      order: 0
     }
   })
 
@@ -123,20 +132,29 @@ async function main() {
   })
 
   const skript2 = await prisma.skript.upsert({
-    where: {
-      collectionId_slug: {
-        collectionId: collection.id,
-        slug: 'solving-equations'
-      }
-    },
+    where: { slug: 'solving-linear-equations' },
     update: {},
     create: {
       title: 'Solving Linear Equations',
       description: 'Step-by-step guide to solving linear equations',
-      slug: 'solving-equations',
-      order: 2,
-      isPublished: true,
-      collectionId: collection.id
+      slug: 'solving-linear-equations',
+      isPublished: true
+    }
+  })
+
+  // Add skript2 to collection
+  await prisma.collectionSkript.upsert({
+    where: {
+      collectionId_skriptId: {
+        collectionId: collection.id,
+        skriptId: skript2.id
+      }
+    },
+    update: {},
+    create: {
+      collectionId: collection.id,
+      skriptId: skript2.id,
+      order: 1
     }
   })
 
@@ -394,20 +412,29 @@ Check: 2(4) + 3 = 8 + 3 = 11 ✓`,
 
   // CREATE PHYSICS SKRIPTS
   const quantumSkript1 = await prisma.skript.upsert({
-    where: {
-      collectionId_slug: {
-        collectionId: physicsCollection.id,
-        slug: 'wave-particle-duality'
-      }
-    },
+    where: { slug: 'wave-particle-duality' },
     update: {},
     create: {
       title: 'Wave-Particle Duality',
       description: 'Understanding the dual nature of light and matter',
       slug: 'wave-particle-duality',
-      order: 1,
-      isPublished: true,
-      collectionId: physicsCollection.id
+      isPublished: true
+    }
+  })
+
+  // Add quantum skript to physics collection
+  await prisma.collectionSkript.upsert({
+    where: {
+      collectionId_skriptId: {
+        collectionId: physicsCollection.id,
+        skriptId: quantumSkript1.id
+      }
+    },
+    update: {},
+    create: {
+      collectionId: physicsCollection.id,
+      skriptId: quantumSkript1.id,
+      order: 0
     }
   })
 
@@ -427,20 +454,29 @@ Check: 2(4) + 3 = 8 + 3 = 11 ✓`,
   })
 
   const quantumSkript2 = await prisma.skript.upsert({
-    where: {
-      collectionId_slug: {
-        collectionId: physicsCollection.id,
-        slug: 'heisenberg-principle'
-      }
-    },
+    where: { slug: 'heisenberg-uncertainty-principle' },
     update: {},
     create: {
       title: 'Heisenberg Uncertainty Principle',
       description: 'Exploring the limits of measurement in quantum mechanics',
-      slug: 'heisenberg-principle',
-      order: 2,
-      isPublished: true,
-      collectionId: physicsCollection.id
+      slug: 'heisenberg-uncertainty-principle',
+      isPublished: true
+    }
+  })
+
+  // Add quantum skript 2 to physics collection
+  await prisma.collectionSkript.upsert({
+    where: {
+      collectionId_skriptId: {
+        collectionId: physicsCollection.id,
+        skriptId: quantumSkript2.id
+      }
+    },
+    update: {},
+    create: {
+      collectionId: physicsCollection.id,
+      skriptId: quantumSkript2.id,
+      order: 1
     }
   })
 
@@ -461,20 +497,29 @@ Check: 2(4) + 3 = 8 + 3 = 11 ✓`,
 
   // CREATE PROGRAMMING SKRIPTS
   const progSkript1 = await prisma.skript.upsert({
-    where: {
-      collectionId_slug: {
-        collectionId: csCollection.id,
-        slug: 'variables-and-data-types'
-      }
-    },
+    where: { slug: 'variables-and-data-types' },
     update: {},
     create: {
       title: 'Variables and Data Types',
       description: 'Learn about different data types and how to work with variables',
       slug: 'variables-and-data-types',
-      order: 1,
-      isPublished: true,
-      collectionId: csCollection.id
+      isPublished: true
+    }
+  })
+
+  // Add programming skript to collection
+  await prisma.collectionSkript.upsert({
+    where: {
+      collectionId_skriptId: {
+        collectionId: csCollection.id,
+        skriptId: progSkript1.id
+      }
+    },
+    update: {},
+    create: {
+      collectionId: csCollection.id,
+      skriptId: progSkript1.id,
+      order: 0
     }
   })
 
@@ -494,20 +539,29 @@ Check: 2(4) + 3 = 8 + 3 = 11 ✓`,
   })
 
   const progSkript2 = await prisma.skript.upsert({
-    where: {
-      collectionId_slug: {
-        collectionId: csCollection.id,
-        slug: 'functions-and-scope'
-      }
-    },
+    where: { slug: 'functions-and-scope' },
     update: {},
     create: {
       title: 'Functions and Scope',
       description: 'Understanding function declarations and variable scope',
       slug: 'functions-and-scope',
-      order: 2,
-      isPublished: true,
-      collectionId: csCollection.id
+      isPublished: true
+    }
+  })
+
+  // Add programming skript 2 to collection
+  await prisma.collectionSkript.upsert({
+    where: {
+      collectionId_skriptId: {
+        collectionId: csCollection.id,
+        skriptId: progSkript2.id
+      }
+    },
+    update: {},
+    create: {
+      collectionId: csCollection.id,
+      skriptId: progSkript2.id,
+      order: 1
     }
   })
 
@@ -528,20 +582,29 @@ Check: 2(4) + 3 = 8 + 3 = 11 ✓`,
 
   // CREATE CALCULUS SKRIPTS
   const calcSkript1 = await prisma.skript.upsert({
-    where: {
-      collectionId_slug: {
-        collectionId: advMathCollection.id,
-        slug: 'limits-and-continuity'
-      }
-    },
+    where: { slug: 'limits-and-continuity' },
     update: {},
     create: {
       title: 'Limits and Continuity',
       description: 'Understanding limits as the foundation of calculus',
       slug: 'limits-and-continuity',
-      order: 1,
-      isPublished: true,
-      collectionId: advMathCollection.id
+      isPublished: true
+    }
+  })
+
+  // Add calculus skript to collection
+  await prisma.collectionSkript.upsert({
+    where: {
+      collectionId_skriptId: {
+        collectionId: advMathCollection.id,
+        skriptId: calcSkript1.id
+      }
+    },
+    update: {},
+    create: {
+      collectionId: advMathCollection.id,
+      skriptId: calcSkript1.id,
+      order: 0
     }
   })
 
@@ -561,20 +624,29 @@ Check: 2(4) + 3 = 8 + 3 = 11 ✓`,
   })
 
   const calcSkript2 = await prisma.skript.upsert({
-    where: {
-      collectionId_slug: {
-        collectionId: advMathCollection.id,
-        slug: 'derivatives'
-      }
-    },
+    where: { slug: 'introduction-to-derivatives' },
     update: {},
     create: {
       title: 'Introduction to Derivatives',
       description: 'Learn how to find rates of change using derivatives',
-      slug: 'derivatives',
-      order: 2,
-      isPublished: true,
-      collectionId: advMathCollection.id
+      slug: 'introduction-to-derivatives',
+      isPublished: true
+    }
+  })
+
+  // Add derivatives skript to collection
+  await prisma.collectionSkript.upsert({
+    where: {
+      collectionId_skriptId: {
+        collectionId: advMathCollection.id,
+        skriptId: calcSkript2.id
+      }
+    },
+    update: {},
+    create: {
+      collectionId: advMathCollection.id,
+      skriptId: calcSkript2.id,
+      order: 1
     }
   })
 

@@ -42,9 +42,8 @@ export function PermissionIndicator({
     <div className={cn("flex items-center gap-2 text-xs text-muted-foreground", className)}>
       {/* View-only indicator */}
       {isViewOnly && (
-        <div className="flex items-center gap-1 text-muted-foreground">
+        <div className="flex items-center text-muted-foreground/50" title="View only - no edit permissions">
           <Eye className="w-3 h-3" />
-          <span>You can only view this</span>
         </div>
       )}
       

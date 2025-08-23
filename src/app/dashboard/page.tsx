@@ -25,9 +25,13 @@ export default async function DashboardPage() {
         }
       },
       include: {
-        skripts: {
+        collectionSkripts: {
           include: {
-            pages: true
+            skript: {
+              include: {
+                pages: true
+              }
+            }
           }
         }
       },
@@ -128,9 +132,9 @@ export default async function DashboardPage() {
                       {collection.description || 'No description'}
                     </p>
                     <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                      <span>{collection.skripts.length} skripts</span>
+                      <span>{collection.collectionSkripts.length} skripts</span>
                       <span>
-                        {collection.skripts.reduce((acc: number, ch: { pages: unknown[] }) => acc + ch.pages.length, 0)} pages
+                        {collection.collectionSkripts.reduce((acc: number, cs: { skript: { pages: unknown[] } }) => acc + cs.skript.pages.length, 0)} pages
                       </span>
                       <span>
                         Updated {new Date(collection.updatedAt).toLocaleDateString()}

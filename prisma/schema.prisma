@@ -83,6 +83,9 @@ model User {
   skriptAuthors SkriptAuthor[]
   pageAuthors    PageAuthor[]
   
+  // Collection-skript relationships (for root-level placements)
+  collectionSkripts   CollectionSkript[]
+  
   // File uploads
   files          File[]
   
@@ -121,7 +124,7 @@ model Collection {
   updatedAt   DateTime @updatedAt
   
   // Relations
-  skripts    Skript[]
+  collectionSkripts CollectionSkript[]
   
   // Many-to-many relation for multiple authors
   authors     CollectionAuthor[]
@@ -144,20 +147,36 @@ model CollectionAuthor {
   @@map("collection_authors")
 }
 
+// Junction table for Collection-Skript many-to-many relationship
+model CollectionSkript {
+  id           String   @id @default(cuid())
+  collectionId String?  // Nullable - null means root level
+  skriptId     String
+  userId       String?  // ONLY used for root level items (when collectionId is null)
+  order        Int      // Order within the collection or root level
+  createdAt    DateTime @default(now())
+  
+  collection   Collection? @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  skript       Skript      @relation(fields: [skriptId], references: [id], onDelete: Cascade)
+  user         User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([collectionId, skriptId]) // One entry per skript per collection
+  @@unique([skriptId, userId]) // One root entry per skript per user (when collectionId is null)
+  @@map("collection_skripts")
+}
+
 model Skript {
   id          String   @id @default(cuid())
   title       String
   description String?
-  slug        String
-  order       Int
+  slug        String   @unique
   isPublished Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
   // Relations
-  collectionId String
-  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  pages       Page[]
+  collectionSkripts CollectionSkript[]
+  pages            Page[]
   
   // Many-to-many relation for multiple authors
   authors     SkriptAuthor[]
@@ -165,7 +184,6 @@ model Skript {
   // Files associated with this skript
   files       File[]
   
-  @@unique([collectionId, slug])
   @@map("skripts")
 }
 

@@ -17,6 +17,9 @@
     "docker:stop": "docker-compose -f docker-compose.dev.yml down",
     "docker:logs": "docker-compose -f docker-compose.dev.yml logs -f eduskript"
   },
+  "prisma": {
+    "seed": "npx tsx prisma/seed.ts"
+  },
   "engines": {
     "node": "22.x"
   },

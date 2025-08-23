@@ -57,55 +57,76 @@ export async function POST(request: NextRequest) {
     // Normalize slug
     const normalizedSlug = generateSlug(slug)
 
-    // Check if slug is already taken in this collection
+    // Check if slug is already taken globally
     const existingSkript = await prisma.skript.findFirst({
       where: {
-        collectionId,
         slug: normalizedSlug
       }
     })
 
     if (existingSkript) {
       return NextResponse.json(
-        { error: 'A skript with this slug already exists in this collection' },
+        { error: 'A skript with this slug already exists' },
         { status: 409 }
       )
     }
 
-    // Get the next order number
-    const lastSkript = await prisma.skript.findFirst({
+    // Get the next order number for skripts in this collection
+    const lastCollectionSkript = await prisma.collectionSkript.findFirst({
       where: { collectionId },
       orderBy: { order: 'desc' }
     })
 
-    const nextOrder = (lastSkript?.order ?? 0) + 1
+    const nextOrder = (lastCollectionSkript?.order ?? -1) + 1
 
-    // Create skript with the current user as the first author
-    const skript = await prisma.skript.create({
-      data: {
-        title,
-        description,
-        slug: normalizedSlug,
-        order: nextOrder,
-        collectionId,
-        authors: {
-          create: {
-            userId: session.user.id,
-            permission: "author"
+    // Create skript and add to collection via junction table
+    const skript = await prisma.$transaction(async (tx) => {
+      // Create the skript
+      const newSkript = await tx.skript.create({
+        data: {
+          title,
+          description,
+          slug: normalizedSlug,
+          authors: {
+            create: {
+              userId: session.user.id,
+              permission: "author"
+            }
           }
         }
-      },
+      })
+
+      // Add to collection via junction table
+      await tx.collectionSkript.create({
+        data: {
+          collectionId,
+          skriptId: newSkript.id,
+          order: nextOrder
+        }
+      })
+
+      return newSkript
+    })
+
+    // Fetch the created skript with all relations
+    const createdSkriptWithRelations = await prisma.skript.findUnique({
+      where: { id: skript.id },
       include: {
         authors: {
           include: {
             user: true
+          }
+        },
+        collectionSkripts: {
+          include: {
+            collection: true
           }
         }
       }
     })
 
     revalidatePath('/dashboard')
-    return NextResponse.json(skript)
+    return NextResponse.json(createdSkriptWithRelations)
   } catch (error) {
     console.error('Error creating skript:', error)
     return NextResponse.json(
@@ -144,11 +165,15 @@ export async function GET(request: NextRequest) {
             }
           },
           {
-            // Collection authorship (inherited permissions)
-            collection: {
-              authors: {
-                some: {
-                  userId: session.user.id
+            // Collection authorship (inherited permissions) through junction table
+            collectionSkripts: {
+              some: {
+                collection: {
+                  authors: {
+                    some: {
+                      userId: session.user.id
+                    }
+                  }
                 }
               }
             }
@@ -185,15 +210,19 @@ export async function GET(request: NextRequest) {
             }
           }
         },
-        collection: {
+        collectionSkripts: {
           include: {
-            authors: {
+            collection: {
               include: {
-                user: {
-                  select: {
-                    id: true,
-                    name: true,
-                    email: true
+                authors: {
+                  include: {
+                    user: {
+                      select: {
+                        id: true,
+                        name: true,
+                        email: true
+                      }
+                    }
                   }
                 }
               }

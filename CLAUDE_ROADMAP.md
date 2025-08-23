@@ -6,32 +6,41 @@
 - ✅ API endpoints for managing collection/skript authors
 - ✅ **No-access-by-default model**: Collaborators only see explicitly shared content
 
-## ✅ Recently Completed: Dashboard Page Builder UI
+## ✅ Recently Completed: Dashboard Page Builder UI + Permission Management
 
-**Status**: Successfully implemented the page builder interface with drag-and-drop functionality.
+**Status**: Dashboard redesign with collection/skript management and permission indicators implemented.
 
 ### What Was Built:
-- **Page Builder Interface** (`/dashboard/page-builder`) - Main interface combining both components
-- **ContentLibrary Component** (right side) - Shows all accessible collections and skripts with search
-- **PageBuilder Component** (left side) - Drag area for building personal pages with reordering
-- **Permission System Integration** - Visual indicators showing edit/view permissions and collaborator names
-- **Drag & Drop Functionality** - Full DnD support with preview overlays and collision detection
+- **Enhanced Dashboard** (`/dashboard`) - Redesigned with improved collection/skript management
+- **ContentLibrary Component** - Shows all accessible collections and skripts with search/filtering
+- **Permission System Integration** - Visual indicators showing edit/view permissions and collaborator names  
+- **Drag & Drop Functionality** - Reordering of collections and skripts (UI working, persistence needs debugging)
 
 ### Components Created:
-- ✅ `PageBuilderInterface` - Main drag-and-drop container
-- ✅ `ContentLibrary` - Content browser with permission filtering
-- ✅ `PageBuilder` - Personal page construction area
-- ✅ `PermissionIndicator` - Shows edit/view icons with collaborator names
-- ✅ `DraggableCollection` and `DraggableSkript` - Draggable content items
+- ✅ `ContentLibrary` - Main dashboard content browser with permission filtering
+- ✅ `PermissionIndicator` - Shows edit/view icons with collaborator names ("John, Jane et al.")
+- ✅ `SortableCollections` and `SortableSkripts` - Drag-and-drop reordering components
 - ✅ **API Extensions** - Enhanced `/api/collections` and `/api/skripts` with shared content support
+- ✅ **Reorder API Routes** - `/api/collections/[id]/reorder-skripts` and `/api/skripts/[id]/reorder-pages`
 
 ### Key Features:
 - **Permission Visual Indicators**: Edit/View icons with collaborator names ("John, Jane et al.")
 - **View-only Styling**: Greyish appearance for content user can only view
 - **Search & Filter**: Find content across all accessible collections and skripts
-- **Drag & Drop**: Smooth dragging with visual feedback and item management
+- **Drag & Drop Reordering**: Smooth dragging with visual feedback (UI complete, persistence issue)
 
-## 🚀 Phase 1: Enhanced Permission UX (After Page Builder)
+### 🐛 Current Issue:
+- **Drag-and-drop reordering**: UI works perfectly but changes don't persist to database
+- **Investigation needed**: API routes exist but order changes not saving properly
+
+## 🔧 Immediate Priority: Fix Reordering Persistence
+
+### Next Steps:
+1. **Debug reorder API routes** - Investigate why drag-and-drop order changes aren't persisting
+2. **Test database updates** - Verify `sortOrder` fields are being updated correctly  
+3. **Fix frontend-backend connection** - Ensure UI changes trigger proper API calls
+
+## 🚀 Phase 1: Enhanced Permission UX (After Reorder Fix)
 
 ### 1. Access Management Dashboard
 - **Collection-level permission overview** showing who has access to what
@@ -128,5 +137,5 @@ Future:  collaborator | customer | subscriber
 4. **Future**: Advanced analytics and revenue sharing
 
 ---
-*Last updated: 2025-01-22*
-*Current Focus: Page Builder complete! Ready for Phase 1: Enhanced Permission UX*
+*Last updated: 2025-08-23*
+*Current Focus: Dashboard redesign complete with permission indicators. Next: Fix drag-and-drop persistence bug.*

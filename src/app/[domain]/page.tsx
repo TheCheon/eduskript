@@ -124,16 +124,22 @@ export default async function DomainIndex({ params }: DomainIndexProps) {
             }
           },
           include: {
-            skripts: {
-              where: { isPublished: true },
+            collectionSkripts: {
+              where: {
+                skript: { isPublished: true }
+              },
               include: {
-                pages: {
-                  where: { isPublished: true },
-                  orderBy: { order: 'asc' },
-                  select: {
-                    id: true,
-                    title: true,
-                    slug: true
+                skript: {
+                  include: {
+                    pages: {
+                      where: { isPublished: true },
+                      orderBy: { order: 'asc' },
+                      select: {
+                        id: true,
+                        title: true,
+                        slug: true
+                      }
+                    }
                   }
                 }
               },
@@ -141,7 +147,21 @@ export default async function DomainIndex({ params }: DomainIndexProps) {
             }
           }
         })
-        if (collection) collections.push(collection)
+        if (collection) {
+          // Transform junction table data to match expected interface
+          const transformedCollection = {
+            id: collection.id,
+            title: collection.title,
+            slug: collection.slug,
+            skripts: collection.collectionSkripts.map(cs => ({
+              id: cs.skript.id,
+              title: cs.skript.title,
+              slug: cs.skript.slug,
+              pages: cs.skript.pages
+            }))
+          }
+          collections.push(transformedCollection)
+        }
       } else if (item.type === 'skript') {
         const skript = await prisma.skript.findFirst({
           where: {
@@ -154,7 +174,11 @@ export default async function DomainIndex({ params }: DomainIndexProps) {
             }
           },
           include: {
-            collection: true,
+            collectionSkripts: {
+              include: {
+                collection: true
+              }
+            },
             pages: {
               where: { isPublished: true },
               orderBy: { order: 'asc' },
@@ -166,7 +190,17 @@ export default async function DomainIndex({ params }: DomainIndexProps) {
             }
           }
         })
-        if (skript) rootSkripts.push(skript)
+        if (skript) {
+          // For backwards compatibility, create a collection reference
+          // In the new schema, a skript might belong to multiple collections
+          // For now, we'll use the first collection or create a default if none
+          const firstCollection = skript.collectionSkripts[0]?.collection
+          const transformedSkript = {
+            ...skript,
+            collection: firstCollection || { title: 'Uncategorized', slug: 'uncategorized' }
+          }
+          rootSkripts.push(transformedSkript)
+        }
       }
     }
 

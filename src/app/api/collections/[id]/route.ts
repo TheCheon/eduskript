@@ -20,10 +20,14 @@ export async function GET(
     const collection = await prisma.collection.findUnique({
       where: { id },
       include: {
-        skripts: {
+        collectionSkripts: {
           include: {
-            pages: {
-              orderBy: { order: 'asc' }
+            skript: {
+              include: {
+                pages: {
+                  orderBy: { order: 'asc' }
+                }
+              }
             }
           },
           orderBy: { order: 'asc' }

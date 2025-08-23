@@ -11,14 +11,18 @@ import { checkCollectionPermissions, checkSkriptPermissions } from '@/lib/permis
 
 interface CollectionWithAuthors extends Collection {
   authors: (CollectionAuthor & { user: Pick<User, 'id' | 'name' | 'email'> })[]
-  skripts: Skript[]
+  collectionSkripts: Array<{
+    skript: Skript
+  }>
 }
 
 interface SkriptWithAuthors extends Skript {
   authors: (SkriptAuthor & { user: Pick<User, 'id' | 'name' | 'email'> })[]
-  collection: {
-    authors: (CollectionAuthor & { user: Pick<User, 'id' | 'name' | 'email'> })[]
-  }
+  collectionSkripts: Array<{
+    collection: {
+      authors: (CollectionAuthor & { user: Pick<User, 'id' | 'name' | 'email'> })[]
+    }
+  }>
   pages: Array<{ id: string }>
 }
 
@@ -125,7 +129,7 @@ export function ContentLibrary() {
                     id={collection.id}
                     title={collection.title}
                     description={collection.description || undefined}
-                    skriptCount={collection.skripts.length}
+                    skriptCount={collection.collectionSkripts.length}
                     authors={collection.authors}
                     currentUserId={session.user.id}
                     isViewOnly={isViewOnly}
@@ -145,10 +149,11 @@ export function ContentLibrary() {
             </h3>
             <div className="space-y-2">
               {filteredSkripts.map((skript) => {
+                // For now, just check skript permissions without collection permissions
+                // since the skripts API needs to be updated to include collectionSkripts properly
                 const permissions = checkSkriptPermissions(
                   session.user.id,
-                  skript.authors,
-                  skript.collection.authors
+                  skript.authors
                 )
                 const isViewOnly = !permissions.canEdit
 

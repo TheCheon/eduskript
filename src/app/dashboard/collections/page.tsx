@@ -15,9 +15,11 @@ interface Collection {
   description?: string
   isPublished: boolean
   updatedAt: string
-  skripts: Array<{
-    id: string
-    pages: Array<{ id: string }>
+  collectionSkripts: Array<{
+    skript: {
+      id: string
+      pages: Array<{ id: string }>
+    }
   }>
 }
 
@@ -115,12 +117,12 @@ export default function CollectionsPage() {
                 <div className="flex items-center gap-6 text-sm text-muted-foreground">
                   <div className="flex items-center gap-2">
                     <BookOpen className="w-4 h-4" />
-                    <span>{collection.skripts.length} skripts</span>
+                    <span>{collection.collectionSkripts.length} skripts</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Eye className="w-4 h-4" />
                     <span>
-                      {collection.skripts.reduce((acc: number, ch) => acc + ch.pages.length, 0)} pages
+                      {collection.collectionSkripts.reduce((acc: number, cs) => acc + cs.skript.pages.length, 0)} pages
                     </span>
                   </div>
                   <div>

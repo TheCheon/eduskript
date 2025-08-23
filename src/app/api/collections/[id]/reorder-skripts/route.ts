@@ -10,6 +10,7 @@ export async function PATCH(
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
+      console.log('Unauthorized: no session or user ID')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -17,7 +18,10 @@ export async function PATCH(
     const body = await request.json()
     const { skriptIds } = body
 
+    console.log(`Collection reorder request - ID: ${id}, User: ${session.user.id}, SkriptIds:`, skriptIds)
+
     if (!Array.isArray(skriptIds)) {
+      console.log('Invalid request: skriptIds is not an array')
       return NextResponse.json(
         { error: 'skriptIds must be an array' },
         { status: 400 }
@@ -35,37 +39,58 @@ export async function PATCH(
         }
       },
       include: {
-        skripts: true
+        collectionSkripts: {
+          include: {
+            skript: true
+          }
+        }
       }
     })
 
     if (!collection) {
+      console.log(`Collection not found or user ${session.user.id} doesn't have access to collection ${id}`)
       return NextResponse.json(
         { error: 'Collection not found' },
         { status: 404 }
       )
     }
 
+    console.log(`Found collection: ${collection.title} with ${collection.collectionSkripts.length} skripts`)
+
     // Verify all skript IDs belong to this collection
-    const collectionSkriptIds = collection.skripts.map((c) => c.id)
+    const collectionSkriptIds = collection.collectionSkripts.map((cs) => cs.skript.id)
     const allSkriptIdsValid = skriptIds.every((id: string) => collectionSkriptIds.includes(id))
     
-    if (!allSkriptIdsValid || skriptIds.length !== collection.skripts.length) {
+    console.log('Collection skript IDs:', collectionSkriptIds)
+    console.log('Provided skript IDs:', skriptIds)
+    console.log('All IDs valid:', allSkriptIdsValid)
+    console.log('Length match:', skriptIds.length === collection.collectionSkripts.length)
+    
+    if (!allSkriptIdsValid || skriptIds.length !== collection.collectionSkripts.length) {
+      console.log('Invalid skript IDs provided - validation failed')
       return NextResponse.json(
         { error: 'Invalid skript IDs provided' },
         { status: 400 }
       )
     }
 
-    // Update skript orders
-    const updates = skriptIds.map((skriptId: string, index: number) => 
-      prisma.skript.update({
-        where: { id: skriptId },
-        data: { order: index + 1 }
+    // Update skript orders in junction table
+    console.log('Starting transaction to update skript orders in junction table')
+    const updates = skriptIds.map((skriptId: string, index: number) => {
+      console.log(`Updating skript ${skriptId} to order ${index} in collection ${id}`)
+      return prisma.collectionSkript.update({
+        where: {
+          collectionId_skriptId: {
+            collectionId: id,
+            skriptId: skriptId
+          }
+        },
+        data: { order: index }
       })
-    )
+    })
 
     await prisma.$transaction(updates)
+    console.log('Transaction completed successfully')
 
     return NextResponse.json({ success: true })
   } catch (error) {

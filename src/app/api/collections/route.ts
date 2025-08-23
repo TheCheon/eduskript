@@ -113,9 +113,13 @@ export async function GET(request: NextRequest) {
     const collections = await prisma.collection.findMany({
       where: whereClause,
       include: {
-        skripts: {
+        collectionSkripts: {
           include: {
-            pages: true
+            skript: {
+              include: {
+                pages: true
+              }
+            }
           }
         },
         authors: {
