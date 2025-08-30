@@ -4,14 +4,13 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { FileText, BookOpen, Settings, Users, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
+import { BookOpen, Settings, Users, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const navigation = [
-  { name: 'Overview', href: '/dashboard', icon: FileText },
   { name: 'Page Builder', href: '/dashboard/page-builder', icon: BookOpen },
-  { name: 'Collaborate', href: '/dashboard/collaborate', icon: Users },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
+  { name: 'Collaborate', href: '/dashboard/collaborate', icon: Users },
 ]
 
 export function DashboardSidebar() {
@@ -55,7 +54,9 @@ export function DashboardSidebar() {
         <nav className="space-y-2 flex-1">
           {navigation.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.href
+            // Highlight page-builder for both /dashboard and /dashboard/page-builder
+            const isActive = pathname === item.href || 
+                           (item.href === '/dashboard/page-builder' && pathname === '/dashboard')
             
             return (
               <Link

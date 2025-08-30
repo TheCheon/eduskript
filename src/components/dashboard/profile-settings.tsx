@@ -15,7 +15,6 @@ export function ProfileSettings() {
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: session?.user?.name || '',
-    subdomain: session?.user?.subdomain || '',
     bio: (session?.user as { bio?: string })?.bio || '',
     title: (session?.user as { title?: string })?.title || ''
   })
@@ -65,7 +64,7 @@ export function ProfileSettings() {
           <CardTitle>Profile Settings</CardTitle>
         </div>
         <CardDescription>
-          Update your public profile information and subdomain
+          Update your public profile information
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -84,29 +83,6 @@ export function ProfileSettings() {
             />
           </div>
 
-          <div>
-            <Label htmlFor="subdomain">
-              Subdomain
-            </Label>
-            <div className="flex items-center">
-              <Input
-                id="subdomain"
-                type="text"
-                value={formData.subdomain}
-                onChange={(e) => handleInputChange('subdomain', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                className="rounded-r-none"
-                placeholder="your-subdomain"
-                pattern="^[a-z0-9-]+$"
-                required
-              />
-              <span className="px-3 py-2 bg-muted border border-l-0 border-input rounded-r-md text-muted-foreground text-sm h-10 flex items-center">
-                .{typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'localhost:3000' : 'eduskript.org'}
-              </span>
-            </div>
-            <p className="text-sm text-muted-foreground mt-1">
-              This will be your public site URL. Only lowercase letters, numbers, and hyphens allowed.
-            </p>
-          </div>
 
           <div>
             <Label htmlFor="title">

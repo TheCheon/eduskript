@@ -211,7 +211,8 @@ export default async function PublicPage({ params }: PageProps) {
         email: true,
         title: true,
         bio: true,
-        subdomain: true
+        subdomain: true,
+        sidebarBehavior: true
       }
     })
 
@@ -344,6 +345,57 @@ export default async function PublicPage({ params }: PageProps) {
             }))
         }))
     }]
+    
+    // Fetch full site structure if sidebar behavior is "full"
+    let fullSiteStructure = undefined
+    if (teacher.sidebarBehavior === 'full') {
+      const allCollections = await prisma.collection.findMany({
+        where: {
+          authors: {
+            some: {
+              userId: teacher.id
+            }
+          },
+          isPublished: true
+        },
+        include: {
+          collectionSkripts: {
+            include: {
+              skript: {
+                include: {
+                  pages: {
+                    where: { isPublished: true },
+                    orderBy: { order: 'asc' },
+                    select: {
+                      id: true,
+                      title: true,
+                      slug: true
+                    }
+                  }
+                }
+              }
+            },
+            orderBy: { order: 'asc' }
+          }
+        },
+        orderBy: { updatedAt: 'desc' }
+      })
+      
+      fullSiteStructure = allCollections.map(col => ({
+        id: col.id,
+        title: col.title,
+        slug: col.slug,
+        skripts: col.collectionSkripts
+          .map(cs => cs.skript)
+          .filter(s => s.isPublished)
+          .map(s => ({
+            id: s.id,
+            title: s.title,
+            slug: s.slug,
+            pages: s.pages
+          }))
+      }))
+    }
 
     // Prepare teacher data for the layout component
     const teacherForLayout = {
@@ -360,6 +412,8 @@ export default async function PublicPage({ params }: PageProps) {
         teacher={teacherForLayout}
         siteStructure={siteStructure}
         currentPath={currentPath}
+        fullSiteStructure={fullSiteStructure}
+        sidebarBehavior={teacher.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
       >
         <div className="max-w-4xl mx-auto">
           {/* Preview mode indicator for unpublished content */}

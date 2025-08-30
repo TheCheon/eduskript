@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, ChevronRight, Menu, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Menu, X, Home } from 'lucide-react'
 import { ReadingProgress } from './reading-progress'
 import { PublicThemeToggle } from './theme-toggle'
 
@@ -44,9 +44,19 @@ interface PublicSiteLayoutProps {
   rootSkripts?: RootSkript[]
   children: React.ReactNode
   currentPath?: string
+  fullSiteStructure?: SiteStructure[] // Full site structure when sidebarBehavior is "full"
+  sidebarBehavior?: 'contextual' | 'full'
 }
 
-export function PublicSiteLayout({ teacher, siteStructure, rootSkripts = [], children, currentPath }: PublicSiteLayoutProps) {
+export function PublicSiteLayout({ 
+  teacher, 
+  siteStructure, 
+  rootSkripts = [], 
+  children, 
+  currentPath,
+  fullSiteStructure,
+  sidebarBehavior = 'contextual'
+}: PublicSiteLayoutProps) {
   const router = useRouter()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   
@@ -228,7 +238,37 @@ export function PublicSiteLayout({ teacher, siteStructure, rootSkripts = [], chi
           {/* Navigation */}
           <div className="flex-1 overflow-y-auto p-4">
             <nav className="space-y-2">
-              {siteStructure.map((collection) => (
+              {/* Determine which structure to show based on sidebarBehavior */}
+              {(() => {
+                const displayStructure = sidebarBehavior === 'full' && fullSiteStructure 
+                  ? fullSiteStructure 
+                  : siteStructure
+                
+                const showHomeButton = sidebarBehavior === 'contextual' && siteStructure.length === 1
+                
+                return (
+                  <>
+                    {/* Home button - only show when viewing a single collection in contextual mode */}
+                    {showHomeButton && (
+                      <button
+                        onClick={() => {
+                          // Navigate to teacher's root page
+                          const hostname = typeof window !== 'undefined' ? window.location.hostname : ''
+                          const isMainDomain = hostname === 'localhost' || hostname === 'eduskript.org' || hostname === 'www.eduskript.org'
+                          const isOnSubdomain = !isMainDomain && (hostname.endsWith('.localhost') || hostname.endsWith('.eduskript.org'))
+                          
+                          const url = isOnSubdomain ? '/' : `/${teacher.subdomain}`
+                          router.push(url)
+                          setIsSidebarOpen(false)
+                        }}
+                        className="flex items-center w-full text-left px-3 py-2 text-sm font-medium rounded-md transition-colors text-muted-foreground hover:bg-muted hover:text-foreground mb-4"
+                      >
+                        <Home className="w-4 h-4 mr-2 flex-shrink-0" />
+                        <span>Home</span>
+                      </button>
+                    )}
+                    
+                    {displayStructure.map((collection) => (
                 <div key={collection.id} className="space-y-1">
                   {/* Collection Title */}
                   <button
@@ -292,7 +332,10 @@ export function PublicSiteLayout({ teacher, siteStructure, rootSkripts = [], chi
                     </div>
                   )}
                 </div>
-              ))}
+                    ))}
+                  </>
+                )
+              })()}
               
               {/* Root-level skripts */}
               {rootSkripts.length > 0 && (

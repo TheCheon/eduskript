@@ -3,6 +3,7 @@ import { authOptions } from '@/lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { CustomDomains } from '@/components/dashboard/custom-domains'
 import { ProfileSettings } from '@/components/dashboard/profile-settings'
+import { PageSettings } from '@/components/dashboard/page-settings'
 
 export default async function SettingsPage() {
   const session = await getServerSession(authOptions)
@@ -24,6 +25,8 @@ export default async function SettingsPage() {
 
       <div className="grid gap-6">
         <ProfileSettings />
+        
+        <PageSettings />
 
         <Card>
           <CardHeader>
