@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
     const includeShared = searchParams.get('includeShared') === 'true'
 
     let whereClause
-    
+
     if (includeShared) {
       // Get collections where user is an author OR can view through any permission level
       whereClause = {
@@ -117,7 +117,18 @@ export async function GET(request: NextRequest) {
           include: {
             skript: {
               include: {
-                pages: true
+                pages: true,
+                authors: {
+                  include: {
+                    user: {
+                      select: {
+                        id: true,
+                        name: true,
+                        email: true
+                      }
+                    }
+                  }
+                }
               }
             }
           }

@@ -73,16 +73,14 @@ export function PageBuilderInterface() {
                         .filter((cs: { skript: { isPublished: boolean } }) => cs.skript.isPublished) // Only published skripts
                         .map(async (cs: { skript: { id: string; title: string; description?: string; slug: string; isPublished: boolean }, order: number }) => {
                           // Fetch individual skript permissions
+                          // Note: The API now properly handles collection-level permission inheritance
+                          // If the user has collection access, the API will return at minimum view-only permissions
                           let skriptPermissions = { canEdit: false, canView: true }
                           try {
                             const skriptResponse = await fetch(`/api/skripts/${cs.skript.id}`)
                             if (skriptResponse.ok) {
                               const skriptData = await skriptResponse.json()
                               skriptPermissions = skriptData.permissions || skriptPermissions
-                            } else if (skriptResponse.status === 403) {
-                              // User doesn't have direct access to this skript, but they have collection access
-                              // so they inherit view permissions (can't edit, but can view)
-                              skriptPermissions = { canEdit: false, canView: true }
                             } else {
                               console.warn(`Failed to fetch permissions for skript ${cs.skript.id}: ${skriptResponse.status}`)
                             }
@@ -418,10 +416,18 @@ export function PageBuilderInterface() {
             slug: collection?.slug,
             skripts: collection?.collectionSkripts?.map((cs: any, idx: number) => {
               // Calculate skript permissions
-              const skriptPermissions = session?.user?.id 
+              // According to permission model: "Collection authors can view all skripts in their collections"
+              const directSkriptPermissions = session?.user?.id
                 ? checkSkriptPermissions(session.user.id, cs.skript.authors || [])
                 : { canEdit: false, canView: false }
-              
+
+              // If user has collection access but no direct skript access, grant view-only
+              const skriptPermissions = directSkriptPermissions.canView
+                ? directSkriptPermissions
+                : collectionPermissions.canView || collectionPermissions.canEdit
+                  ? { canEdit: false, canView: true }  // Collection-level view inheritance
+                  : { canEdit: false, canView: false }
+
               return {
                 id: cs.skript.id,
                 type: 'skript' as const,

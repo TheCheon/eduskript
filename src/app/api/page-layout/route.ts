@@ -39,7 +39,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    
+
     if (!session?.user?.id) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -56,13 +56,60 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Upsert page layout
+    // SECURITY: Validate that user has permission to access each item
+    const validatedItems: Array<{ id: string; type: string }> = []
+
+    for (const item of items) {
+      if (!item.id || !item.type) {
+        continue // Skip invalid items
+      }
+
+      if (item.type === 'collection') {
+        // Check if user has any permission on this collection
+        const collection = await prisma.collection.findFirst({
+          where: {
+            id: item.id,
+            authors: {
+              some: {
+                userId: session.user.id
+              }
+            }
+          }
+        })
+
+        if (collection) {
+          validatedItems.push(item)
+        } else {
+          console.warn(`[Page Layout] User ${session.user.email} attempted to add collection ${item.id} without permission`)
+        }
+      } else if (item.type === 'skript') {
+        // Check if user has any permission on this skript
+        const skript = await prisma.skript.findFirst({
+          where: {
+            id: item.id,
+            authors: {
+              some: {
+                userId: session.user.id
+              }
+            }
+          }
+        })
+
+        if (skript) {
+          validatedItems.push(item)
+        } else {
+          console.warn(`[Page Layout] User ${session.user.email} attempted to add skript ${item.id} without permission`)
+        }
+      }
+    }
+
+    // Upsert page layout with only validated items
     const pageLayout = await prisma.pageLayout.upsert({
       where: { userId: session.user.id },
       update: {
         items: {
           deleteMany: {},
-          create: items.map((item: { id: string; type: string }, index: number) => ({
+          create: validatedItems.map((item, index) => ({
             type: item.type,
             contentId: item.id,
             order: index
@@ -72,7 +119,7 @@ export async function POST(request: NextRequest) {
       create: {
         userId: session.user.id,
         items: {
-          create: items.map((item: { id: string; type: string }, index: number) => ({
+          create: validatedItems.map((item, index) => ({
             type: item.type,
             contentId: item.id,
             order: index

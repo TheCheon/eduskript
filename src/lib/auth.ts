@@ -25,7 +25,7 @@ export const authOptions: NextAuthOptions = {
         })
 
         if (!user || !user.hashedPassword) {
-          return null
+          throw new Error('Invalid credentials')
         }
 
         // Check if email is verified
@@ -39,7 +39,7 @@ export const authOptions: NextAuthOptions = {
         )
 
         if (!isPasswordValid) {
-          return null
+          throw new Error('Invalid credentials')
         }
 
         return {

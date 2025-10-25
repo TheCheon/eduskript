@@ -33,14 +33,19 @@ export default function SignInPage() {
       })
 
       if (result?.error) {
-        if (result.error.includes('verify your email')) {
-          setError('Please verify your email address before signing in.')
+        // Check for email verification error
+        if (result.error.includes('verify your email') || result.error.includes('email address before signing in')) {
+          setError('You need to verify your email before you can log in.')
           setShowResendVerification(true)
+        } else if (result.error.includes('Invalid credentials')) {
+          setError('Invalid email or password. Please try again.')
         } else {
-          setError('Invalid credentials')
+          setError(result.error || 'An error occurred. Please try again.')
         }
-      } else {
+      } else if (result?.ok) {
         router.push('/dashboard')
+      } else {
+        setError('Authentication failed. Please try again.')
       }
     } catch {
       setError('An error occurred. Please try again.')

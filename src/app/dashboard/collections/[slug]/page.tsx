@@ -89,15 +89,6 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
         order: cs.order // Add the order from the junction table to the skript
       }))
   }
-  
-  console.log('Collection data:', {
-    collectionId: collection.id,
-    skriptsWithOrder: transformedCollection.skripts.map(s => ({ 
-      id: s.id, 
-      title: s.title, 
-      order: s.order 
-    }))
-  })
 
   return <CollectionEditor collection={transformedCollection} userPermissions={userPermissions} currentUserId={session.user.id} />
 }
