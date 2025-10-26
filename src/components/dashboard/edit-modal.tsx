@@ -15,7 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Edit, Save, Eye, EyeOff } from 'lucide-react'
+import { Edit, Save, Eye, EyeOff, TextCursor } from 'lucide-react'
 
 interface EditModalProps {
   type: 'skript' | 'page'
@@ -122,9 +122,8 @@ export function EditModal({ type, item, onItemUpdated, triggerClassName, buttonT
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className={triggerClassName}>
-          <Edit className="w-4 h-4 mr-2" />
-          {buttonText || 'Edit'}
+        <Button variant="ghost" size="sm" className={triggerClassName}>
+          <TextCursor className="w-4 h-4" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">

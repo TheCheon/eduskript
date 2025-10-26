@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { MarkdownEditor } from '@/components/dashboard/markdown-editor'
 import { FileBrowser } from '@/components/dashboard/file-browser'
 import { CollapsibleDrawer } from '@/components/ui/collapsible-drawer'
-import { EditModal } from '@/components/dashboard/edit-modal'
 import { PublishToggle } from '@/components/dashboard/publish-toggle'
 import { VersionHistory } from '@/components/dashboard/version-history'
 import { ExcalidrawEditor } from '@/components/dashboard/excalidraw-editor'
@@ -49,8 +49,9 @@ interface PageEditorProps {
 }
 
 export function PageEditor({ collection, skript, page }: PageEditorProps) {
-  const [title] = useState(page.title || '')
-  const [slug] = useState(page.slug || '')
+  const [title, setTitle] = useState(page.title || '')
+  const [slug, setSlug] = useState(page.slug || '')
+  const [description, setDescription] = useState('')
   const [content, setContent] = useState(page.content || '')
   const [isPublished] = useState(page.isPublished || false)
   const [isSaving, setIsSaving] = useState(false)
@@ -150,12 +151,12 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
     isDirectory?: boolean
   }) => {
     if (file.isDirectory) return // Don't insert directories
-    
+
     let insertText = ''
-    
+
     // Determine the type of insert based on file extension
     const extension = file.name.split('.').pop()?.toLowerCase()
-    
+
     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension || '')) {
       // Image - use regular markdown syntax with just filename for path resolution
       const altText = file.name.replace(/\.[^/.]+$/, '')
@@ -170,7 +171,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
       // Generic file/download link - use full URL for non-image files
       insertText = `[${file.name}](${file.url || file.name})`
     }
-    
+
     // Insert the text at the current cursor position
     setContent((prev: string) => prev + '\n\n' + insertText)
     setHasUnsavedChanges(true)
@@ -292,6 +293,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
         body: JSON.stringify({
           title: title.trim(),
           slug: slug.trim(),
+          description: description.trim(),
           content: contentRef.current,
           isPublished
         })
@@ -317,7 +319,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
       alert('Failed to save page')
     }
     setIsSaving(false)
-  }, [title, slug, isPublished, page.id, page.slug, collection.slug, skript.slug, router, loadVersions])
+  }, [title, slug, description, isPublished, page.id, page.slug, collection.slug, skript.slug, router, loadVersions])
 
   // Handle version restoration
   const handleRestoreVersion = async (versionId: string, versionContent: string) => {
@@ -376,64 +378,94 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link href={`/dashboard/collections/${collection.slug}`}>
+      <div className="grid grid-cols-[auto_1fr_auto] gap-2 items-start">
+        {/* Column 1: Back button */}
+        <Link href={`/dashboard/collections/${collection.slug}`} className="row-span-2 self-center">
           <Button variant="ghost" size="sm">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Collections
+            <ArrowLeft className="w-4 h-4" />
           </Button>
         </Link>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-foreground">
-              {page.title}
-            </h1>
-            {hasUnsavedChanges && (
-              <div className="w-2 h-2 bg-warning rounded-full" title="Unsaved changes" />
-            )}
-          </div>
-          <p className="text-muted-foreground">
-            {collection.title} → {skript.title}
-          </p>
-        </div>
+
+        {/* Column 2 Row 1: Title */}
+        <Input
+          type="text"
+          value={title}
+          onChange={(e) => {
+            setTitle(e.target.value)
+            setHasUnsavedChanges(true)
+          }}
+          placeholder="Page title"
+          className="text-2xl font-semibold border-transparent hover:border-border focus:border-border"
+        />
+
+        {/* Column 3 Row 1: Action buttons */}
         <div className="flex gap-2 items-center">
           <PublishToggle
             type="page"
             itemId={page.id}
             isPublished={page.isPublished}
             onToggle={handlePageUpdated}
-            showText={true}
-            size="md"
-          />
-          <EditModal
-            type="page"
-            item={page}
-            onItemUpdated={handlePageUpdated}
-            buttonText="Edit Page Details"
+            showText={false}
+            size="sm"
           />
           {sessionStatus === 'authenticated' && (session?.user as { subdomain?: string })?.subdomain && (
-            <Link 
+            <Link
               href={`/${(session?.user as { subdomain?: string })?.subdomain}/${collection.slug}/${skript.slug}/${page.slug}`}
               target="_blank"
               rel="noopener noreferrer"
               prefetch={false}
             >
-              <Button variant="outline" size="sm">
-                <Eye className="w-4 h-4 mr-2" />
-                Preview
+              <Button variant="ghost" size="sm" title="Preview page">
+                <Eye className="w-4 h-4" />
               </Button>
             </Link>
           )}
-          <Button onClick={handleSave} disabled={isSaving}>
+          <Button
+            onClick={handleSave}
+            disabled={isSaving}
+            size="sm"
+            className="relative"
+            title={isSaving ? 'Saving...' : hasUnsavedChanges ? 'Save changes (Ctrl+S)' : 'No changes to save'}
+          >
+
             <Save className="w-4 h-4 mr-2" />
             {isSaving ? 'Saving...' : 'Save'}
+
+            {hasUnsavedChanges && (
+              <div className="absolute top-1 right-1 w-2 h-2 bg-warning rounded-full" />
+            )}
           </Button>
+          
         </div>
+
+        {/* Column 2 Row 2: Description */}
+        <Input
+          type="text"
+          value={description}
+          onChange={(e) => {
+            setDescription(e.target.value)
+            setHasUnsavedChanges(true)
+          }}
+          placeholder="Description (optional)"
+          className="text-sm border-transparent hover:border-border focus:border-border"
+        />
+
+        {/* Column 3 Row 2: Slug */}
+        <Input
+          type="text"
+          value={slug}
+          onChange={(e) => {
+            setSlug(e.target.value)
+            setHasUnsavedChanges(true)
+          }}
+          placeholder="page-slug"
+          className="text-sm font-mono border-transparent hover:border-border focus:border-border"
+        />
       </div>
 
       {/* Skript Files - Collapsible Drawer */}
-      <CollapsibleDrawer 
-        title="Skript Files" 
+      <CollapsibleDrawer
+        title="Skript Files"
         icon={<Files className="w-5 h-5" />}
         defaultOpen={false}
       >

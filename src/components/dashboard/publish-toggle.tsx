@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Eye, EyeOff } from 'lucide-react'
+import { CircleCheckBig, CircleMinus } from 'lucide-react'
 
 interface PublishToggleProps {
   type: 'skript' | 'page'
@@ -61,9 +61,9 @@ export function PublishToggle({
       title={`${isPublished ? 'Unpublish' : 'Publish'} ${type}`}
     >
       {isPublished ? (
-        <Eye className={iconSize} />
+        <CircleCheckBig className={iconSize} />
       ) : (
-        <EyeOff className={iconSize} />
+        <CircleMinus className={iconSize} />
       )}
       {showText && (
         <span className="ml-1 text-xs">

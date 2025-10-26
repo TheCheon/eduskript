@@ -116,33 +116,26 @@ export async function POST(request: NextRequest) {
 
 // Get files for a skript
 export async function GET(request: NextRequest) {
-  console.log('[UPLOAD_GET] Starting file list request')
   try {
     const session = await getServerSession(authOptions)
-    console.log('[UPLOAD_GET] Session check:', { hasSession: !!session, userId: session?.user?.id })
     if (!session?.user?.id) {
-      console.log('[UPLOAD_GET] Unauthorized - no session or user ID')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
     const skriptId = searchParams.get('skriptId')
     const parentId = searchParams.get('parentId') // null for root directory
-    console.log('[UPLOAD_GET] Request params:', { skriptId, parentId })
 
     if (!skriptId) {
-      console.log('[UPLOAD_GET] Error: No skript ID provided')
       return NextResponse.json({ error: 'Skript ID is required for file listing' }, { status: 400 })
     }
 
     // List files using new file storage system
-    console.log('[UPLOAD_GET] Calling listFiles...')
     const files = await listFiles({
       skriptId,
       parentId: parentId || null,
       userId: session.user.id
     })
-    console.log('[UPLOAD_GET] Files retrieved:', { count: files.length, files: files.map(f => ({ id: f.id, name: f.name, isDirectory: f.isDirectory })) })
 
     return NextResponse.json({ files })
   } catch (error) {
