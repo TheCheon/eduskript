@@ -90,6 +90,7 @@ export async function POST(request: NextRequest) {
     // Return file info
     const fileInfo = {
       id: savedFile.id,
+      name: file.name, // For consistency with FileItem interface
       filename: file.name,
       originalName: file.name,
       size: savedFile.size,

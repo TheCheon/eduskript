@@ -7,6 +7,7 @@ import { visit } from 'unist-util-visit'
 export function rehypeInteractiveElements() {
   return function transformer(tree: unknown) {
     let codeBlockIndex = 0
+    let imageIndex = 0
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     visit(tree as Parameters<typeof visit>[0], 'element', (node: any) => {
@@ -40,10 +41,17 @@ export function rehypeInteractiveElements() {
         }
       }
 
-      // Future: Add metadata for images, tables, etc.
-      // if (node.tagName === 'img') {
-      //   node.properties['data-interactive'] = 'image'
-      // }
+      // Add metadata to images
+      if (node.tagName === 'img') {
+        node.properties = node.properties || {}
+        node.properties['data-interactive'] = 'image'
+        node.properties['data-image-id'] = `image-${imageIndex++}`
+
+        // Store the image src for matching in markdown
+        if (node.properties.src) {
+          node.properties['data-image-src'] = node.properties.src
+        }
+      }
     })
   }
 }

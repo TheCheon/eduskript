@@ -13,6 +13,7 @@ import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 import { remarkFileResolver } from './remark-plugins/file-resolver'
 import { rehypeImageOptimizer } from './remark-plugins/image-optimizer'
 import { remarkExcalidrawResolver } from './remark-plugins/excalidraw-resolver'
+import { remarkImageAttributes } from './remark-plugins/image-attributes'
 import { rehypeInteractiveElements } from './rehype-plugins/interactive-elements'
 
 export interface ProcessedMarkdown {
@@ -51,6 +52,7 @@ export async function processMarkdown(
     [remarkFileResolver, {
       fileList: context?.fileList
     }],
+    remarkImageAttributes, // Parse image width attributes
     remarkMath,
     remarkGfm,
   ]
