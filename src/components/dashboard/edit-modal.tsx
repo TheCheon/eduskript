@@ -15,6 +15,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { Edit, Save, Eye, EyeOff, TextCursor } from 'lucide-react'
 
 interface EditModalProps {
@@ -120,12 +126,20 @@ export function EditModal({ type, item, onItemUpdated, triggerClassName, buttonT
     formData.isPublished !== item.isPublished
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className={triggerClassName}>
-          <TextCursor className="w-4 h-4" />
-        </Button>
-      </DialogTrigger>
+    <TooltipProvider>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="sm" className={triggerClassName}>
+                <TextCursor className="w-4 h-4" />
+              </Button>
+            </DialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Rename {type}</p>
+          </TooltipContent>
+        </Tooltip>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Edit {type === 'skript' ? 'Skript' : 'Page'}</DialogTitle>
@@ -221,6 +235,7 @@ export function EditModal({ type, item, onItemUpdated, triggerClassName, buttonT
           </DialogFooter>
         </form>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+    </TooltipProvider>
   )
 }

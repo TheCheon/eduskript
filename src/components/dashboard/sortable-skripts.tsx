@@ -8,6 +8,12 @@ import { EditModal } from './edit-modal'
 import { PublishToggle } from './publish-toggle'
 import { CreatePageModal } from './create-page-modal'
 import { SortablePages } from './sortable-pages'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { GripVertical, Trash2, Eye, Edit } from 'lucide-react'
 
 interface Skript {
@@ -110,10 +116,11 @@ function SortableSkriptItem({
                 </div>
               </div>
               <div>
-                <Link href={`/dashboard/collections/${collectionSlug}/skripts/${skript.slug}`}>
-                  <h3 className={`font-medium ${isViewOnly ? 'text-muted-foreground' : 'text-foreground hover:text-primary'} cursor-pointer transition-colors`}>
+                <Link href={`/dashboard/collections/${collectionSlug}/skripts/${skript.slug}`} className="inline-flex items-center gap-1.5 hover:underline w-fit">
+                  <h3 className={`font-medium ${isViewOnly ? 'text-muted-foreground' : 'text-foreground'} transition-colors`}>
                     {skript.title}
                   </h3>
+                  {!isViewOnly && <Edit className="w-3 h-3 flex-shrink-0" />}
                 </Link>
                 <p className="text-sm text-muted-foreground">
                   {skript.description || 'No description'}
@@ -141,18 +148,27 @@ function SortableSkriptItem({
                     item={skript}
                     onItemUpdated={onSkriptUpdated}
                   />
-                  <CreatePageModal 
-                    skriptId={skript.id} 
+                  <CreatePageModal
+                    skriptId={skript.id}
                     onPageCreated={onSkriptUpdated}
                   />
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={handleDeleteSkript}
-                    className="text-destructive hover:text-destructive/80 hover:bg-destructive/10"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleDeleteSkript}
+                          className="text-destructive hover:text-destructive/80 hover:bg-destructive/10"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Delete skript</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </>
               )}
               {isViewOnly && (
@@ -239,10 +255,11 @@ function StaticSkriptItem({
             </div>
           </div>
           <div>
-            <Link href={`/dashboard/collections/${collectionSlug}/skripts/${skript.slug}`}>
-              <h3 className={`font-medium ${isViewOnly ? 'text-muted-foreground' : 'text-foreground hover:text-primary'} cursor-pointer transition-colors`}>
+            <Link href={`/dashboard/collections/${collectionSlug}/skripts/${skript.slug}`} className="inline-flex items-center gap-1.5 hover:underline w-fit">
+              <h3 className={`font-medium ${isViewOnly ? 'text-muted-foreground' : 'text-foreground'} transition-colors`}>
                 {skript.title}
               </h3>
+              {!isViewOnly && <Edit className="w-3 h-3 flex-shrink-0" />}
             </Link>
             <p className="text-sm text-muted-foreground">
               {skript.description || 'No description'}
@@ -270,18 +287,27 @@ function StaticSkriptItem({
                 item={skript}
                 onItemUpdated={onSkriptUpdated}
               />
-              <CreatePageModal 
-                skriptId={skript.id} 
+              <CreatePageModal
+                skriptId={skript.id}
                 onPageCreated={onSkriptUpdated}
               />
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={handleDeleteSkript}
-                className="text-destructive hover:text-destructive/80 hover:bg-destructive/10"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleDeleteSkript}
+                      className="text-destructive hover:text-destructive/80 hover:bg-destructive/10"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Delete skript</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </>
           )}
           {isViewOnly && (

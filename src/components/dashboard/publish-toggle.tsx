@@ -2,6 +2,12 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { CircleCheckBig, CircleMinus } from 'lucide-react'
 
 interface PublishToggleProps {
@@ -52,24 +58,32 @@ export function PublishToggle({
   const buttonSize = size === 'lg' ? 'default' : 'sm'
 
   return (
-    <Button
-      variant="ghost"
-      size={buttonSize}
-      onClick={handleToggle}
-      disabled={isLoading}
-      className={`${isPublished ? 'text-success hover:text-success/80' : 'text-warning hover:text-warning/80'} px-2`}
-      title={`${isPublished ? 'Unpublish' : 'Publish'} ${type}`}
-    >
-      {isPublished ? (
-        <CircleCheckBig className={iconSize} />
-      ) : (
-        <CircleMinus className={iconSize} />
-      )}
-      {showText && (
-        <span className="ml-1 text-xs">
-          {isPublished ? 'Published' : 'Draft'}
-        </span>
-      )}
-    </Button>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size={buttonSize}
+            onClick={handleToggle}
+            disabled={isLoading}
+            className={`${isPublished ? 'text-success hover:text-success/80' : 'text-warning hover:text-warning/80'} px-2`}
+          >
+            {isPublished ? (
+              <CircleCheckBig className={iconSize} />
+            ) : (
+              <CircleMinus className={iconSize} />
+            )}
+            {showText && (
+              <span className="ml-1 text-xs">
+                {isPublished ? 'Published' : 'Draft'}
+              </span>
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{isPublished ? 'Unpublish' : 'Publish'} {type}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   )
 }

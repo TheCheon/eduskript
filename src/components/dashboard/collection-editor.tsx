@@ -9,7 +9,8 @@ import { CreateSkriptModal } from './create-skript-modal'
 import { CollectionSettingsModal } from './collection-settings-modal'
 import { SortableSkripts } from './sortable-skripts'
 import { CollectionAccessManager } from '@/components/permissions/CollectionAccessManager'
-import { ArrowLeft, BookOpen, FileText } from 'lucide-react'
+import { CollapsibleDrawer } from '@/components/ui/collapsible-drawer'
+import { ArrowLeft, BookOpen, FileText, Users } from 'lucide-react'
 import { UserPermissions, CollectionWithAuthors } from '@/types'
 
 interface CollectionEditorProps {
@@ -187,14 +188,22 @@ export function CollectionEditor({ collection, userPermissions, currentUserId }:
       </div>
 
       {/* Access Management */}
-      <CollectionAccessManager 
-        collection={collection as CollectionWithAuthors}
-        userPermissions={userPermissions}
-        currentUserId={currentUserId}
-        onPermissionChange={() => {
-          // No need to reload - the CollectionAccessManager handles state updates internally
-        }}
-      />
+      <CollapsibleDrawer
+        title="Access Management"
+        icon={<Users className="w-5 h-5 text-muted-foreground" />}
+        defaultOpen={false}
+      >
+        <div className="p-4">
+          <CollectionAccessManager
+            collection={collection as CollectionWithAuthors}
+            userPermissions={userPermissions}
+            currentUserId={currentUserId}
+            onPermissionChange={() => {
+              // No need to reload - the CollectionAccessManager handles state updates internally
+            }}
+          />
+        </div>
+      </CollapsibleDrawer>
 
       {/* Skripts */}
       <Card>

@@ -214,24 +214,11 @@ function PageBuilderItem({ item, index, onRemove, expandedCollections, onToggleC
                 <GripVertical className="w-4 h-4 text-muted-foreground" />
               </div>
             )}
-            {/* Action buttons - positioned in top-right corner */}
-            <div className="absolute top-2 right-2 z-10 flex">
-              {item.permissions?.canEdit && item.slug && (
-                <Link href={item.type === 'collection' ? `/dashboard/collections/${item.slug}` : `/dashboard/collections/${item.collectionSlug}/skripts/${item.slug}`} className="h-5 w-5 flex items-center justify-center">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-5 w-5 p-0 text-primary hover:text-primary"
-                    title={`Edit ${item.type}`}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                </Link>
-              )}
-              <Button 
-                variant="ghost" 
-                size="sm" 
+            {/* Remove button - positioned in top-right corner */}
+            <div className="absolute top-2 right-2 z-10">
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => onRemove(item.id)}
                 className="text-destructive hover:text-destructive h-5 w-5 p-0"
                 title="Remove from page"
@@ -273,7 +260,17 @@ function PageBuilderItem({ item, index, onRemove, expandedCollections, onToggleC
               </div>
             ) : (
               <>
-                <h4 className="font-medium text-sm truncate">{item.title}</h4>
+                {item.permissions?.canEdit && item.slug ? (
+                  <Link
+                    href={item.type === 'collection' ? `/dashboard/collections/${item.slug}` : `/dashboard/collections/${item.collectionSlug}/skripts/${item.slug}`}
+                    className="font-medium text-sm truncate hover:underline flex items-center gap-1 w-fit"
+                  >
+                    {item.title}
+                    <Edit className="w-3 h-3 flex-shrink-0" />
+                  </Link>
+                ) : (
+                  <h4 className="font-medium text-sm truncate">{item.title}</h4>
+                )}
                 {item.description && (
                   <p className="text-xs text-muted-foreground truncate">{item.description}</p>
                 )}
@@ -387,29 +384,12 @@ function SimpleSkriptItem({ item, index, parentId, parentCanEdit = true, onRemov
                 <GripVertical className="w-4 h-4 text-muted-foreground" />
               </div>
             )}
-            {/* Action buttons - positioned in top-right corner */}
+            {/* Remove button - positioned in top-right corner */}
             {parentCanEdit && (
-              <div className="absolute top-2 right-2 z-10 flex">
-                {item.permissions?.canEdit && item.slug && (
-                  <Link href={
-                    item.collectionSlug && item.slug
-                      ? `/dashboard/collections/${item.collectionSlug}/skripts/${item.slug}`
-                      : `/dashboard/collections/${item.collectionSlug || item.id}` // fallback to collection
-                  } className="h-4 w-4 flex items-center justify-center">
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      className="h-4 w-4 p-0 text-primary hover:text-primary"
-                      title="Edit skript"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Edit className="w-3 h-3" />
-                    </Button>
-                  </Link>
-                )}
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+              <div className="absolute top-2 right-2 z-10">
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => onRemove(item.id, parentId)}
                   className="text-destructive hover:text-destructive h-4 w-4 p-0"
                   title="Remove from collection"
@@ -437,10 +417,27 @@ function SimpleSkriptItem({ item, index, parentId, parentCanEdit = true, onRemov
                 </div>
               ) : (
                 <>
-                  <h5 className={cn(
-                    "font-medium text-xs truncate",
-                    !item.permissions?.canEdit ? "text-muted-foreground" : "text-foreground"
-                  )}>{item.title}</h5>
+                  {item.permissions?.canEdit && item.slug ? (
+                    <Link
+                      href={
+                        item.collectionSlug && item.slug
+                          ? `/dashboard/collections/${item.collectionSlug}/skripts/${item.slug}`
+                          : `/dashboard/collections/${item.collectionSlug || item.id}` // fallback to collection
+                      }
+                      className={cn(
+                        "font-medium text-xs truncate hover:underline flex items-center gap-1 w-fit",
+                        !item.permissions?.canEdit ? "text-muted-foreground" : "text-foreground"
+                      )}
+                    >
+                      {item.title}
+                      <Edit className="w-2.5 h-2.5 flex-shrink-0" />
+                    </Link>
+                  ) : (
+                    <h5 className={cn(
+                      "font-medium text-xs truncate",
+                      !item.permissions?.canEdit ? "text-muted-foreground" : "text-foreground"
+                    )}>{item.title}</h5>
+                  )}
                   {item.description && (
                     <p className="text-xs text-muted-foreground truncate">{item.description}</p>
                   )}
