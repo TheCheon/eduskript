@@ -6,6 +6,7 @@ import remarkParse from 'remark-parse'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
 import remarkRehype from 'remark-rehype'
+import rehypeKatex from 'rehype-katex'
 import rehypeReact from 'rehype-react'
 import * as prod from 'react/jsx-runtime'
 import type { MarkdownContext } from '@/lib/markdown'
@@ -62,6 +63,8 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
           .use(remarkFileResolver, { fileList: context?.fileList })
           .use(remarkImageAttributes)
           .use(remarkRehype, { allowDangerousHtml: false })
+          // Add KaTeX math rendering
+          .use(rehypeKatex)
           // Add Shiki syntax highlighting
           .use(rehypeShikiHighlight, { theme: (resolvedTheme as 'light' | 'dark') || 'light' })
           // Convert to React

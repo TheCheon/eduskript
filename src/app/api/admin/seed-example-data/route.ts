@@ -427,6 +427,15 @@ print(solve_quadratic(2, 5, -3))  # Output: (0.5, -3.0)
       },
     })
 
+    // Create collaboration relationship between admin and teacher1
+    await prisma.collaboration.create({
+      data: {
+        requesterId: session!.user.id,
+        receiverId: teacher1.id,
+        status: 'accepted',
+      },
+    })
+
     return NextResponse.json({
       success: true,
       message: 'Example data seeded successfully',
@@ -441,6 +450,7 @@ print(solve_quadratic(2, 5, -3))  # Output: (0.5, -3.0)
         ],
         skripts: 3,
         pages: 5,
+        collaborations: 1,
       },
     })
   } catch (error) {
