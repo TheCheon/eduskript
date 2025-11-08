@@ -19,14 +19,16 @@ We're replacing the old HTML-based markdown rendering with a modern React compon
 - ✅ Added image captions based on alt text for both regular images and Excalidraw drawings
 
 **Next Tasks:**
-- 🔨 Fix image resizing controls in markdown preview
 - ⏳ Test and refine math rendering (KaTeX)
-- ⏳ Verify Excalidraw embedding works with new renderer
 - ⏳ Polish interactive preview UX (loading states, error handling)
 
 ---
 
 # Lesson Editor Enhancements & Student Analytics Roadmap
+
+## Phase 0: Admin user
+
+**Goal**: The first user to be created should be an administrator that can create, delete and alter existing users, including resetting their password (users should define their new passwords, obviously).
 
 ## 🎨 Phase 1: Enhanced Lesson Editor
 

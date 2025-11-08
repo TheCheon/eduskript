@@ -16,6 +16,11 @@ export default async function DashboardLayout({
     redirect('/auth/signin')
   }
 
+  // Check if user needs to reset password
+  if (session.user.requirePasswordReset) {
+    redirect('/auth/reset-password')
+  }
+
   return (
     <ErrorProvider>
       <div className="min-h-screen bg-background">
