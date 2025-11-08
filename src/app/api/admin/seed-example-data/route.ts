@@ -62,6 +62,7 @@ export async function POST(request: Request) {
         title: 'Introduction to Algebra',
         slug: 'intro-to-algebra',
         description: 'A comprehensive introduction to algebraic concepts',
+        isPublished: true,
         authors: {
           create: {
             userId: session!.user.id,
@@ -77,6 +78,7 @@ export async function POST(request: Request) {
         title: 'Linear Equations',
         slug: 'linear-equations',
         description: 'Understanding and solving linear equations',
+        isPublished: true,
         authors: {
           create: {
             userId: session!.user.id,
@@ -91,6 +93,7 @@ export async function POST(request: Request) {
         title: 'Quadratic Equations',
         slug: 'quadratic-equations',
         description: 'Mastering quadratic equations and their graphs',
+        isPublished: true,
         authors: {
           create: {
             userId: session!.user.id,
@@ -123,6 +126,7 @@ export async function POST(request: Request) {
         slug: 'what-are-linear-equations',
         skriptId: linearEquationsSkript.id,
         order: 0,
+        isPublished: true,
         content: `# What are Linear Equations?
 
 A **linear equation** is an algebraic equation in which each term is either a constant or the product of a constant and a single variable.
@@ -152,7 +156,6 @@ Where:
 - They have exactly one solution (when \`a ≠ 0\`)
 - The solution represents the x-intercept of the line
 `,
-        sidebarBehavior: 'contextual',
         authors: {
           create: {
             userId: session!.user.id,
@@ -168,6 +171,7 @@ Where:
         slug: 'solving-linear-equations',
         skriptId: linearEquationsSkript.id,
         order: 1,
+        isPublished: true,
         content: `# Solving Linear Equations
 
 To solve a linear equation, we need to isolate the variable on one side of the equation.
@@ -217,7 +221,6 @@ function solveLinearEquation(a, b) {
 console.log(solveLinearEquation(3, -15)); // Output: 5
 \`\`\`
 `,
-        sidebarBehavior: 'contextual',
         authors: {
           create: {
             userId: session!.user.id,
@@ -234,6 +237,7 @@ console.log(solveLinearEquation(3, -15)); // Output: 5
         slug: 'intro-to-quadratics',
         skriptId: quadraticSkript.id,
         order: 0,
+        isPublished: true,
         content: `# Introduction to Quadratic Equations
 
 A **quadratic equation** is a polynomial equation of degree 2.
@@ -268,7 +272,6 @@ The vertex is at $x = -\\frac{b}{2a}$
 2. $2x^2 + 3x - 2 = 0$
 3. $-x^2 + 4x - 4 = 0$
 `,
-        sidebarBehavior: 'contextual',
         authors: {
           create: {
             userId: session!.user.id,
@@ -284,6 +287,7 @@ The vertex is at $x = -\\frac{b}{2a}$
         slug: 'quadratic-formula',
         skriptId: quadraticSkript.id,
         order: 1,
+        isPublished: true,
         content: `# The Quadratic Formula
 
 The quadratic formula is a powerful tool for solving any quadratic equation.
@@ -339,7 +343,6 @@ def solve_quadratic(a, b, c):
 print(solve_quadratic(2, 5, -3))  # Output: (0.5, -3.0)
 \`\`\`
 `,
-        sidebarBehavior: 'contextual',
         authors: {
           create: {
             userId: session!.user.id,
@@ -355,6 +358,7 @@ print(solve_quadratic(2, 5, -3))  # Output: (0.5, -3.0)
         title: 'Newton\'s Laws of Motion',
         slug: 'newtons-laws',
         description: 'Understanding the fundamental laws of classical mechanics',
+        isPublished: true,
         authors: {
           create: {
             userId: teacher1.id,
@@ -369,6 +373,7 @@ print(solve_quadratic(2, 5, -3))  # Output: (0.5, -3.0)
         title: 'First Law: Inertia',
         slug: 'first-law-inertia',
         description: 'An object at rest stays at rest, an object in motion stays in motion',
+        isPublished: true,
         authors: {
           create: {
             userId: teacher1.id,
@@ -392,6 +397,7 @@ print(solve_quadratic(2, 5, -3))  # Output: (0.5, -3.0)
         slug: 'understanding-inertia',
         skriptId: newtonsFirstLaw.id,
         order: 0,
+        isPublished: true,
         content: `# Newton's First Law: The Law of Inertia
 
 > An object at rest stays at rest, and an object in motion stays in motion with the same speed and in the same direction unless acted upon by an unbalanced force.
@@ -412,7 +418,6 @@ print(solve_quadratic(2, 5, -3))  # Output: (0.5, -3.0)
 - Force is required to change an object's velocity
 - Mass is a measure of inertia
 `,
-        sidebarBehavior: 'contextual',
         authors: {
           create: {
             userId: teacher1.id,

@@ -7,7 +7,11 @@ import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  // Note: PrismaAdapter is incompatible with CredentialsProvider
+  // Only use adapter when OAuth providers are configured
+  adapter: (process.env.GITHUB_CLIENT_ID || process.env.GOOGLE_CLIENT_ID)
+    ? PrismaAdapter(prisma)
+    : undefined,
   providers: [
     CredentialsProvider({
       name: 'credentials',

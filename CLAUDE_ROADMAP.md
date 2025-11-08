@@ -1,53 +1,46 @@
 **IMPORTANT: Do not mark items as complete in this roadmap unless explicitly instructed by the user.**
 
-*Last updated: 2025-01-07*
-*Current Status: Migrating markdown rendering to React-based system with Shiki syntax highlighting. Improving editor preview experience with interactive code blocks.*
+*Last updated: 2025-01-08*
+*Current Status: Admin system complete. Ready to begin Phase 1 (Enhanced Lesson Editor) when requested.*
 
-## 🔄 Current Work: React Markdown Renderer Migration
+## ✅ Recently Completed: Admin User System (Phase 0)
 
-### What We're Doing
-We're replacing the old HTML-based markdown rendering with a modern React component system that provides better interactivity and maintainability.
+**Goal**: The first user to be created should be an administrator that can create, delete and alter existing users, including resetting their password.
 
-**Completed:**
-- ✅ Migrated from Next.js 15 `middleware.ts` to Next.js 16 `proxy.ts` convention
-- ✅ Fixed unified/remark preset configuration errors
-- ✅ Integrated Shiki syntax highlighting with theme awareness (light/dark)
-- ✅ Converted markdown renderer to async processing for Shiki compatibility
-- ✅ Added interactive code block controls (language dropdown, copy button)
-- ✅ Implemented language change with markdown source updates
-- ✅ Fixed scroll position preservation during preview re-renders (using useLayoutEffect to capture/restore scroll)
-- ✅ Added image captions based on alt text for both regular images and Excalidraw drawings
+**All tasks completed:**
+- ✅ Added `isAdmin` and `requirePasswordReset` fields to User schema
+- ✅ Created admin seed script (`prisma/seed-admin.js`) that runs on container startup
+- ✅ Default admin user: eduadmin@eduskript.org / letseducate (password reset required on first login)
+- ✅ Implemented forced password reset flow
+  - Password reset page at `/auth/reset-password` with validation
+  - API endpoint for password updates with session refresh
+  - Dashboard redirect enforcement via middleware
+- ✅ Admin-only APIs with proper authentication (`/lib/admin-auth.ts`):
+  - User CRUD operations (create, read, update, delete)
+  - Admin password reset for users
+  - Example data seeder with math and physics content
+- ✅ Admin panel UI at `/dashboard/admin`:
+  - User management interface with search/filter
+  - Create/edit/delete users with proper Radix UI dialogs
+  - Reset user passwords with optional force-reset flag
+  - Example data seeder accessible from empty page builder state
+- ✅ Admin panel link in dashboard sidebar (visible to admins only, with Shield icon)
+- ✅ Fixed NextAuth compatibility issue (PrismaAdapter conflicting with CredentialsProvider)
+- ✅ Fixed Next.js 15+ async params in API routes (await params Promise)
+- ✅ Created `pnpm dev:reset` script for quick database reset + admin seed
+- ✅ Example data includes published collections, skripts, and pages with markdown content
 
-**Next Tasks:**
-- ⏳ Test and refine math rendering (KaTeX)
-- ⏳ Polish interactive preview UX (loading states, error handling)
+**Key Files:**
+- `/src/app/dashboard/admin/page.tsx` - Admin panel UI
+- `/src/app/api/admin/**` - Admin API endpoints
+- `/src/lib/admin-auth.ts` - Admin authentication helper
+- `/src/app/auth/reset-password/page.tsx` - Password reset flow
+- `/prisma/seed-admin.js` - Admin user seeding
+- `/src/app/api/admin/seed-example-data/route.ts` - Example data seeder
 
 ---
 
 # Lesson Editor Enhancements & Student Analytics Roadmap
-
-## Phase 0: Admin User System ✅
-
-**Goal**: The first user to be created should be an administrator that can create, delete and alter existing users, including resetting their password (users should define their new passwords, obviously).
-
-**Completed:**
-- ✅ Added `isAdmin` and `requirePasswordReset` fields to User schema
-- ✅ Created admin seed script that runs on container startup
-- ✅ Default admin user: eduadmin@eduskript.org / letseducate (password reset required)
-- ✅ Implemented forced password reset flow
-  - Password reset page with validation
-  - API endpoint for password updates
-  - Dashboard redirect enforcement
-- ✅ Admin-only APIs with proper authentication:
-  - User CRUD operations (create, read, update, delete)
-  - Admin password reset for users
-  - Example data seeder
-- ✅ Admin panel UI at /dashboard/admin:
-  - User management interface
-  - Create/edit/delete users
-  - Reset user passwords
-  - "Insert Example Data" button for demo content
-- ✅ Admin panel link in dashboard nav (visible to admins only)
 
 ## 🎨 Phase 1: Enhanced Lesson Editor
 
