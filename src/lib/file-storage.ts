@@ -410,6 +410,62 @@ export async function listFiles({
 }
 
 /**
+ * List all files recursively for a skript (includes files in subdirectories)
+ */
+export async function listAllFiles({
+  skriptId,
+  userId
+}: {
+  skriptId: string
+  userId: string
+}): Promise<Array<{
+  id: string
+  name: string
+  isDirectory: boolean
+  size?: number
+  contentType?: string
+  createdAt: Date
+  updatedAt: Date
+  url?: string
+}>> {
+  // Check permissions - user must be skript author
+  const skript = await prisma.skript.findFirst({
+    where: {
+      id: skriptId,
+      authors: {
+        some: { userId }
+      }
+    }
+  })
+
+  if (!skript) {
+    throw new Error('Skript not found or permission denied')
+  }
+
+  // Get ALL files for this skript (not filtered by parentId)
+  const files = await prisma.file.findMany({
+    where: {
+      skriptId
+    },
+    orderBy: [
+      { isDirectory: 'desc' }, // Directories first
+      { name: 'asc' }          // Then alphabetical
+    ]
+  })
+
+  return files.map(file => ({
+    id: file.id,
+    name: file.name,
+    isDirectory: file.isDirectory,
+    size: file.size ? Number(file.size) : undefined,
+    contentType: file.contentType || undefined,
+    createdAt: file.createdAt,
+    updatedAt: file.updatedAt,
+    url: file.isDirectory ? undefined : `/api/files/${file.id}`
+  }))
+}
+
+/**
  * Get file by ID with permission check
  */
 export async function getFileById(fileId: string, userId: string): Promise<{

@@ -16,6 +16,9 @@ interface FileResolverOptions {
  * Remark plugin to resolve all embedded file paths (images, pdfs, audio, video, etc.)
  * using a provided file list (from local file API).
  * Replaces any non-absolute file reference with the correct file URL.
+ *
+ * Special handling for Excalidraw files:
+ * - Converts image![](file.excalidraw) to data attributes with light/dark SVG URLs
  */
 export function remarkFileResolver(options: FileResolverOptions = {}) {
   return function transformer(tree: unknown) {
@@ -34,6 +37,12 @@ export function remarkFileResolver(options: FileResolverOptions = {}) {
         return
       }
 
+      // Special handling for .excalidraw files
+      if (url.endsWith('.excalidraw')) {
+        handleExcalidrawFile(node, url, fileList)
+        return
+      }
+
       let resolvedPath: string | null = null
 
       // Try client-side resolution first (using file list)
@@ -43,6 +52,11 @@ export function remarkFileResolver(options: FileResolverOptions = {}) {
 
       // Apply resolved path if found
       if (resolvedPath) {
+        // Store the original URL for editing purposes
+        if (!node.data) node.data = {}
+        if (!node.data.hProperties) node.data.hProperties = {}
+        node.data.hProperties['data-original-src'] = url
+
         node.url = resolvedPath
       } else {
         // IMPORTANT: Convert to absolute path to prevent relative URL interpretation
@@ -54,10 +68,71 @@ export function remarkFileResolver(options: FileResolverOptions = {}) {
 }
 
 /**
+ * Handle Excalidraw file references by finding light/dark SVG variants
+ * and adding data attributes to the image node
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function handleExcalidrawFile(node: any, filename: string, fileList?: FileInfo[]) {
+  if (!fileList || fileList.length === 0) {
+    node.url = `/missing-file/${filename}`
+    return
+  }
+
+  const lightSvgFilename = `${filename}.light.svg`
+  const darkSvgFilename = `${filename}.dark.svg`
+
+  console.log('[FileResolver] Looking for Excalidraw files:', { filename, lightSvgFilename, darkSvgFilename })
+
+  // Helper to find file by name or basename
+  const findFile = (name: string) => {
+    let file = fileList.find(f => !f.isDirectory && f.name === name)
+    if (!file) {
+      const basename = path.basename(name)
+      file = fileList.find(f => !f.isDirectory && path.basename(f.name) === basename)
+    }
+    return file
+  }
+
+  const lightSvgFile = findFile(lightSvgFilename)
+  const darkSvgFile = findFile(darkSvgFilename)
+
+  console.log('[FileResolver] Found files:', {
+    lightSvgFile: lightSvgFile?.name,
+    darkSvgFile: darkSvgFile?.name
+  })
+
+  if (lightSvgFile && darkSvgFile) {
+    const cacheBuster = Date.now()
+    const lightUrl = `${lightSvgFile.url || `/api/files/${lightSvgFile.id}`}?v=${cacheBuster}`
+    const darkUrl = `${darkSvgFile.url || `/api/files/${darkSvgFile.id}`}?v=${cacheBuster}`
+
+    // Set the primary URL to light version
+    node.url = lightUrl
+
+    // Add data attributes for both React component and HTML rendering
+    if (!node.data) node.data = {}
+    if (!node.data.hProperties) node.data.hProperties = {}
+
+    node.data.hProperties['data-excalidraw'] = filename
+    node.data.hProperties['data-light-src'] = lightUrl
+    node.data.hProperties['data-dark-src'] = darkUrl
+    node.data.hProperties['data-original-src'] = filename // Store original filename for editing
+
+    console.log('[FileResolver] Set Excalidraw data attributes:', node.data.hProperties)
+  } else {
+    // Missing SVG variants
+    const missing = []
+    if (!lightSvgFile) missing.push('light')
+    if (!darkSvgFile) missing.push('dark')
+    node.url = `/missing-file/${filename}?missing=${missing.join(',')}`
+  }
+}
+
+/**
  * Resolve file path from pre-fetched file list (client-side)
  */
 function resolveFromFileList(filename: string, fileList: FileInfo[]): string | null {
-  
+
   // Direct filename match
   for (const file of fileList) {
     if (!file.isDirectory && filename === file.name) {

@@ -12,9 +12,9 @@ import rehypeSlug from 'rehype-slug'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 import { remarkFileResolver } from './remark-plugins/file-resolver'
 import { rehypeImageOptimizer } from './remark-plugins/image-optimizer'
-import { remarkExcalidrawResolver } from './remark-plugins/excalidraw-resolver'
 import { remarkImageAttributes } from './remark-plugins/image-attributes'
 import { rehypeInteractiveElements } from './rehype-plugins/interactive-elements'
+import { rehypeExcalidrawDualImage } from './rehype-plugins/excalidraw-dual-image'
 
 export interface ProcessedMarkdown {
   content: string
@@ -45,10 +45,6 @@ export async function processMarkdown(
   // Build plugin list
   const remarkPlugins: PluggableList = [
     remarkParse,
-    [remarkExcalidrawResolver, {
-      fileList: context?.fileList,
-      theme: context?.theme || 'light'
-    }],
     [remarkFileResolver, {
       fileList: context?.fileList
     }],
@@ -74,6 +70,7 @@ export async function processMarkdown(
       behavior: 'wrap',
       properties: { className: ['heading-link'] }
     }],
+    rehypeExcalidrawDualImage, // Convert Excalidraw images to dual light/dark variants
     rehypeImageOptimizer, // Optimize images for better loading
     rehypeInteractiveElements, // Add data attributes for interactive controls
     rehypeKatex,

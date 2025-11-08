@@ -1,3 +1,5 @@
+**IMPORTANT: Do not mark items as complete in this roadmap unless explicitly instructed by the user.**
+
 *Last updated: 2025-01-07*
 *Current Status: Migrating markdown rendering to React-based system with Shiki syntax highlighting. Improving editor preview experience with interactive code blocks.*
 
@@ -14,6 +16,7 @@ We're replacing the old HTML-based markdown rendering with a modern React compon
 - ✅ Added interactive code block controls (language dropdown, copy button)
 - ✅ Implemented language change with markdown source updates
 - ✅ Fixed scroll position preservation during preview re-renders (using useLayoutEffect to capture/restore scroll)
+- ✅ Added image captions based on alt text for both regular images and Excalidraw drawings
 
 **Next Tasks:**
 - 🔨 Fix image resizing controls in markdown preview

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { saveFile, listFiles } from '@/lib/file-storage'
+import { saveFile, listFiles, listAllFiles } from '@/lib/file-storage'
 
 export async function POST(request: NextRequest) {
   console.log('[UPLOAD] Starting file upload request')
@@ -126,17 +126,24 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const skriptId = searchParams.get('skriptId')
     const parentId = searchParams.get('parentId') // null for root directory
+    const recursive = searchParams.get('recursive') === 'true' // optional flag for recursive listing
 
     if (!skriptId) {
       return NextResponse.json({ error: 'Skript ID is required for file listing' }, { status: 400 })
     }
 
     // List files using new file storage system
-    const files = await listFiles({
-      skriptId,
-      parentId: parentId || null,
-      userId: session.user.id
-    })
+    // If recursive flag is set or parentId is not specified, get all files
+    const files = recursive || !parentId
+      ? await listAllFiles({
+          skriptId,
+          userId: session.user.id
+        })
+      : await listFiles({
+          skriptId,
+          parentId: parentId || null,
+          userId: session.user.id
+        })
 
     return NextResponse.json({ files })
   } catch (error) {

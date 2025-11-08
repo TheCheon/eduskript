@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 
 interface ImageWithResizeProps {
   src: string
@@ -8,9 +8,10 @@ interface ImageWithResizeProps {
   title?: string
   style?: React.CSSProperties
   onWidthChange?: (markdown: string) => void
+  originalSrc?: string // The original filename from markdown (before URL resolution)
 }
 
-export function ImageWithResize({ src, alt = '', title, style, onWidthChange }: ImageWithResizeProps) {
+export function ImageWithResize({ src, alt = '', title, style, onWidthChange, originalSrc }: ImageWithResizeProps) {
   const imageRef = useRef<HTMLImageElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -30,23 +31,30 @@ export function ImageWithResize({ src, alt = '', title, style, onWidthChange }: 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging || !containerRef.current) return
 
-    const containerRect = containerRef.current.getBoundingClientRect()
-    const relativeX = e.clientX - containerRect.left
-    const newWidthPercent = Math.max(10, Math.min(100, (relativeX / containerRect.width) * 100))
+    const container = containerRef.current
+    const parent = container.parentElement
+    if (!parent) return
+
+    // Calculate width relative to the parent container, not the image itself
+    const parentRect = parent.getBoundingClientRect()
+    const relativeX = e.clientX - parentRect.left
+    const newWidthPercent = Math.max(10, Math.min(100, (relativeX / parentRect.width) * 100))
 
     setCurrentWidth(Math.round(newWidthPercent))
   }, [isDragging])
 
   const handleMouseUp = useCallback(() => {
     if (isDragging && onWidthChange) {
+      // Use original source for markdown (the filename, not the resolved URL)
+      const srcForMarkdown = originalSrc || src
       // Notify parent about width change
-      onWidthChange(`![${alt}](${src}){width=${Math.round(currentWidth)}%}`)
+      onWidthChange(`![${alt}](${srcForMarkdown}){width=${Math.round(currentWidth)}%}`)
     }
     setIsDragging(false)
-  }, [isDragging, currentWidth, alt, src, onWidthChange])
+  }, [isDragging, currentWidth, alt, src, originalSrc, onWidthChange])
 
   // Attach mouse listeners when dragging
-  useState(() => {
+  useEffect(() => {
     if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', handleMouseUp)
@@ -55,13 +63,13 @@ export function ImageWithResize({ src, alt = '', title, style, onWidthChange }: 
         document.removeEventListener('mouseup', handleMouseUp)
       }
     }
-  })
+  }, [isDragging, handleMouseMove, handleMouseUp])
 
   return (
-    <div
+    <figure
       ref={containerRef}
-      className="relative inline-block my-4 group"
-      style={{ width: `${currentWidth}%`, ...style }}
+      className="relative my-4 mx-auto group"
+      style={{ ...style, width: `${currentWidth}%` }}
     >
       {/* Image */}
       <img
@@ -73,6 +81,13 @@ export function ImageWithResize({ src, alt = '', title, style, onWidthChange }: 
         decoding="async"
         className="w-full h-auto rounded-md"
       />
+
+      {/* Caption */}
+      {alt && (
+        <figcaption className="mt-2 text-sm text-center text-muted-foreground italic">
+          {alt}
+        </figcaption>
+      )}
 
       {/* Resize handle */}
       <div
@@ -91,6 +106,6 @@ export function ImageWithResize({ src, alt = '', title, style, onWidthChange }: 
           {Math.round(currentWidth)}%
         </div>
       )}
-    </div>
+    </figure>
   )
 }

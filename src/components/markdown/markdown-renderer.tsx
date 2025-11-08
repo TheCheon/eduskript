@@ -17,14 +17,13 @@ import { MathBlock } from './math-block'
 import { remarkFileResolver } from '@/lib/remark-plugins/file-resolver'
 import { remarkImageAttributes } from '@/lib/remark-plugins/image-attributes'
 import { rehypeShikiHighlight } from '@/lib/rehype-plugins/shiki-highlight'
-import { visit } from 'unist-util-visit'
-import type { Node, Parent } from 'unist'
 import { useTheme } from 'next-themes'
 
-// Context for passing content and callback down to components
+// Context for passing content, callback, and markdown context down to components
 const MarkdownEditContext = createContext<{
   content: string
   onContentChange?: (newContent: string) => void
+  markdownContext?: MarkdownContext
 }>({ content: '' })
 
 interface MarkdownRendererProps {
@@ -62,12 +61,7 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
           .use(remarkMath)
           .use(remarkFileResolver, { fileList: context?.fileList })
           .use(remarkImageAttributes)
-          // Custom transformer for Excalidraw
-          .use(() => (tree) => {
-            // Process Excalidraw references
-            processExcalidrawNodes(tree, context)
-          })
-          .use(remarkRehype, { allowDangerousHtml: true })
+          .use(remarkRehype, { allowDangerousHtml: false })
           // Add Shiki syntax highlighting
           .use(rehypeShikiHighlight, { theme: (resolvedTheme as 'light' | 'dark') || 'light' })
           // Convert to React
@@ -94,6 +88,7 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
           })
 
         const result = await processor.process(content)
+        console.log('[MarkdownRenderer] Processed result:', result.result)
         setRenderedContent(result.result)
         setIsInitialLoad(false)
         hasRestoredScroll.current = false
@@ -140,7 +135,7 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
   }
 
   return (
-    <MarkdownEditContext.Provider value={{ content, onContentChange }}>
+    <MarkdownEditContext.Provider value={{ content, onContentChange, markdownContext: context }}>
       <div ref={containerRef} className="markdown-content prose dark:prose-invert max-w-none">{renderedContent}</div>
     </MarkdownEditContext.Provider>
   )
@@ -177,15 +172,78 @@ function CodeComponent({ children, className, ...props }: React.HTMLAttributes<H
 }
 
 function ImageComponent({ src, alt, title, style, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) {
-  // Check if this is an Excalidraw image
+  const { content, onContentChange } = useContext(MarkdownEditContext)
+
+  // Get the original source filename (before resolution)
+  const originalSrc = ((props as Record<string, unknown>)['data-original-src'] as string) ||
+                      ((props as Record<string, unknown>)['dataOriginalSrc'] as string)
+
+  console.log('[ImageComponent] Called with:', {
+    src,
+    originalSrc,
+    alt,
+    props,
+    hasOnContentChange: !!onContentChange
+  })
+
+  // Handler for width changes from resize (defined before use)
+  const handleWidthChange = (newMarkdown: string) => {
+    if (!onContentChange) return
+
+    // Use original source for pattern matching (the filename in markdown, not the resolved URL)
+    const srcForMatching = originalSrc || src
+    if (!srcForMatching) return
+
+    console.log('[ImageComponent] Width change:', {
+      newMarkdown,
+      srcForMatching,
+      resolvedSrc: src,
+      contentPreview: content.substring(0, 200)
+    })
+
+    // Find the image markdown in the content and replace it
+    // Look for ![alt](src) or ![alt](src){width=X%}
+    const escapedSrc = srcForMatching.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const imagePattern = new RegExp(`!\\[([^\\]]*)\\]\\(${escapedSrc}\\)(\\{[^}]*\\})?`, 'g')
+
+    console.log('[ImageComponent] Pattern:', imagePattern.toString())
+    console.log('[ImageComponent] Testing pattern:', imagePattern.test(content))
+
+    // Reset lastIndex after test
+    imagePattern.lastIndex = 0
+
+    const newContent = content.replace(imagePattern, newMarkdown)
+
+    console.log('[ImageComponent] Replace result:', {
+      contentChanged: newContent !== content,
+      oldLength: content.length,
+      newLength: newContent.length
+    })
+
+    if (newContent !== content) {
+      console.log('[ImageComponent] Updating content')
+      onContentChange(newContent)
+    } else {
+      console.log('[ImageComponent] Content did not change - pattern might not match')
+    }
+  }
+
+  // Check if this is an Excalidraw image from data attributes (set by file-resolver)
   const dataExcalidraw = (props as Record<string, unknown>)['data-excalidraw'] as string | undefined
   if (dataExcalidraw) {
+    const lightSrc = (props as Record<string, unknown>)['data-light-src'] as string
+    const darkSrc = (props as Record<string, unknown>)['data-dark-src'] as string
+
+    console.log('[ImageComponent] Rendering Excalidraw:', { dataExcalidraw, lightSrc, darkSrc })
+
     return (
       <ExcalidrawImage
-        lightSrc={(props as Record<string, unknown>)['data-light-src'] as string || src || ''}
-        darkSrc={(props as Record<string, unknown>)['data-dark-src'] as string || src || ''}
+        lightSrc={lightSrc || src || ''}
+        darkSrc={darkSrc || src || ''}
         alt={alt}
         filename={dataExcalidraw}
+        style={style}
+        onWidthChange={onContentChange ? handleWidthChange : undefined}
       />
     )
   }
@@ -197,6 +255,8 @@ function ImageComponent({ src, alt, title, style, ...props }: React.ImgHTMLAttri
       alt={alt}
       title={title}
       style={style}
+      originalSrc={originalSrc}
+      onWidthChange={onContentChange ? handleWidthChange : undefined}
     />
   )
 }
@@ -257,105 +317,4 @@ function DivComponent({ className, children, ...props }: React.HTMLAttributes<HT
 
 function escapeRegExp(string: string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-// Helper to process Excalidraw nodes in the AST
-interface FileInfo {
-  id: string
-  name: string
-  url?: string
-  isDirectory?: boolean
-}
-
-interface TextNode extends Node {
-  type: 'text'
-  value: string
-}
-
-interface HtmlNode extends Node {
-  type: 'html'
-  value: string
-}
-
-function processExcalidrawNodes(tree: Node, context?: MarkdownContext) {
-  const { fileList = [] } = context || {}
-
-  visit(tree, 'text', (node, index, parent) => {
-    if (!parent || index === null || index === undefined) return
-
-    const textNode = node as TextNode
-    const text = textNode.value
-    const excalidrawPattern = /!\[\[([^\]]+\.excalidraw)\]\]/g
-
-    if (!excalidrawPattern.test(text)) return
-
-    const parts: (TextNode | HtmlNode)[] = []
-    let lastIndex = 0
-    let match: RegExpExecArray | null
-
-    excalidrawPattern.lastIndex = 0
-
-    while ((match = excalidrawPattern.exec(text)) !== null) {
-      const filename = match[1]
-      const matchIndex = match.index
-
-      // Add text before match
-      if (matchIndex > lastIndex) {
-        parts.push({
-          type: 'text',
-          value: text.substring(lastIndex, matchIndex),
-        } as TextNode)
-      }
-
-      // Find both light and dark SVG files
-      const lightSvgFilename = `${filename}.light.svg`
-      const darkSvgFilename = `${filename}.dark.svg`
-
-      const findFile = (name: string) => {
-        let file = fileList.find((f: FileInfo) => !f.isDirectory && f.name === name)
-        if (!file) {
-          const basename = name.split('/').pop()
-          file = fileList.find((f: FileInfo) => !f.isDirectory && f.name.split('/').pop() === basename)
-        }
-        return file
-      }
-
-      const lightSvgFile = findFile(lightSvgFilename)
-      const darkSvgFile = findFile(darkSvgFilename)
-
-      if (lightSvgFile && darkSvgFile) {
-        const cacheBuster = Date.now()
-        const lightUrl = `${lightSvgFile.url || `/api/files/${lightSvgFile.id}`}?v=${cacheBuster}`
-        const darkUrl = `${darkSvgFile.url || `/api/files/${darkSvgFile.id}`}?v=${cacheBuster}`
-
-        // Create HTML node with data attributes for ExcalidrawImage component
-        parts.push({
-          type: 'html',
-          value: `<img src="${lightUrl}" alt="${filename.replace('.excalidraw', '')}" data-excalidraw="${filename}" data-light-src="${lightUrl}" data-dark-src="${darkUrl}" />`,
-        } as HtmlNode)
-      } else {
-        const missing = []
-        if (!lightSvgFile) missing.push('light')
-        if (!darkSvgFile) missing.push('dark')
-        parts.push({
-          type: 'text',
-          value: `[Drawing not found: ${filename} (missing ${missing.join(' and ')} variant)]`,
-        } as TextNode)
-      }
-
-      lastIndex = matchIndex + match[0].length
-    }
-
-    // Add remaining text
-    if (lastIndex < text.length) {
-      parts.push({
-        type: 'text',
-        value: text.substring(lastIndex),
-      } as TextNode)
-    }
-
-    if (parts.length > 0 && 'children' in parent) {
-      (parent as Parent).children.splice(index, 1, ...parts)
-    }
-  })
 }
