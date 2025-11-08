@@ -81,8 +81,6 @@ function handleExcalidrawFile(node: any, filename: string, fileList?: FileInfo[]
   const lightSvgFilename = `${filename}.light.svg`
   const darkSvgFilename = `${filename}.dark.svg`
 
-  console.log('[FileResolver] Looking for Excalidraw files:', { filename, lightSvgFilename, darkSvgFilename })
-
   // Helper to find file by name or basename
   const findFile = (name: string) => {
     let file = fileList.find(f => !f.isDirectory && f.name === name)
@@ -95,11 +93,6 @@ function handleExcalidrawFile(node: any, filename: string, fileList?: FileInfo[]
 
   const lightSvgFile = findFile(lightSvgFilename)
   const darkSvgFile = findFile(darkSvgFilename)
-
-  console.log('[FileResolver] Found files:', {
-    lightSvgFile: lightSvgFile?.name,
-    darkSvgFile: darkSvgFile?.name
-  })
 
   if (lightSvgFile && darkSvgFile) {
     const cacheBuster = Date.now()
@@ -117,8 +110,6 @@ function handleExcalidrawFile(node: any, filename: string, fileList?: FileInfo[]
     node.data.hProperties['data-light-src'] = lightUrl
     node.data.hProperties['data-dark-src'] = darkUrl
     node.data.hProperties['data-original-src'] = filename // Store original filename for editing
-
-    console.log('[FileResolver] Set Excalidraw data attributes:', node.data.hProperties)
   } else {
     // Missing SVG variants
     const missing = []

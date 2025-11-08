@@ -238,7 +238,6 @@ const CodeMirrorEditor = function CodeMirrorEditor({
   // Ensure component is mounted
   useEffect(() => {
     setIsMounted(true)
-    console.log('CodeMirrorEditor mounting...')
   }, [])
 
   // No longer need to process markdown for preview - React renderer handles it
@@ -248,7 +247,6 @@ const CodeMirrorEditor = function CodeMirrorEditor({
 
     // Set a hard timeout to fallback to simple editor
     const fallbackTimeout = setTimeout(() => {
-      console.log('Forcing fallback to simple editor due to timeout')
       setUseSimpleEditor(true)
     }, 5000) // Increased timeout to 5 seconds
 
@@ -260,23 +258,14 @@ const CodeMirrorEditor = function CodeMirrorEditor({
           editorViewRef.current = null
         }
         
-        console.log('Attempting to load CodeMirror...')
-        
         // Try to import CodeMirror modules one by one with better error handling
-        console.log('Loading codemirror (basic setup)...')
         const { basicSetup } = await import('codemirror')
-        
-        console.log('Loading @codemirror/view...')
         const { EditorView } = await import('@codemirror/view')
-          
-        console.log('Loading @codemirror/state...')
         const { EditorState } = await import('@codemirror/state')
-        
-        console.log('Loading @codemirror/lang-markdown...')
         const { markdown, markdownLanguage } = await import('@codemirror/lang-markdown')
         const { LanguageDescription } = await import('@codemirror/language')
         
-        console.log('Loading language support...')
+        // Language support
         const { javascript } = await import('@codemirror/lang-javascript')
         const { python } = await import('@codemirror/lang-python')
         const { sql } = await import('@codemirror/lang-sql')
@@ -292,13 +281,8 @@ const CodeMirrorEditor = function CodeMirrorEditor({
         const { yaml } = await import('@codemirror/lang-yaml')
         
         // Load theme extensions
-        console.log('Loading VS Code themes...')
         const { vsCodeLight } = await import('@fsegurai/codemirror-theme-vscode-light')
         const { vsCodeDark } = await import('@fsegurai/codemirror-theme-vscode-dark')
-        
-        console.log('All CodeMirror modules loaded successfully')
-
-        console.log('Creating editor state...')
         
         // Create enhanced markdown with language support
         const markdownExtension = markdown({
@@ -374,7 +358,6 @@ const CodeMirrorEditor = function CodeMirrorEditor({
           ],
         })
 
-        console.log('Creating editor view...')
         // Clear the container before creating new editor
         if (editorRef.current) {
           editorRef.current.innerHTML = ''
@@ -387,7 +370,6 @@ const CodeMirrorEditor = function CodeMirrorEditor({
 
         editorViewRef.current = view
         clearTimeout(fallbackTimeout)
-        console.log('CodeMirror initialized successfully')
 
         return () => {
           view.destroy()
