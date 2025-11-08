@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Layout, Eye, BookOpen, FileText, Plus, Edit, ChevronDown, ChevronRight, X, GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
+import { useSession } from 'next-auth/react'
+import { useState } from 'react'
 
 interface PageItem {
   id: string
@@ -38,14 +40,46 @@ interface PageBuilderProps {
   } | null
 }
 
-export function PageBuilder({ 
-  items, 
+export function PageBuilder({
+  items,
   onItemsChange,
   onPreview,
   expandedCollections = [],
   onToggleCollection,
   draggedItem
 }: PageBuilderProps) {
+  const { data: session } = useSession()
+  const [seeding, setSeeding] = useState(false)
+  const [seedError, setSeedError] = useState('')
+  const [seedSuccess, setSeedSuccess] = useState('')
+
+  const handleSeedData = async () => {
+    if (!confirm('This will create example users, collections, and content. Continue?')) {
+      return
+    }
+
+    setSeeding(true)
+    setSeedError('')
+    setSeedSuccess('')
+
+    try {
+      const response = await fetch('/api/admin/seed-example-data', {
+        method: 'POST',
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to seed data')
+      }
+
+      setSeedSuccess(`Example data seeded! Created ${data.data.skripts} skripts with ${data.data.pages} pages. Refresh the page to see them.`)
+    } catch (err) {
+      setSeedError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setSeeding(false)
+    }
+  }
 
 
   const handleRemoveItem = (id: string, parentId?: string) => {
@@ -129,9 +163,40 @@ export function PageBuilder({
                   <h3 className="text-lg font-medium text-muted-foreground mb-2">
                     Start building your page
                   </h3>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground mb-4">
                     Drag collections from the content library to organize your public page
                   </p>
+
+                  {session?.user?.isAdmin && (
+                    <div className="mt-6 space-y-3">
+                      <div className="border-t border-border pt-4">
+                        <p className="text-xs text-muted-foreground mb-3">
+                          Need some example content to get started?
+                        </p>
+                        <Button
+                          onClick={handleSeedData}
+                          disabled={seeding}
+                          variant="outline"
+                          size="sm"
+                        >
+                          {seeding ? 'Seeding...' : 'Insert Example Data'}
+                        </Button>
+                      </div>
+
+                      {seedError && (
+                        <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                          {seedError}
+                        </div>
+                      )}
+
+                      {seedSuccess && (
+                        <div className="rounded-md bg-green-500/10 p-3 text-sm text-green-600">
+                          {seedSuccess}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {provided.placeholder}
                 </div>
               ) : (
