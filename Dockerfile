@@ -11,6 +11,10 @@ RUN apk add --no-cache libc6-compat openssl
 # Deps stage: install dependencies
 # ----------------------------
 FROM base AS deps
+
+# Install build dependencies for native modules (oniguruma)
+RUN apk add --no-cache python3 make g++
+
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml ./
 COPY prisma ./prisma
 RUN corepack enable pnpm && pnpm install --frozen-lockfile
