@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, createContext, useContext } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, createContext, useContext } from 'react'
 import { unified } from 'unified'
 import remarkParse from 'remark-parse'
 import remarkMath from 'remark-math'
@@ -36,18 +36,23 @@ interface MarkdownRendererProps {
 export function MarkdownRenderer({ content, context, onContentChange }: MarkdownRendererProps) {
   const [renderedContent, setRenderedContent] = useState<React.ReactNode>(null)
   const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
   const { resolvedTheme } = useTheme()
   const containerRef = useRef<HTMLDivElement>(null)
+  const scrollPositionRef = useRef(0)
+  const hasRestoredScroll = useRef(false)
+
+  // Capture scroll position before any DOM changes
+  useLayoutEffect(() => {
+    const scrollContainer = document.getElementById('markdown-preview-scroll-container')
+    if (scrollContainer) {
+      scrollPositionRef.current = scrollContainer.scrollTop
+    }
+  })
 
   useEffect(() => {
     const processContent = async () => {
-      // Save scroll position from the actual scroll container (parent)
-      const scrollContainer = document.getElementById('markdown-preview-scroll-container')
-      const savedScrollTop = scrollContainer?.scrollTop || 0
-
       try {
-        setIsLoading(true)
         setError(null)
 
         // Build the processing pipeline
@@ -90,25 +95,30 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
 
         const result = await processor.process(content)
         setRenderedContent(result.result)
-
-        // Restore scroll position after rendering
-        setTimeout(() => {
-          if (scrollContainer) {
-            scrollContainer.scrollTop = savedScrollTop
-          }
-        }, 0)
+        setIsInitialLoad(false)
+        hasRestoredScroll.current = false
       } catch (err) {
         console.error('Markdown rendering error:', err)
         setError(String(err))
-      } finally {
-        setIsLoading(false)
+        setIsInitialLoad(false)
       }
     }
 
     processContent()
   }, [content, context, resolvedTheme])
 
-  if (isLoading) {
+  // Restore scroll position after DOM updates
+  useLayoutEffect(() => {
+    if (!hasRestoredScroll.current && renderedContent) {
+      const scrollContainer = document.getElementById('markdown-preview-scroll-container')
+      if (scrollContainer && scrollPositionRef.current > 0) {
+        scrollContainer.scrollTop = scrollPositionRef.current
+        hasRestoredScroll.current = true
+      }
+    }
+  }, [renderedContent])
+
+  if (isInitialLoad && !renderedContent) {
     return (
       <div className="markdown-content prose dark:prose-invert max-w-none">
         <div className="animate-pulse space-y-4">

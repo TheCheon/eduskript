@@ -13,7 +13,7 @@ We're replacing the old HTML-based markdown rendering with a modern React compon
 - ✅ Converted markdown renderer to async processing for Shiki compatibility
 - ✅ Added interactive code block controls (language dropdown, copy button)
 - ✅ Implemented language change with markdown source updates
-- ✅ Preserved scroll position during preview re-renders
+- ✅ Fixed scroll position preservation during preview re-renders (using useLayoutEffect to capture/restore scroll)
 
 **Next Tasks:**
 - 🔨 Fix image resizing controls in markdown preview
