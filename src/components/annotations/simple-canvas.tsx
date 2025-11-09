@@ -44,13 +44,6 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      // Save context state
-      ctx.save()
-
-      // Apply zoom transformation
-      // Note: We scale from (0,0) which is the top-left of the canvas
-      ctx.scale(zoom, zoom)
-
       // Redraw all paths with pressure-sensitive line width
       pathsRef.current.forEach(path => {
         if (path.points.length < 2) return
@@ -61,7 +54,6 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         ctx.globalCompositeOperation = path.mode === 'erase' ? 'destination-out' : 'source-over'
 
         // Draw path with variable width based on pressure
-        // Coordinates are stored in original space, zoom is applied via ctx.scale
         for (let i = 1; i < path.points.length; i++) {
           const prevPoint = path.points[i - 1]
           const currPoint = path.points[i]
@@ -77,9 +69,6 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
           ctx.stroke()
         }
       })
-
-      // Restore context state
-      ctx.restore()
     }, [eraserWidth, zoom])
 
     // Set up high-DPI canvas scaling with zoom support
@@ -171,13 +160,14 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
 
       isDrawingRef.current = true
       const rect = canvas.getBoundingClientRect()
-      // Convert screen coordinates to canvas coordinates by dividing by zoom
-      const x = (e.clientX - rect.left) / zoom
-      const y = (e.clientY - rect.top) / zoom
+      // Convert screen coordinates to canvas coordinates
+      // The canvas CSS size matches the scaled section size, so we need to scale down to internal coordinates
+      const x = (e.clientX - rect.left) * (width / rect.width)
+      const y = (e.clientY - rect.top) * (height / rect.height)
       const pressure = e.pressure || 0.5 // Default to 0.5 for mouse
 
       currentPathRef.current = [{ x, y, pressure }]
-    }, [mode, stylusModeActive, onStylusDetected, onNonStylusInput, zoom])
+    }, [mode, stylusModeActive, onStylusDetected, onNonStylusInput, zoom, width, height])
 
     const draw = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
       // Don't draw if multiple pointers are active (pinch gesture)
@@ -199,15 +189,12 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       // Falls back to single event if getCoalescedEvents is not supported
       const events = e.nativeEvent.getCoalescedEvents?.() || [e.nativeEvent]
 
-      // Save context state for drawing
-      ctx.save()
-      ctx.scale(zoom, zoom)
-
       // Process each coalesced event to capture all intermediate points
       events.forEach((event) => {
-        // Convert screen coordinates to canvas coordinates by dividing by zoom
-        const x = (event.clientX - rect.left) / zoom
-        const y = (event.clientY - rect.top) / zoom
+        // Convert screen coordinates to canvas coordinates
+        // The canvas CSS size matches the scaled section size, so we need to scale down to internal coordinates
+        const x = (event.clientX - rect.left) * (width / rect.width)
+        const y = (event.clientY - rect.top) * (height / rect.height)
         const pressure = event.pressure || 0.5 // Default to 0.5 for mouse
 
         currentPathRef.current.push({ x, y, pressure })
@@ -233,10 +220,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
           ctx.stroke()
         }
       })
-
-      // Restore context state
-      ctx.restore()
-    }, [mode, strokeColor, strokeWidth, eraserWidth, zoom])
+    }, [mode, strokeColor, strokeWidth, eraserWidth, zoom, width, height])
 
     const stopDrawing = useCallback((e?: React.PointerEvent<HTMLCanvasElement>) => {
       // Remove pointer from tracking

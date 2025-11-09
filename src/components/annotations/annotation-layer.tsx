@@ -425,8 +425,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       touchesRef.current.set(touch.identifier, { x: touch.clientX, y: touch.clientY })
     }
 
-    // Single touch - start pan when zoomed and in view mode
-    if (e.touches.length === 1 && zoom > 1.0 && mode === 'view') {
+    // Single touch - start pan in view mode (acts as scroll at zoom = 1.0)
+    if (e.touches.length === 1 && mode === 'view') {
       const touch = e.touches[0]
       singleTouchStartRef.current = {
         x: touch.clientX,
@@ -492,11 +492,19 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       const zoomFactor = currentDistance / initialPinchDistanceRef.current
       const newZoom = Math.max(0.5, Math.min(3.0, initialZoomRef.current * zoomFactor))
 
-      // Calculate pan offset (movement of pinch center)
-      const deltaCenterX = currentCenterX - initialPinchCenterRef.current.x
-      const deltaCenterY = currentCenterY - initialPinchCenterRef.current.y
-      const newPanX = initialPanRef.current.x + deltaCenterX / newZoom
-      const newPanY = initialPanRef.current.y + deltaCenterY / newZoom
+      // Zoom around the initial pinch center point, accounting for transform-origin: top center
+      const originX = window.innerWidth / 2
+      const originY = 0
+      const initialCenterX = initialPinchCenterRef.current.x
+      const initialCenterY = initialPinchCenterRef.current.y
+      const zoomPanX = (initialCenterX - originX) * (1 / newZoom - 1 / initialZoomRef.current) + initialPanRef.current.x
+      const zoomPanY = (initialCenterY - originY) * (1 / newZoom - 1 / initialZoomRef.current) + initialPanRef.current.y
+
+      // Add pan from finger movement
+      const deltaCenterX = currentCenterX - initialCenterX
+      const deltaCenterY = currentCenterY - initialCenterY
+      const newPanX = zoomPanX + deltaCenterX / newZoom
+      const newPanY = zoomPanY + deltaCenterY / newZoom
 
       console.log('Pinch move - zoom:', newZoom, 'pan:', newPanX, newPanY)
       setZoom(newZoom)
@@ -536,18 +544,29 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       const delta = -e.deltaY * 0.01
       const newZoom = Math.max(0.5, Math.min(3.0, zoom * (1 + delta)))
 
+      // Zoom around cursor position, accounting for transform-origin: top center
+      const originX = window.innerWidth / 2
+      const originY = 0
+      const mouseX = e.clientX
+      const mouseY = e.clientY
+      const newPanX = (mouseX - originX) * (1 / newZoom - 1 / zoom) + panX
+      const newPanY = (mouseY - originY) * (1 / newZoom - 1 / zoom) + panY
+
       console.log('Trackpad zoom:', newZoom)
       setZoom(newZoom)
+      setPanX(newPanX)
+      setPanY(newPanY)
     }
-    // Trackpad two-finger pan when zoomed (no ctrl key)
-    else if (zoom > 1.0) {
+    // Trackpad two-finger pan / mousewheel scroll (no ctrl key)
+    else {
       e.preventDefault()
 
       // Convert scroll to pan (deltaX and deltaY are in pixels)
+      // This handles both trackpad pan and regular mousewheel scroll
       const newPanX = panX - e.deltaX / zoom
       const newPanY = panY - e.deltaY / zoom
 
-      console.log('Trackpad pan:', newPanX, newPanY)
+      console.log('Wheel pan/scroll:', newPanX, newPanY)
       setPanX(newPanX)
       setPanY(newPanY)
     }
@@ -591,13 +610,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
   return (
     <>
-      {/* Zoom indicator */}
-      {zoom !== 1.0 && (
-        <div className="fixed top-4 right-4 z-50 bg-background/95 backdrop-blur border border-border rounded-lg shadow-lg px-3 py-2 text-sm font-mono">
-          Zoom: {Math.round(zoom * 100)}%
-        </div>
-      )}
-
       {/* Version mismatch warning */}
       {versionMismatch && hasAnnotations && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
@@ -622,16 +634,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         </div>
       )}
 
-      {/* Fixed-width centered container for all content */}
-      <div
-        ref={contentRef}
-        style={{
-          width: '72rem', // Canvas width (1152px)
-          margin: '0 auto', // Center on page
-          position: 'relative',
-          boxShadow: zoom !== 1.0 ? '0 0 60px rgba(0, 0, 0, 0.15)' : 'none', // Shadow when zoomed
-        }}
-      >
+      {/* Wrapper for section detection and main element reference */}
+      <div ref={contentRef}>
         {children}
 
         {/* Render canvases into section elements using portals */}
@@ -642,34 +646,21 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
           const initialData = sectionData.get(section.id)
           console.log('Rendering canvas for section', section.id, 'with initialData:', initialData ? initialData.substring(0, 50) + '...' : 'none')
           return createPortal(
-            <div
+            <SimpleCanvas
               key={section.id}
-              className="canvas-section-wrapper"
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                pointerEvents: 'none', // Always allow events to pass through to canvas
-                zIndex: 10
-              }}
-            >
-              <SimpleCanvas
-                ref={canvasRef}
-                width={CANVAS_WIDTH_PX}
-                height={section.element.offsetHeight}
-                mode={mode === 'view' ? 'view' : (mode as DrawMode)}
-                onUpdate={(data) => handleSectionUpdate(section.id, data)}
-                initialData={initialData}
-                strokeColor={penColors[activePen]}
-                strokeWidth={penSizes[activePen]}
-                stylusModeActive={stylusModeActive}
-                onStylusDetected={handleStylusDetected}
-                onNonStylusInput={handleNonStylusInput}
-                zoom={zoom}
-              />
-            </div>,
+              ref={canvasRef}
+              width={CANVAS_WIDTH_PX}
+              height={section.element.offsetHeight}
+              mode={mode === 'view' ? 'view' : (mode as DrawMode)}
+              onUpdate={(data) => handleSectionUpdate(section.id, data)}
+              initialData={initialData}
+              strokeColor={penColors[activePen]}
+              strokeWidth={penSizes[activePen]}
+              stylusModeActive={stylusModeActive}
+              onStylusDetected={handleStylusDetected}
+              onNonStylusInput={handleNonStylusInput}
+              zoom={zoom}
+            />,
             section.element
           )
         })}

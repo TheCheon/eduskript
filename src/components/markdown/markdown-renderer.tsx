@@ -40,7 +40,6 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
   const [error, setError] = useState<string | null>(null)
   const [isInitialLoad, setIsInitialLoad] = useState(true)
   const { resolvedTheme } = useTheme()
-  const containerRef = useRef<HTMLDivElement>(null)
   const scrollPositionRef = useRef(0)
   const hasRestoredScroll = useRef(false)
 
@@ -99,7 +98,9 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
                     ...props.style
                   }}
                 >
-                  {props.children}
+                  <div className="px-36">
+                    {props.children}
+                  </div>
                 </section>
               ),
               // Div component for Shiki code blocks (rehypeKatex handles math automatically)
@@ -155,7 +156,7 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
 
   return (
     <MarkdownEditContext.Provider value={{ content, onContentChange, markdownContext: context }}>
-      <div ref={containerRef} className="markdown-content prose dark:prose-invert max-w-none">{renderedContent}</div>
+      {renderedContent}
     </MarkdownEditContext.Provider>
   )
 }

@@ -4,10 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { PublicSiteLayout } from '@/components/public/layout'
 import { AnnotatableContent } from '@/components/public/annotatable-content'
-import { Breadcrumb } from '@/components/public/breadcrumb'
 import { ExportPDF } from '@/components/public/export-pdf'
 import { Comments } from '@/components/public/comments'
-import { Edit } from 'lucide-react'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 
@@ -382,7 +380,7 @@ export default async function PublicPage({ params }: PageProps) {
         fullSiteStructure={fullSiteStructure}
         sidebarBehavior={teacher.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
       >
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-5xl mx-auto py-4 shadow-xl">
           {/* Preview mode indicator for unpublished content */}
           {(!collection.isPublished || !skript.isPublished || !page.isPublished) && isAuthor && (
             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
@@ -404,22 +402,6 @@ export default async function PublicPage({ params }: PageProps) {
               </div>
             </div>
           )}
-
-          <Breadcrumb
-            items={[
-              { title: collection.title, href: `/${domain}/${collectionSlug}` },
-              { title: skript.title, href: `/${domain}/${collectionSlug}/${skriptSlug}` },
-              { title: page.title }
-            ]}
-            subdomain={domain}
-            isOnSubdomain={isOnSubdomain}
-          ><a
-            href={`/dashboard/collections/${collection.slug}/skripts/${skript.slug}/pages/${page.slug}/edit`}
-            className="inline-flex items-center px-2 py-1 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors shadow-md"
-          >
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
-            </a></Breadcrumb>
 
           <article className="prose-theme">
             <AnnotatableContent

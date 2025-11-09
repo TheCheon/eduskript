@@ -26,6 +26,13 @@ html.dark {
   color-scheme: dark;
 }
 
+/* Disable native scroll for custom pan/zoom */
+html, body {
+  overflow: hidden;
+  height: 100vh;
+  width: 100%;
+}
+
 /* Highlight.js theme for light mode */
 .hljs {
   background: hsl(var(--muted)) !important;
