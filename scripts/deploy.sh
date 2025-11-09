@@ -51,6 +51,9 @@ echo -e "${BLUE}📦 Watching GitHub Actions build for ${REPO}...${NC}"
 echo "Press Ctrl+C to cancel"
 echo ""
 
+# Unset GITHUB_TOKEN so gh CLI uses the authenticated token instead of .env token
+unset GITHUB_TOKEN
+
 while true; do
   # Check if gh is available and authenticated
   if ! command -v gh &> /dev/null; then
