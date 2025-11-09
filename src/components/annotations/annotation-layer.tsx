@@ -525,7 +525,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
   }, [])
 
-  // Handle trackpad/mousepad pinch zoom (Ctrl+wheel)
+  // Handle trackpad/mousepad pinch zoom and pan
   const handleWheel = useCallback((e: WheelEvent) => {
     // Trackpad pinch zoom comes through as wheel events with ctrlKey
     if (e.ctrlKey || e.metaKey) {
@@ -538,7 +538,19 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       console.log('Trackpad zoom:', newZoom)
       setZoom(newZoom)
     }
-  }, [zoom])
+    // Trackpad two-finger pan when zoomed (no ctrl key)
+    else if (zoom > 1.0) {
+      e.preventDefault()
+
+      // Convert scroll to pan (deltaX and deltaY are in pixels)
+      const newPanX = panX - e.deltaX / zoom
+      const newPanY = panY - e.deltaY / zoom
+
+      console.log('Trackpad pan:', newPanX, newPanY)
+      setPanX(newPanX)
+      setPanY(newPanY)
+    }
+  }, [zoom, panX, panY])
 
   // Set up event listeners on document to capture ALL events (sidebar, main, etc.)
   useEffect(() => {
