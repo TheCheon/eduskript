@@ -53,6 +53,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   const contentRef = useRef<HTMLDivElement>(null)
   const canvasRefs = useRef<Map<string, React.MutableRefObject<SimpleCanvasHandle | null>>>(new Map())
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const isClearingRef = useRef(false)
 
   // Canvas width is 1.5x content width
   // Content is max-w-3xl (48rem = 768px)
@@ -143,6 +144,12 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
   // Function to perform the actual save
   const performSave = useCallback(async () => {
+    // Don't save if we're in the middle of clearing
+    if (isClearingRef.current) {
+      console.log('Skipping save - clearing in progress')
+      return
+    }
+
     try {
       // Collect all section data
       const allSections: SectionAnnotation[] = []
@@ -211,6 +218,9 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
   // Handle section annotation update with debounced save
   const handleSectionUpdate = useCallback((sectionId: string, data: string) => {
+    // Reset clearing flag when user starts drawing again
+    isClearingRef.current = false
+
     // Update local state immediately
     setSectionData(prev => {
       const newMap = new Map(prev)
@@ -258,6 +268,15 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   const handleClearAll = useCallback(async () => {
     try {
       console.log('Clearing annotations, found', canvasRefs.current.size, 'canvas refs')
+
+      // Set flag to prevent any saves during/after clear operation
+      isClearingRef.current = true
+
+      // Cancel any pending save operations to prevent re-saving old data
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+        saveTimeoutRef.current = null
+      }
 
       // Clear state first to prevent re-initialization
       setSectionData(new Map())

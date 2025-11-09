@@ -36,17 +36,31 @@ export function AnnotationToolbar({
   }
   const [showColorPicker, setShowColorPicker] = useState<number | null>(null)
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const hideTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const handlePenMouseEnter = (penIndex: number) => {
+    // Clear any pending hide timer
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current)
+      hideTimerRef.current = null
+    }
+
     hoverTimerRef.current = setTimeout(() => {
       setShowColorPicker(penIndex)
-    }, 200)
+    }, 300)
   }
 
   const handlePenMouseLeave = () => {
     if (hoverTimerRef.current) {
       clearTimeout(hoverTimerRef.current)
       hoverTimerRef.current = null
+    }
+
+    // If color picker is showing, delay hiding it to give user time to move into it
+    if (showColorPicker !== null) {
+      hideTimerRef.current = setTimeout(() => {
+        setShowColorPicker(null)
+      }, 200)
     }
   }
 
@@ -94,6 +108,10 @@ export function AnnotationToolbar({
               onMouseEnter={() => {
                 if (hoverTimerRef.current) {
                   clearTimeout(hoverTimerRef.current)
+                }
+                if (hideTimerRef.current) {
+                  clearTimeout(hideTimerRef.current)
+                  hideTimerRef.current = null
                 }
               }}
               onMouseLeave={() => setShowColorPicker(null)}
