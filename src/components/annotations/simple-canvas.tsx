@@ -1,7 +1,6 @@
 'use client'
 
 import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle, useState } from 'react'
-import simplify from 'simplify-js'
 
 export type DrawMode = 'draw' | 'erase'
 
@@ -26,7 +25,7 @@ export interface SimpleCanvasHandle {
 }
 
 export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
-  ({ width, height, mode, onUpdate, initialData, strokeWidth = 2, strokeColor = '#000000', eraserWidth = 10, stylusModeActive = false, onStylusDetected, onNonStylusInput, zoom = 1.0 }, ref) => {
+  ({ width, height, mode, onUpdate, initialData, strokeWidth = 2, strokeColor = '#000000', eraserWidth = 100, stylusModeActive = false, onStylusDetected, onNonStylusInput, zoom = 1.0 }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const isDrawingRef = useRef(false)
     const pathsRef = useRef<Array<{ points: Array<{ x: number; y: number; pressure: number }>; mode: DrawMode; color: string; width: number }>>([])
@@ -34,6 +33,28 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
     const [shouldFadeIn, setShouldFadeIn] = useState(false)
     const hasLoadedInitialDataRef = useRef(false)
     const activePointersRef = useRef<Set<number>>(new Set())
+    const activeTouchPointersRef = useRef<Set<number>>(new Set()) // Track only touch/mouse (not pen) for multi-touch detection
+
+    // Apply moving average smoothing to point positions while preserving pressure
+    const smoothPoints = useCallback((points: Array<{ x: number; y: number; pressure: number }>, windowSize: number = 3): Array<{ x: number; y: number; pressure: number }> => {
+      if (points.length < windowSize) return points
+
+      const smoothed: Array<{ x: number; y: number; pressure: number }> = []
+      const halfWindow = Math.floor(windowSize / 2)
+
+      for (let i = 0; i < points.length; i++) {
+        const start = Math.max(0, i - halfWindow)
+        const end = Math.min(points.length, i + halfWindow + 1)
+        const window = points.slice(start, end)
+
+        smoothed.push({
+          x: window.reduce((sum, p) => sum + p.x, 0) / window.length,
+          y: window.reduce((sum, p) => sum + p.y, 0) / window.length,
+          pressure: points[i].pressure // Keep original pressure
+        })
+      }
+      return smoothed
+    }, [])
 
     const redrawCanvas = useCallback(() => {
       const canvas = canvasRef.current
@@ -54,7 +75,8 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         ctx.lineJoin = 'round'
         ctx.globalCompositeOperation = path.mode === 'erase' ? 'destination-out' : 'source-over'
 
-        const points = path.points
+        // Apply moving average smoothing to reduce choppiness when zoomed
+        const points = smoothPoints(path.points, 3)
 
         // For very short strokes (2 points), just draw a straight line
         if (points.length === 2) {
@@ -70,57 +92,63 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         }
 
         // For longer strokes, use quadratic Bezier curves with pressure-sensitive width
-        // Draw segments with varying width based on pressure
-        for (let i = 0; i < points.length - 1; i++) {
-          const p0 = points[i]
-          const p1 = points[i + 1]
-
-          // Calculate control point as midpoint between current and next point
-          const cpX = (p0.x + p1.x) / 2
-          const cpY = (p0.y + p1.y) / 2
-
-          // Calculate line width based on pressure at current point
-          const baseWidth = path.mode === 'erase' ? eraserWidth : path.width
-          const lineWidth = baseWidth * (p0.pressure || 0.5)
-
-          ctx.beginPath()
-          ctx.lineWidth = lineWidth
-
-          if (i === 0) {
-            // First segment: start at first point
-            ctx.moveTo(p0.x, p0.y)
-            ctx.quadraticCurveTo(p0.x, p0.y, cpX, cpY)
-          } else {
-            // Middle segments: start at previous midpoint
-            const prevP = points[i - 1]
-            const prevCpX = (prevP.x + p0.x) / 2
-            const prevCpY = (prevP.y + p0.y) / 2
-            ctx.moveTo(prevCpX, prevCpY)
-            ctx.quadraticCurveTo(p0.x, p0.y, cpX, cpY)
-          }
-
-          ctx.stroke()
-        }
-
-        // Draw final segment to last point
-        const lastIdx = points.length - 1
-        const secondLastIdx = lastIdx - 1
-        const lastPoint = points[lastIdx]
-        const secondLastPoint = points[secondLastIdx]
-
-        const finalCpX = (secondLastPoint.x + lastPoint.x) / 2
-        const finalCpY = (secondLastPoint.y + lastPoint.y) / 2
+        // Draw with special handling for endpoints to avoid blobs
 
         const baseWidth = path.mode === 'erase' ? eraserWidth : path.width
-        const lineWidth = baseWidth * (lastPoint.pressure || 0.5)
 
+        // Draw first segment as a straight line to preserve pen-down appearance
         ctx.beginPath()
-        ctx.lineWidth = lineWidth
-        ctx.moveTo(finalCpX, finalCpY)
-        ctx.quadraticCurveTo(lastPoint.x, lastPoint.y, lastPoint.x, lastPoint.y)
-        ctx.stroke()
+        ctx.lineWidth = baseWidth * (points[0].pressure || 0.5)
+        ctx.moveTo(points[0].x, points[0].y)
+
+        if (points.length === 3) {
+          // For 3-point strokes, draw straight lines to preserve shape
+          ctx.lineTo(points[1].x, points[1].y)
+          ctx.stroke()
+
+          ctx.beginPath()
+          ctx.lineWidth = baseWidth * (points[1].pressure || 0.5)
+          ctx.moveTo(points[1].x, points[1].y)
+          ctx.lineTo(points[2].x, points[2].y)
+          ctx.stroke()
+        } else {
+          // For 4+ points, use smooth curves in the middle but preserve endpoints
+          const firstMidX = (points[0].x + points[1].x) / 2
+          const firstMidY = (points[0].y + points[1].y) / 2
+          ctx.lineTo(firstMidX, firstMidY)
+          ctx.stroke()
+
+          // Draw middle segments with quadratic curves
+          for (let i = 1; i < points.length - 2; i++) {
+            const p0 = points[i]
+            const p1 = points[i + 1]
+
+            const midX0 = (points[i - 1].x + p0.x) / 2
+            const midY0 = (points[i - 1].y + p0.y) / 2
+            const midX1 = (p0.x + p1.x) / 2
+            const midY1 = (p0.y + p1.y) / 2
+
+            ctx.beginPath()
+            ctx.lineWidth = baseWidth * (p0.pressure || 0.5)
+            ctx.moveTo(midX0, midY0)
+            ctx.quadraticCurveTo(p0.x, p0.y, midX1, midY1)
+            ctx.stroke()
+          }
+
+          // Draw last segment as a straight line to preserve pen-up appearance
+          const lastIdx = points.length - 1
+          const secondLastIdx = lastIdx - 1
+          const lastMidX = (points[secondLastIdx].x + points[lastIdx].x) / 2
+          const lastMidY = (points[secondLastIdx].y + points[lastIdx].y) / 2
+
+          ctx.beginPath()
+          ctx.lineWidth = baseWidth * (points[lastIdx].pressure || 0.5)
+          ctx.moveTo(lastMidX, lastMidY)
+          ctx.lineTo(points[lastIdx].x, points[lastIdx].y)
+          ctx.stroke()
+        }
       })
-    }, [eraserWidth, zoom])
+    }, [eraserWidth, zoom, smoothPoints])
 
     // Set up high-DPI canvas scaling with zoom support
     useEffect(() => {
@@ -175,16 +203,23 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
     }, [initialData])
 
     const startDrawing = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+      // Detect stylus input first
+      const isStylusInput = e.pointerType === 'pen'
+
       // Track active pointers for multi-touch detection
       activePointersRef.current.add(e.pointerId)
+      // Only track touch/mouse for multi-touch gestures (exclude stylus)
+      if (!isStylusInput) {
+        activeTouchPointersRef.current.add(e.pointerId)
+      }
 
-      // Don't draw if multiple pointers are active (pinch gesture)
-      if (activePointersRef.current.size > 1) {
+      // Don't draw if multiple touch/mouse pointers are active (pinch gesture)
+      // But always allow stylus to proceed regardless of touch count
+      if (!isStylusInput && activeTouchPointersRef.current.size > 1) {
         return
       }
 
-      // Detect stylus input first, before any other checks
-      const isStylusInput = e.pointerType === 'pen'
+      // Stylus detection callback
       if (isStylusInput && onStylusDetected) {
         onStylusDetected()
       }
@@ -221,8 +256,10 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
     }, [mode, stylusModeActive, onStylusDetected, onNonStylusInput, zoom, width, height])
 
     const draw = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-      // Don't draw if multiple pointers are active (pinch gesture)
-      if (activePointersRef.current.size > 1) {
+      // Don't draw if multiple touch/mouse pointers are active (pinch gesture)
+      // But always allow stylus to proceed regardless of touch count
+      const isStylusInput = e.pointerType === 'pen'
+      if (!isStylusInput && activeTouchPointersRef.current.size > 1) {
         return
       }
 
@@ -277,6 +314,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       // Remove pointer from tracking
       if (e) {
         activePointersRef.current.delete(e.pointerId)
+        activeTouchPointersRef.current.delete(e.pointerId)
       }
 
       if (!isDrawingRef.current) return
@@ -284,30 +322,10 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       isDrawingRef.current = false
 
       if (currentPathRef.current.length > 0 && mode !== 'view') {
-        // Simplify points using Ramer-Douglas-Peucker algorithm
-        // Convert to simplify-js format (expects x, y properties)
-        const simplifyPoints = currentPathRef.current.map(p => ({ x: p.x, y: p.y }))
-        const simplified = simplify(simplifyPoints, 1.5, true) // epsilon=1.5, high quality mode
-
-        // Convert back to our format, preserving pressure from original points
-        // For each simplified point, find the closest original point's pressure
-        const simplifiedWithPressure = simplified.map(sp => {
-          // Find closest original point
-          let minDist = Infinity
-          let closestPressure = 0.5
-          for (const op of currentPathRef.current) {
-            const dist = Math.sqrt((sp.x - op.x) ** 2 + (sp.y - op.y) ** 2)
-            if (dist < minDist) {
-              minDist = dist
-              closestPressure = op.pressure
-            }
-          }
-          return { x: sp.x, y: sp.y, pressure: closestPressure }
-        })
-
-        // Save simplified path
+        // Save the path with all original points and pressure data intact
+        // Visual smoothing is handled by Bezier curves during rendering
         pathsRef.current.push({
-          points: simplifiedWithPressure,
+          points: currentPathRef.current,
           mode: mode as DrawMode,
           color: strokeColor,
           width: strokeWidth
@@ -317,6 +335,12 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
 
         // Notify parent with debouncing handled at parent level
         const data = JSON.stringify(pathsRef.current)
+
+        // Log storage statistics
+        const totalPoints = pathsRef.current.reduce((sum, path) => sum + path.points.length, 0)
+        const sizeKB = (new Blob([data]).size / 1024).toFixed(2)
+        console.log(`Canvas data: ${pathsRef.current.length} paths, ${totalPoints} points, ${sizeKB} KB`)
+
         onUpdate(data)
       }
     }, [mode, strokeColor, strokeWidth, onUpdate])
@@ -324,6 +348,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
     const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
       // Clean up when pointer is cancelled
       activePointersRef.current.delete(e.pointerId)
+      activeTouchPointersRef.current.delete(e.pointerId)
       if (isDrawingRef.current) {
         isDrawingRef.current = false
         currentPathRef.current = []
@@ -359,8 +384,8 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
           position: 'absolute',
           top: 0,
           left: 0,
-          // Use 100% width to fill container, height from element
-          width: '100%',
+          // Fixed width and height to match canvas internal dimensions
+          width: `${width}px`,
           height: `${height}px`,
           // Always allow pinch-zoom for crisp annotation rendering at any zoom level
           // Multi-touch detection prevents drawing during pinch gestures

@@ -77,6 +77,23 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
     return [2, 3, 4]
   })
+  const [eraserSize, setEraserSize] = useState<number>(() => {
+    // Load eraser size from localStorage
+    if (typeof window !== 'undefined') {
+      const savedSize = localStorage.getItem('annotation-eraser-size')
+      if (savedSize) {
+        try {
+          const parsed = parseFloat(savedSize)
+          if (!isNaN(parsed) && parsed > 0) {
+            return parsed
+          }
+        } catch (e) {
+          console.error('Error loading eraser size:', e)
+        }
+      }
+    }
+    return 100 // Default eraser size
+  })
   const contentRef = useRef<HTMLDivElement>(null)
   const mainRef = useRef<HTMLElement | null>(null)
   const canvasRefs = useRef<Map<string, React.MutableRefObject<SimpleCanvasHandle | null>>>(new Map())
@@ -84,10 +101,10 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   const isClearingRef = useRef(false)
 
   // Canvas width is 1.5x content width
-  // Content is max-w-3xl (48rem = 768px)
-  const CONTENT_WIDTH_REM = 48
-  const CANVAS_WIDTH_REM = CONTENT_WIDTH_REM * 1.5 // 72rem = 1152px
-  const CANVAS_WIDTH_PX = CANVAS_WIDTH_REM * 16 // 1152px
+  // Content is max-w-5xl (80rem = 1280px)
+  const CONTENT_WIDTH_REM = 80
+  const CANVAS_WIDTH_REM = CONTENT_WIDTH_REM * 1.5 // 120rem = 1920px
+  const CANVAS_WIDTH_PX = CANVAS_WIDTH_REM * 16 // 1920px
   const MARGIN_EXTENSION_REM = (CANVAS_WIDTH_REM - CONTENT_WIDTH_REM) / 2 // 12rem on each side
 
   // Save pen colors to localStorage whenever they change
@@ -103,6 +120,13 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       localStorage.setItem('annotation-pen-sizes', JSON.stringify(penSizes))
     }
   }, [penSizes])
+
+  // Save eraser size to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('annotation-eraser-size', eraserSize.toString())
+    }
+  }, [eraserSize])
 
   // Generate page version hash
   useEffect(() => {
@@ -211,6 +235,27 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
           }
         }
       })
+
+      // Calculate aggregate statistics across all sections
+      let totalPaths = 0
+      let totalPoints = 0
+      let totalSizeBytes = 0
+
+      allSections.forEach(section => {
+        try {
+          const paths = JSON.parse(section.canvasData)
+          totalPaths += paths.length
+          paths.forEach((path: { points: Array<unknown> }) => {
+            totalPoints += path.points.length
+          })
+          totalSizeBytes += new Blob([section.canvasData]).size
+        } catch (error) {
+          console.error('Error calculating section stats:', error)
+        }
+      })
+
+      const totalSizeKB = (totalSizeBytes / 1024).toFixed(2)
+      console.log(`📊 TOTAL across all canvases: ${allSections.length} sections, ${totalPaths} paths, ${totalPoints} points, ${totalSizeKB} KB`)
 
       console.log('Saving', allSections.length, 'sections to IndexedDB for page', pageId, 'version', pageVersion)
       if (allSections.length > 0) {
@@ -356,15 +401,20 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     })
   }, [])
 
+  // Handle eraser size change
+  const handleEraserSizeChange = useCallback((size: number) => {
+    setEraserSize(size)
+  }, [])
+
   // Handle stylus detection
   const handleStylusDetected = useCallback(() => {
     if (!stylusModeActive) {
       console.log('Stylus detected - activating stylus mode')
       setStylusModeActive(true)
     }
-    // Always switch to draw mode when stylus is detected
-    if (mode !== 'draw') {
-      console.log('Stylus detected - switching to draw mode')
+    // Switch to draw mode only if in view mode (preserve erase mode)
+    if (mode === 'view') {
+      console.log('Stylus detected - switching from view to draw mode')
       setMode('draw')
     }
   }, [stylusModeActive, mode])
@@ -656,6 +706,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
               initialData={initialData}
               strokeColor={penColors[activePen]}
               strokeWidth={penSizes[activePen]}
+              eraserWidth={eraserSize}
               stylusModeActive={stylusModeActive}
               onStylusDetected={handleStylusDetected}
               onNonStylusInput={handleNonStylusInput}
@@ -678,6 +729,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         onPenColorChange={handlePenColorChange}
         penSizes={penSizes}
         onPenSizeChange={handlePenSizeChange}
+        eraserSize={eraserSize}
+        onEraserSizeChange={handleEraserSizeChange}
       />
     </>
   )
