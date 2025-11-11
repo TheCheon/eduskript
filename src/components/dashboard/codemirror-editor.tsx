@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
-import { Eye, EyeOff, Pencil } from 'lucide-react'
+import { Eye, EyeOff, Pencil, Code } from 'lucide-react'
 import { ExcalidrawEditor } from './excalidraw-editor'
 import { InteractivePreview } from './interactive-preview'
 import type { EditorView } from '@codemirror/view'
@@ -439,6 +439,34 @@ const CodeMirrorEditor = function CodeMirrorEditor({
     onChange(newContent)
   }
 
+  // Insert code editor block
+  const insertCodeEditor = () => {
+    const codeEditorTemplate = '```python editor\n# Write your Python code here\nprint("Hello, World!")\n```\n'
+
+    if (editorViewRef.current && !useSimpleEditor) {
+      const view = editorViewRef.current
+      const insertPos = view.state.selection.main.head
+      const transaction = view.state.update({
+        changes: { from: insertPos, insert: codeEditorTemplate },
+        selection: { anchor: insertPos + codeEditorTemplate.length }
+      })
+      view.dispatch(transaction)
+      onChange(view.state.doc.toString())
+    } else if (useSimpleEditor) {
+      const textarea = document.querySelector('textarea') as HTMLTextAreaElement
+      if (textarea) {
+        const start = textarea.selectionStart
+        const newContent = textareaContent.substring(0, start) + codeEditorTemplate + textareaContent.substring(start)
+        setTextareaContent(newContent)
+        onChange(newContent)
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = start + codeEditorTemplate.length
+          textarea.focus()
+        }, 0)
+      }
+    }
+  }
+
   // Handle Excalidraw save
   const handleExcalidrawSave = async (name: string, excalidrawData: string, lightSvg: string, darkSvg: string) => {
     if (!skriptId) {
@@ -511,6 +539,16 @@ const CodeMirrorEditor = function CodeMirrorEditor({
       {/* Toolbar */}
       <div className="border-b border-border p-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={insertCodeEditor}
+            className="flex items-center gap-2"
+            title="Insert Python Code Editor"
+          >
+            <Code className="w-4 h-4" />
+            Add Code Editor
+          </Button>
           {skriptId && (
             <Button
               variant="ghost"

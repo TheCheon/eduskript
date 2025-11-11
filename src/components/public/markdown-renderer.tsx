@@ -1,7 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useTheme } from 'next-themes'
+import { createRoot } from 'react-dom/client'
+import { CodeEditor } from './code-editor'
 
 interface MarkdownRendererProps {
   content: string
@@ -14,6 +16,8 @@ export function MarkdownRenderer({ content, domain, skriptId }: MarkdownRenderer
   const [isLoading, setIsLoading] = useState(true)
   const { theme, systemTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const rootsRef = useRef<Map<Element, { root: any, props: any }>>(new Map())
 
   // Get the actual theme (resolve 'system' to actual theme)
   const resolvedTheme = theme === 'system' ? systemTheme : theme
@@ -56,6 +60,7 @@ export function MarkdownRenderer({ content, domain, skriptId }: MarkdownRenderer
           fileListCount: fileList.length,
           theme: resolvedTheme,
           hasSkriptId: !!skriptId,
+          hasEditorKeyword: content.includes('editor'),
           contentPreview: content.substring(0, 200)
         })
 
@@ -63,6 +68,8 @@ export function MarkdownRenderer({ content, domain, skriptId }: MarkdownRenderer
           fileList,
           theme: (resolvedTheme as 'light' | 'dark') || 'light'
         })
+
+        console.log('[MarkdownRenderer] Processed result includes code-editor:', result.content.includes('code-editor'))
 
         console.log('[MarkdownRenderer] Result:', {
           hasContent: !!result.content,
@@ -82,6 +89,64 @@ export function MarkdownRenderer({ content, domain, skriptId }: MarkdownRenderer
     processMarkdown()
   }, [content, domain, skriptId, resolvedTheme, mounted])
 
+  // Hydrate code-editor custom elements
+  useEffect(() => {
+    if (!contentRef.current || !html) return
+
+    // Clean up old roots
+    rootsRef.current.forEach(({ root }) => {
+      root.unmount()
+    })
+    rootsRef.current.clear()
+
+    const codeEditorElements = contentRef.current.querySelectorAll('code-editor')
+
+    codeEditorElements.forEach((element) => {
+      const language = element.getAttribute('data-language') as 'python' | 'javascript' || 'python'
+      const code = element.getAttribute('data-code') || ''
+      const id = element.getAttribute('data-id')
+      const showCanvas = element.getAttribute('data-show-canvas') !== 'false'
+
+      // Decode HTML entities
+      const decodedCode = decodeHtmlEntities(code)
+
+      // Create a wrapper div and replace the custom element
+      const wrapper = document.createElement('div')
+      element.parentNode?.replaceChild(wrapper, element)
+
+      // Render the React component into the wrapper
+      const root = createRoot(wrapper)
+      const props = {
+        id: id || undefined,
+        language,
+        initialCode: decodedCode,
+        showCanvas
+      }
+
+      root.render(<CodeEditor {...props} />)
+
+      // Store root and props for re-rendering on theme change
+      rootsRef.current.set(wrapper, { root, props })
+    })
+
+    return () => {
+      // Clean up on unmount
+      rootsRef.current.forEach(({ root }) => {
+        root.unmount()
+      })
+      rootsRef.current.clear()
+    }
+  }, [html])
+
+  // Re-render all code editors when theme changes
+  useEffect(() => {
+    if (!mounted) return
+
+    rootsRef.current.forEach(({ root, props }) => {
+      root.render(<CodeEditor {...props} key={resolvedTheme} />)
+    })
+  }, [resolvedTheme, mounted])
+
   if (!mounted || isLoading) {
     return (
       <div className="animate-pulse">
@@ -94,8 +159,18 @@ export function MarkdownRenderer({ content, domain, skriptId }: MarkdownRenderer
 
   return (
     <div
+      ref={contentRef}
       className="prose-theme"
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )
+}
+
+/**
+ * Helper function to decode HTML entities
+ */
+function decodeHtmlEntities(text: string): string {
+  const textarea = document.createElement('textarea')
+  textarea.innerHTML = text
+  return textarea.value
 }

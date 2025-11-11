@@ -25,6 +25,7 @@
 .DS_Store
 *.pem
 /oldstuff
+/code-review
 
 # debug
 npm-debug.log*

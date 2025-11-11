@@ -15,8 +15,10 @@ import { ImageWithResize } from './image-with-resize'
 import { ExcalidrawImage } from './excalidraw-image'
 import { Heading } from './heading'
 import { MathBlock } from './math-block'
+import { CodeEditor } from '@/components/public/code-editor'
 import { remarkFileResolver } from '@/lib/remark-plugins/file-resolver'
 import { remarkImageAttributes } from '@/lib/remark-plugins/image-attributes'
+import { remarkCodeEditor } from '@/lib/remark-plugins/code-editor'
 import { rehypeShikiHighlight } from '@/lib/rehype-plugins/shiki-highlight'
 import { rehypeWrapSections } from '@/lib/rehype-plugins/wrap-sections'
 import rehypeSlug from 'rehype-slug'
@@ -63,7 +65,8 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
           .use(remarkMath)
           .use(remarkFileResolver, { fileList: context?.fileList })
           .use(remarkImageAttributes)
-          .use(remarkRehype, { allowDangerousHtml: false })
+          .use(remarkCodeEditor) // Convert code blocks with "editor" meta to interactive editors
+          .use(remarkRehype, { allowDangerousHtml: true }) // Need allowDangerousHtml for custom elements
           // Add IDs to headings (needed for sections)
           .use(rehypeSlug)
           // Wrap headings + content into sections for annotations
@@ -82,6 +85,7 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
               pre: PreComponent,
               code: CodeComponent,
               img: ImageComponent,
+              'code-editor': CodeEditorComponent,
               h1: (props: React.HTMLAttributes<HTMLHeadingElement>) => <Heading level={1} {...props} />,
               h2: (props: React.HTMLAttributes<HTMLHeadingElement>) => <Heading level={2} {...props} />,
               h3: (props: React.HTMLAttributes<HTMLHeadingElement>) => <Heading level={3} {...props} />,
@@ -311,6 +315,42 @@ function DivComponent({ className, children, ...props }: React.HTMLAttributes<HT
   }
 
   return <div className={className} {...props}>{children}</div>
+}
+
+function CodeEditorComponent({ children, ...props }: React.HTMLAttributes<HTMLElement> & Record<string, unknown>) {
+  const { resolvedTheme } = useTheme()
+  const language = (props['dataLanguage'] as string) || (props['data-language'] as string) || 'python'
+  const code = (props['dataCode'] as string) || (props['data-code'] as string) || ''
+  const id = (props['dataId'] as string) || (props['data-id'] as string)
+  const showCanvas = (props['dataShowCanvas'] as string) || (props['data-show-canvas'] as string)
+
+  // Decode HTML entities
+  const decodedCode = decodeHtmlEntities(code)
+
+  return (
+    <CodeEditor
+      key={`${id}-${resolvedTheme}`}
+      id={id}
+      language={language as 'python' | 'javascript'}
+      initialCode={decodedCode}
+      showCanvas={showCanvas !== 'false'}
+    />
+  )
+}
+
+function decodeHtmlEntities(text: string): string {
+  const map: Record<string, string> = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#039;': "'"
+  }
+  let result = text
+  for (const [entity, char] of Object.entries(map)) {
+    result = result.replace(new RegExp(entity, 'g'), char)
+  }
+  return result
 }
 
 function escapeRegExp(string: string) {

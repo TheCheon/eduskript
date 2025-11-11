@@ -1,0 +1,682 @@
+"use client"
+
+import { useEffect, useRef, useState } from 'react'
+import { useTheme } from 'next-themes'
+import { EditorView, keymap } from '@codemirror/view'
+import { EditorState } from '@codemirror/state'
+import { indentWithTab } from '@codemirror/commands'
+import { python } from '@codemirror/lang-python'
+import { javascript } from '@codemirror/lang-javascript'
+import { oneDark } from '@codemirror/theme-one-dark'
+import { basicSetup } from 'codemirror'
+import { autocompletion } from '@codemirror/autocomplete'
+import { pythonCompletions } from './python-completions'
+import { Button } from '@/components/ui/button'
+import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText } from 'lucide-react'
+import {
+  RunState,
+  OutputLevel,
+  OutputEntry,
+  PythonFile,
+  SkulptError,
+  SkulptConfig
+} from './types'
+
+interface CodeEditorProps {
+  id?: string
+  language?: 'python' | 'javascript'
+  initialCode?: string
+  showCanvas?: boolean
+}
+
+export function CodeEditor({
+  id = 'code-editor',
+  language = 'python',
+  initialCode = '# Write your code here\nprint("Hello, World!")',
+  showCanvas = true
+}: CodeEditorProps) {
+  const { resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  const [runState, setRunState] = useState<RunState>(RunState.STOPPED)
+  const [output, setOutput] = useState<OutputEntry[]>([])
+  const [fullscreen, setFullscreen] = useState(false)
+  const [canvasVisible, setCanvasVisible] = useState(showCanvas && language === 'python')
+
+  // Multi-file support
+  const [files, setFiles] = useState<PythonFile[]>([
+    { name: 'main.py', content: initialCode }
+  ])
+  const [activeFileIndex, setActiveFileIndex] = useState(0)
+  const [renamingIndex, setRenamingIndex] = useState<number | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+
+  // Canvas pan and zoom state
+  const [canvasTransform, setCanvasTransform] = useState({ x: 0, y: 0, scale: 1 })
+  const [isDragging, setIsDragging] = useState(false)
+  const dragStartRef = useRef({ x: 0, y: 0 })
+
+  // Refs
+  const editorRef = useRef<HTMLDivElement>(null)
+  const editorViewRef = useRef<EditorView | null>(null)
+  const canvasRef = useRef<HTMLDivElement>(null)
+  const canvasContainerRef = useRef<HTMLDivElement>(null)
+  const wrapperRef = useRef<HTMLDivElement>(null)
+
+  // Wait for theme to hydrate
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Load Skulpt scripts for Python
+  useEffect(() => {
+    if (language !== 'python') return
+
+    // Global promise cache to prevent loading scripts multiple times
+    const scriptPromises = (window as any).__skulptPromises || {}
+    if (!(window as any).__skulptPromises) {
+      (window as any).__skulptPromises = scriptPromises
+    }
+
+    const loadScript = (src: string): Promise<void> => {
+      // Return existing promise if already loading/loaded
+      if (scriptPromises[src]) {
+        return scriptPromises[src]
+      }
+
+      // Create new loading promise
+      scriptPromises[src] = new Promise<void>((resolve, reject) => {
+        // Check if script already exists in DOM
+        const existing = document.querySelector(`script[src="${src}"]`)
+        if (existing) {
+          // Script tag exists, assume it's loaded (or will be)
+          // Wait a tiny bit for it to execute
+          setTimeout(() => resolve(), 10)
+          return
+        }
+
+        const script = document.createElement('script')
+        script.src = src
+        script.onload = () => resolve()
+        script.onerror = () => {
+          console.error(`[Skulpt] Failed to load ${src}`)
+          delete scriptPromises[src] // Allow retry on error
+          reject(new Error(`Failed to load ${src}`))
+        }
+        document.body.appendChild(script)
+      })
+
+      return scriptPromises[src]
+    }
+
+    loadScript('/js/skulpt.min.js')
+      .then(() => loadScript('/js/skulpt-stdlib.js'))
+      .catch((error) => {
+        console.error('Failed to load Skulpt:', error)
+        addOutput('Failed to load Python runtime', OutputLevel.ERROR)
+      })
+  }, [])
+
+  // Initialize CodeMirror
+  useEffect(() => {
+    if (!editorRef.current || !mounted) return
+
+    const isDark = resolvedTheme === 'dark'
+
+    // Select language extension
+    const langExtension = language === 'python' ? python() : javascript()
+
+    const extensions = [
+      basicSetup,
+      keymap.of([indentWithTab]), // Enable Tab/Shift+Tab for indentation
+      langExtension,
+      EditorView.theme({
+        '&': {
+          height: '100%',
+          width: '100%'
+        },
+        '.cm-scroller': {
+          overflow: 'auto'
+        }
+      }, { dark: isDark }),
+    ]
+
+    // Add Python autocomplete for Python files
+    if (language === 'python') {
+      extensions.push(
+        autocompletion({
+          override: [pythonCompletions],
+          activateOnTyping: true,
+          maxRenderedOptions: 20,
+          // Trigger completion on dot for attribute access
+          activateOnCompletion: (completion) => /^[a-zA-Z_]/.test(completion.label),
+        })
+      )
+    }
+
+    if (isDark) {
+      extensions.push(oneDark)
+    }
+
+    // Clean up previous editor
+    if (editorViewRef.current) {
+      editorViewRef.current.destroy()
+    }
+
+    const state = EditorState.create({
+      doc: files[activeFileIndex]?.content || initialCode,
+      extensions,
+    })
+
+    const view = new EditorView({
+      state,
+      parent: editorRef.current,
+    })
+
+    editorViewRef.current = view
+
+    return () => {
+      if (editorViewRef.current) {
+        editorViewRef.current.destroy()
+        editorViewRef.current = null
+      }
+    }
+  }, [mounted, resolvedTheme, language, initialCode])
+
+  // Attach non-passive wheel event listener to prevent page scroll
+  useEffect(() => {
+    const container = canvasContainerRef.current
+    if (!container) return
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+
+      const delta = e.deltaY > 0 ? 0.9 : 1.1
+      const newScale = Math.max(0.1, Math.min(5, canvasTransform.scale * delta))
+
+      const rect = container.getBoundingClientRect()
+      const mouseX = e.clientX - rect.left
+      const mouseY = e.clientY - rect.top
+
+      const canvasX = (mouseX - canvasTransform.x) / canvasTransform.scale
+      const canvasY = (mouseY - canvasTransform.y) / canvasTransform.scale
+
+      const newX = mouseX - canvasX * newScale
+      const newY = mouseY - canvasY * newScale
+
+      setCanvasTransform({
+        x: newX,
+        y: newY,
+        scale: newScale
+      })
+    }
+
+    // Add listener with passive: false to allow preventDefault
+    container.addEventListener('wheel', handleWheel, { passive: false })
+
+    return () => {
+      container.removeEventListener('wheel', handleWheel)
+    }
+  }, [canvasTransform])
+
+  // Add output helper
+  const addOutput = (message: string, level: OutputLevel = OutputLevel.OUTPUT) => {
+    setOutput((prev) => [...prev, { message, level, timestamp: Date.now() }])
+  }
+
+  // Save current file content
+  const saveCurrentFile = () => {
+    if (editorViewRef.current) {
+      const content = editorViewRef.current.state.doc.toString()
+      setFiles(prev => prev.map((file, idx) =>
+        idx === activeFileIndex ? { ...file, content } : file
+      ))
+    }
+  }
+
+  // Switch to a different file
+  const switchToFile = (index: number) => {
+    saveCurrentFile()
+    setActiveFileIndex(index)
+  }
+
+  // Add a new file
+  const addNewFile = () => {
+    const fileNumber = files.length + 1
+    const newFile: PythonFile = {
+      name: `file${fileNumber}.py`,
+      content: '# New file\n'
+    }
+    setFiles(prev => [...prev, newFile])
+    setActiveFileIndex(files.length)
+  }
+
+  // Remove a file
+  const removeFile = (index: number) => {
+    if (files.length === 1) {
+      addOutput('Cannot remove the last file', OutputLevel.WARNING)
+      return
+    }
+    setFiles(prev => prev.filter((_, idx) => idx !== index))
+    if (activeFileIndex >= index && activeFileIndex > 0) {
+      setActiveFileIndex(prev => prev - 1)
+    }
+  }
+
+  // Start renaming a file
+  const startRename = (index: number) => {
+    setRenamingIndex(index)
+    setRenameValue(files[index].name.replace(/\.py$/, ''))
+  }
+
+  // Confirm rename
+  const confirmRename = (index: number) => {
+    if (!renameValue.trim()) {
+      setRenamingIndex(null)
+      return
+    }
+
+    const newName = renameValue.trim().endsWith('.py')
+      ? renameValue.trim()
+      : renameValue.trim() + '.py'
+
+    // Check for duplicate names
+    if (files.some((f, idx) => idx !== index && f.name === newName)) {
+      addOutput('A file with that name already exists', OutputLevel.WARNING)
+      return
+    }
+
+    setFiles(prev => prev.map((file, idx) =>
+      idx === index ? { ...file, name: newName } : file
+    ))
+    setRenamingIndex(null)
+  }
+
+  // Cancel rename
+  const cancelRename = () => {
+    setRenamingIndex(null)
+    setRenameValue('')
+  }
+
+  // Update editor when active file changes
+  useEffect(() => {
+    if (editorViewRef.current && files[activeFileIndex]) {
+      const content = files[activeFileIndex].content
+      const view = editorViewRef.current
+      const transaction = view.state.update({
+        changes: {
+          from: 0,
+          to: view.state.doc.length,
+          insert: content
+        }
+      })
+      view.dispatch(transaction)
+    }
+  }, [activeFileIndex, files])
+
+  // Run code
+  const runCode = () => {
+    if (!editorViewRef.current) return
+
+    // Save current file before running
+    saveCurrentFile()
+
+    const code = editorViewRef.current.state.doc.toString()
+
+    if (language === 'python') {
+      runPythonCode(code)
+    } else if (language === 'javascript') {
+      // TODO: Implement JavaScript execution
+      addOutput('JavaScript execution not yet implemented', OutputLevel.ERROR)
+    }
+  }
+
+  // Run Python code with Skulpt
+  const runPythonCode = (code: string) => {
+    if (!window.Sk) {
+      addOutput('Python runtime not loaded yet', OutputLevel.ERROR)
+      return
+    }
+
+    setRunState(RunState.RUNNING)
+    setOutput([]) // Clear previous output
+
+    const canvas = canvasRef.current
+    if (canvas) {
+      canvas.innerHTML = '' // Clear previous turtle graphics
+    }
+
+    try {
+      const Sk = window.Sk
+
+      Sk.configure({
+        output: (text: string) => {
+          addOutput(text, OutputLevel.OUTPUT)
+        },
+        read: (filename: string) => {
+          // Extract just the base filename (remove directory paths)
+          const baseName = filename.split('/').pop() || filename
+
+          // Try to match with or without .py extension
+          const userFile = files.find(f => {
+            // Direct match
+            if (f.name === baseName || f.name === filename) return true
+
+            // Try adding .py extension
+            if (f.name === baseName + '.py' || f.name === filename + '.py') return true
+
+            // Try removing .py extension
+            const nameWithoutExt = f.name.replace(/\.py$/, '')
+            if (nameWithoutExt === baseName || nameWithoutExt === filename) return true
+
+            return false
+          })
+
+          if (userFile) {
+            return userFile.content
+          }
+
+          // Read Python modules from the stdlib
+          if (Sk.builtinFiles && Sk.builtinFiles['files'][filename]) {
+            return Sk.builtinFiles['files'][filename]
+          }
+          // Skulpt tries multiple paths when loading modules, so we don't log every attempt
+          throw new Error(`File not found: ${filename}`)
+        },
+        inputfunTakesPrompt: true,
+        __future__: Sk.python3,
+        python3: true,
+        execLimit: Number.POSITIVE_INFINITY,
+      } as SkulptConfig)
+
+      // Configure turtle graphics if canvas exists
+      if (canvas) {
+        ;(Sk.TurtleGraphics ||= {
+          width: canvas.clientWidth || 500,
+          height: canvas.clientHeight || 400,
+        }).target = canvas
+      }
+
+      const promise = Sk.misceval.asyncToPromise(() => {
+        return Sk.importMainWithBody('<stdin>', false, code, true)
+      })
+
+      promise.then(
+        () => {
+          addOutput('✓ Program completed successfully', OutputLevel.OUTPUT)
+          setRunState(RunState.STOPPED)
+        },
+        (err: SkulptError) => {
+          if (err.tp$name === 'TimeoutError' && Sk.execLimit === 1) {
+            addOutput('Program stopped', OutputLevel.WARNING)
+          } else {
+            addOutput(err.toString(), OutputLevel.ERROR)
+          }
+          setRunState(RunState.STOPPED)
+        }
+      )
+    } catch (error) {
+      addOutput(`Error: ${error}`, OutputLevel.ERROR)
+      setRunState(RunState.STOPPED)
+    }
+  }
+
+  // Stop running code
+  const stopCode = () => {
+    if (window.Sk) {
+      window.Sk.execLimit = 1
+    }
+    setRunState(RunState.STOPPED)
+    addOutput('Program stopped', OutputLevel.WARNING)
+  }
+
+  // Reset code
+  const resetCode = () => {
+    if (editorViewRef.current) {
+      editorViewRef.current.dispatch({
+        changes: {
+          from: 0,
+          to: editorViewRef.current.state.doc.length,
+          insert: initialCode,
+        },
+      })
+    }
+    setOutput([])
+    if (canvasRef.current) {
+      canvasRef.current.innerHTML = ''
+    }
+    setCanvasTransform({ x: 0, y: 0, scale: 1 })
+  }
+
+  // Canvas pan and zoom handlers
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return // Only left click
+    setIsDragging(true)
+    dragStartRef.current = {
+      x: e.clientX - canvasTransform.x,
+      y: e.clientY - canvasTransform.y
+    }
+  }
+
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDragging) return
+    setCanvasTransform(prev => ({
+      ...prev,
+      x: e.clientX - dragStartRef.current.x,
+      y: e.clientY - dragStartRef.current.y
+    }))
+  }
+
+  const handleCanvasMouseUp = () => {
+    setIsDragging(false)
+  }
+
+  const resetCanvasView = () => {
+    setCanvasTransform({ x: 0, y: 0, scale: 1 })
+  }
+
+  // Clear output
+  const clearOutput = () => {
+    setOutput([])
+  }
+
+  // Screenshot turtle canvas
+  const screenshotCanvas = () => {
+    // TODO: Implement canvas screenshot functionality
+    console.log('Screenshot not yet implemented')
+  }
+
+  // Toggle fullscreen
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement && wrapperRef.current) {
+      wrapperRef.current.requestFullscreen()
+      setFullscreen(true)
+    } else if (document.fullscreenElement) {
+      document.exitFullscreen()
+      setFullscreen(false)
+    }
+  }
+
+  return (
+    <div
+      ref={wrapperRef}
+      className="flex flex-col w-full border rounded-lg overflow-hidden bg-background"
+      style={{ height: fullscreen ? '100vh' : '600px' }}
+    >
+      {/* Main content area */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Code Editor Panel */}
+        <div className="flex flex-col flex-1 border-r">
+          {/* Editor Controls */}
+          <div className="flex items-center justify-between gap-2 p-2 border-b bg-muted/30">
+            <div className="flex items-center gap-2">
+              {runState === RunState.STOPPED ? (
+                <Button onClick={runCode} size="sm" variant="default">
+                  <Play className="w-4 h-4 mr-1" />
+                  Run
+                </Button>
+              ) : (
+                <Button onClick={stopCode} size="sm" variant="destructive">
+                  <Square className="w-4 h-4 mr-1" />
+                  Stop
+                </Button>
+              )}
+              <Button onClick={resetCode} size="sm" variant="outline">
+                <RotateCcw className="w-4 h-4 mr-1" />
+                Reset
+              </Button>
+            </div>
+            <div className="text-xs text-muted-foreground">{id}</div>
+          </div>
+
+          {/* File Tabs */}
+          {language === 'python' && (
+            <div className="flex items-center gap-1 px-2 py-1 border-b bg-muted/10 overflow-x-auto">
+              {files.map((file, index) => (
+                <div key={index} className="flex items-center">
+                  {renamingIndex === index ? (
+                    <input
+                      type="text"
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onBlur={() => confirmRename(index)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          confirmRename(index)
+                        } else if (e.key === 'Escape') {
+                          cancelRename()
+                        }
+                      }}
+                      autoFocus
+                      className="h-7 px-2 text-xs border rounded bg-background"
+                      style={{ width: '120px' }}
+                    />
+                  ) : (
+                    <>
+                      <Button
+                        size="sm"
+                        variant={activeFileIndex === index ? 'secondary' : 'ghost'}
+                        onClick={() => switchToFile(index)}
+                        onDoubleClick={() => startRename(index)}
+                        className="h-7 px-2 text-xs gap-1"
+                        title="Double-click to rename"
+                      >
+                        <FileText className="w-3 h-3" />
+                        {file.name}
+                      </Button>
+                      {files.length > 1 && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            removeFile(index)
+                          }}
+                          className="h-6 w-6 p-0 ml-1"
+                          title="Remove file"
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
+              ))}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={addNewFile}
+                className="h-7 px-2 text-xs"
+                title="Add new file"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+
+          {/* CodeMirror Editor */}
+          <div ref={editorRef} className="flex-1 overflow-auto w-full h-full" />
+        </div>
+
+        {/* Canvas Panel (Turtle Graphics for Python) */}
+        {canvasVisible && (
+          <div className="flex flex-col w-1/2 relative">
+            <div className="flex items-center justify-between gap-2 p-2 border-b bg-muted/30">
+              <div className="text-sm font-medium">
+                {language === 'python' ? 'Turtle Graphics' : 'Canvas'}
+              </div>
+              <div className="flex items-center gap-1">
+                <Button onClick={resetCanvasView} size="sm" variant="ghost" title="Reset View">
+                  <RotateCcw className="w-4 h-4" />
+                </Button>
+                <Button onClick={screenshotCanvas} size="sm" variant="ghost" title="Screenshot">
+                  <Camera className="w-4 h-4" />
+                </Button>
+                <Button onClick={toggleFullscreen} size="sm" variant="ghost" title="Fullscreen">
+                  {fullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                </Button>
+                <Button onClick={() => setCanvasVisible(false)} size="sm" variant="ghost" title="Hide Canvas">
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            <div
+              ref={canvasContainerRef}
+              className="flex-1 relative overflow-hidden"
+              style={{
+                backgroundColor: resolvedTheme === 'dark' ? '#111827' : '#ffffff',
+                cursor: isDragging ? 'grabbing' : 'grab',
+                touchAction: 'none',
+                overscrollBehavior: 'contain'
+              }}
+              onMouseDown={handleCanvasMouseDown}
+              onMouseMove={handleCanvasMouseMove}
+              onMouseUp={handleCanvasMouseUp}
+              onMouseLeave={handleCanvasMouseUp}
+            >
+              <div
+                ref={canvasRef}
+                className="absolute"
+                style={{
+                  transform: `translate(${canvasTransform.x}px, ${canvasTransform.y}px) scale(${canvasTransform.scale})`,
+                  transformOrigin: '0 0',
+                  transition: isDragging ? 'none' : 'transform 0.1s ease-out'
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Output Panel */}
+      <div className="h-48 border-t flex flex-col">
+        <div className="flex items-center justify-between gap-2 p-2 border-b bg-muted/30">
+          <div className="text-sm font-medium">Output</div>
+          <Button onClick={clearOutput} size="sm" variant="ghost">
+            Clear
+          </Button>
+        </div>
+        <div className="flex-1 overflow-auto p-2 font-mono text-sm">
+          {output.length === 0 ? (
+            <div className="text-muted-foreground italic">No output yet. Run your code to see results here.</div>
+          ) : (
+            output.map((entry, index) => (
+              <div
+                key={index}
+                className={`whitespace-pre-wrap ${
+                  entry.level === OutputLevel.ERROR
+                    ? 'text-red-600 dark:text-red-400'
+                    : entry.level === OutputLevel.WARNING
+                    ? 'text-yellow-600 dark:text-yellow-400'
+                    : 'text-foreground'
+                }`}
+              >
+                {entry.message}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -1,42 +1,22 @@
 **IMPORTANT: Do not mark items as complete in this roadmap unless explicitly instructed by the user.**
 
-*Last updated: 2025-01-08*
-*Current Status: Admin system complete. Ready to begin Phase 1 (Enhanced Lesson Editor) when requested.*
+*Last updated: 2025-01-11*
+*Current Status: Python Code Editor with multi-file support and autocomplete COMPLETED! Ready for video hosting integration.*
 
-## ✅ Recently Completed: Admin User System (Phase 0)
+> **Note**: Completed features have been moved to `COMPLETED_FEATURES.md`
 
-**Goal**: The first user to be created should be an administrator that can create, delete and alter existing users, including resetting their password.
+---
 
-**All tasks completed:**
-- ✅ Added `isAdmin` and `requirePasswordReset` fields to User schema
-- ✅ Created admin seed script (`prisma/seed-admin.js`) that runs on container startup
-- ✅ Default admin user: eduadmin@eduskript.org / letseducate (password reset required on first login)
-- ✅ Implemented forced password reset flow
-  - Password reset page at `/auth/reset-password` with validation
-  - API endpoint for password updates with session refresh
-  - Dashboard redirect enforcement via middleware
-- ✅ Admin-only APIs with proper authentication (`/lib/admin-auth.ts`):
-  - User CRUD operations (create, read, update, delete)
-  - Admin password reset for users
-  - Example data seeder with math and physics content
-- ✅ Admin panel UI at `/dashboard/admin`:
-  - User management interface with search/filter
-  - Create/edit/delete users with proper Radix UI dialogs
-  - Reset user passwords with optional force-reset flag
-  - Example data seeder accessible from empty page builder state
-- ✅ Admin panel link in dashboard sidebar (visible to admins only, with Shield icon)
-- ✅ Fixed NextAuth compatibility issue (PrismaAdapter conflicting with CredentialsProvider)
-- ✅ Fixed Next.js 15+ async params in API routes (await params Promise)
-- ✅ Created `pnpm dev:reset` script for quick database reset + admin seed
-- ✅ Example data includes published collections, skripts, and pages with markdown content
+## 🎯 Priority List (drag to reorder)
 
-**Key Files:**
-- `/src/app/dashboard/admin/page.tsx` - Admin panel UI
-- `/src/app/api/admin/**` - Admin API endpoints
-- `/src/lib/admin-auth.ts` - Admin authentication helper
-- `/src/app/auth/reset-password/page.tsx` - Password reset flow
-- `/prisma/seed-admin.js` - Admin user seeding
-- `/src/app/api/admin/seed-example-data/route.ts` - Example data seeder
+**NEW Code Editor** - a code editor for students to learn python with turtle using codemirror
+**Video Hosting** - Swiss-compliant video upload and embedding
+**Plugin System** - Extensible component architecture
+**Marketplace** - Content selling and customer relationships
+
+LMS stuff later
+**Interactive Quizzes** - In-lesson quizzes with progress tracking
+**Student Analytics** - Class management and progress tracking
 
 ---
 
@@ -44,36 +24,204 @@
 
 ## 🎨 Phase 1: Enhanced Lesson Editor
 
-### 1.1 Excalidraw Integration ✅
-**Goal**: Enable teachers to create and embed drawings as themed SVGs
-- [x] Research Excalidraw integration approaches
-  - [x] Evaluate `@excalidraw/excalidraw` React component
-  - [x] Test theming capabilities (light/dark mode support)
-  - [x] SVG export functionality
-- [x] Design storage strategy
-  - [x] Store Excalidraw JSON alongside SVG export with naming: `drawingname.excalidraw`, `drawingname.excalidraw.light.svg`, `drawingname.excalidraw.dark.svg`
-  - [x] Use existing file storage system with deduplication
-  - [x] Automatic overwrite support for editing
-- [x] Implement Excalidraw editor modal
-  - [x] Create new component: `src/components/dashboard/excalidraw-editor.tsx`
-  - [x] Add toolbar button to markdown editor (Pencil icon)
-  - [x] Handle drawing creation/editing workflow
-- [x] Implement SVG embedding in markdown
-  - [x] Create custom remark plugin for `![[drawingname.excalidraw]]` syntax (`src/lib/remark-plugins/excalidraw-resolver.ts`)
-  - [x] Support automatic theme switching (light/dark SVG variants)
-  - [x] Integrated into markdown processing pipeline
-- [x] Add drawing management UI
-  - [x] List drawings in skript file browser with special icon
-  - [x] Hide auto-generated SVG files from file list
-  - [x] Edit button for existing drawings (orange Pencil icon)
-  - [x] Delete/rename functionality through standard file operations
-- [x] **Privacy consideration**: Drawings stored on server, no client-side data
-- [x] API endpoint: `/api/excalidraw` for saving/loading drawings
+### 1.1 Python Code Editor with Turtle Graphics ✅ COMPLETED
+**Goal**: Interactive Python code editor for students to learn programming with turtle graphics
 
-### 1.2 Custom Component Plugin System
+**Phase 1.1.1: Setup Skulpt and Core Infrastructure** ✅
+- [x] Copy Skulpt files to public directory
+  - [x] Copy `skulpt.min.js` from old project
+  - [x] Copy `skulpt-stdlib.js` from old project
+  - [x] Verify files work by loading in browser
+- [x] Create basic component structure
+  - [x] Create `src/components/public/code-editor/index.tsx` (main component)
+  - [x] Create `src/components/public/code-editor/` directory for sub-components
+  - [x] Set up TypeScript types for Skulpt and editor config
+
+**Phase 1.1.2: CodeMirror Integration** ✅
+- [x] Implement CodeMirror editor
+  - [x] Set up CodeMirror 6 with Python language support
+  - [x] Configure theme switching (light/dark mode, using oneDark theme)
+  - [x] Add line numbers and basic editing features
+  - [x] Configure Python syntax highlighting
+- [x] Add editor controls
+  - [x] Run button to execute code
+  - [x] Stop button to halt execution
+  - [x] Reset button to restore initial code
+  - [x] Clear output button
+
+**Phase 1.1.3: Skulpt Python Execution** ✅
+- [x] Configure Skulpt runtime
+  - [x] Set up output capture for print statements
+  - [x] Configure turtle graphics canvas
+  - [x] Handle Python errors and display them
+  - [x] Set execution limits for safety
+- [x] Create turtle graphics canvas area
+  - [x] Canvas wrapper with proper dimensions
+  - [x] Make canvas hideable when not using turtle
+  - [x] Add screenshot/download canvas functionality (placeholder)
+  - [x] Add fullscreen mode for canvas
+  - [x] Canvas pan and zoom with mouse drag/scroll
+
+**Phase 1.1.4: Terminal Output** ✅
+- [x] Implement terminal output area
+  - [x] Display print() output
+  - [x] Show error messages with proper formatting
+  - [x] Color-code different output types (stdout, stderr, warnings)
+  - [x] Add clear button for output
+  - [x] Make output scrollable
+
+**Phase 1.1.5: Multi-File Support** ✅
+- [x] Add file management
+  - [x] Create file tabs UI for multiple Python files
+  - [x] Add/remove/rename file functionality (double-click to rename)
+  - [x] Switch between files in editor
+  - [x] Store all files in component state
+- [x] Implement Python import system
+  - [x] Configure Skulpt to support custom modules
+  - [x] Allow importing from other files in the project (with/without .py extension)
+  - [x] Handle import errors gracefully
+  - [x] Test cross-file imports
+
+**Phase 1.1.6: Markdown Integration** ✅
+- [x] Create custom remark plugin for code editor blocks
+  - [x] Syntax: ` ```python editor` with optional config
+  - [x] Support initial code in markdown
+  - [x] Render editor in public pages via hydration
+- [x] Add editor toolbar button to markdown editor
+  - [x] Icon for inserting code editor blocks
+  - [x] Template code insertion
+  - [x] Preview in split view
+
+**Phase 1.1.7: Advanced Features** ✅
+- [x] Client-side Python autocomplete and language server
+  - [x] Keyword and builtin function completion
+  - [x] Turtle graphics method completion
+  - [x] Module member completion (math, random, turtle)
+  - [x] Auto-trigger on dot notation (e.g., `t.` shows turtle methods)
+  - [x] User-defined function/class/variable extraction and completion
+  - [ ] **Future Enhancement**: Context-aware cross-file completion (know about imports from file2, etc.)
+
+**Phase 1.1.8: Polish and UX** (Partially Complete)
+- [x] UI improvements
+  - [x] Match design system (Radix UI components)
+  - [x] Theme respecting (dark/light mode)
+  - [x] Loading states
+- [ ] Additional features (future)
+  - [ ] Auto-save to localStorage
+  - [ ] Code history/undo for entire sessions
+  - [ ] Share code snippets
+  - [ ] Keyboard shortcuts (Ctrl+Enter to run)
+
+**Implementation Notes**:
+- **Location**: `src/components/public/code-editor/`
+- **Files Created**:
+  - `index.tsx` - Main editor component with multi-file support
+  - `types.ts` - TypeScript definitions
+  - `python-completions.ts` - Client-side language intelligence
+- **Remark Plugin**: `src/lib/remark-plugins/code-editor.ts`
+- **Toolbar Integration**: `src/components/dashboard/codemirror-editor.tsx` (line ~542)
+
+**Future Improvements**:
+- Enhanced autocomplete with cross-file import awareness
+- Better static analysis to know function signatures from imported modules
+- Shiki theme matching (closer color alignment with CodeMirror's oneDark)
+
+**Implemented Architecture:**
+- **Editor**: CodeMirror 6 with Python language support
+- **Python Runtime**: Skulpt.js (browser-based Python interpreter)
+- **UI Layout**: Left = code editor with file tabs, Right = turtle canvas (pan/zoom, hideable), Bottom = terminal output
+- **Multi-file**: Tab-based interface with add/remove/rename (double-click)
+- **Autocomplete**: Client-side language server with keyword, builtin, module, and user-defined symbol completion
+- **Storage**: Component state (no persistence - resets on page reload)
+
+### 1.2 Video Hosting Integration
+**Goal**: Professional video hosting with Swiss data privacy compliance
+
+**Phase 1.2.1: Provider Research**
+- [ ] Evaluate Mux Video
+  - [ ] Pricing and storage limits
+  - [ ] Data residency (can data stay in EU/Switzerland?)
+  - [ ] Video processing capabilities (adaptive streaming, thumbnails)
+  - [ ] Privacy compliance (GDPR, Swiss data protection laws)
+- [ ] Research Infomaniak kDrive/kVideo
+  - [ ] Available APIs for video upload/streaming
+  - [ ] Data residency (Swiss-hosted)
+  - [ ] Pricing structure
+  - [ ] Features comparison with Mux
+- [ ] Research alternative Swiss/EU providers
+  - [ ] Swisscom, Cloudflare Stream (EU), bunny.net
+  - [ ] Compare features, pricing, and data residency
+- [ ] **Decision criteria**:
+  - ✅ Data stored in Switzerland or EU
+  - ✅ GDPR compliant
+  - ✅ Adaptive streaming support
+  - ✅ API for upload/playback
+  - ✅ Reasonable pricing for educational use
+
+**Phase 1.2.2: Video Upload Implementation**
+- [ ] Design video storage model
+  - [ ] Add `Video` table to Prisma schema
+  - [ ] Track upload status, processing state, provider metadata
+  - [ ] Link videos to skripts (similar to file storage)
+- [ ] Implement upload flow
+  - [ ] Create upload API endpoint: `/api/videos/upload`
+  - [ ] Direct upload to provider (avoid server relay)
+  - [ ] Progress tracking and error handling
+  - [ ] Generate thumbnail from first frame
+- [ ] Build video uploader component
+  - [ ] Drag-and-drop interface
+  - [ ] Upload progress indicator
+  - [ ] Video preview after upload
+  - [ ] Video management (delete, re-upload)
+- [ ] Add video embedding to markdown
+  - [ ] Custom remark plugin for `![[video:id]]` syntax
+  - [ ] Responsive video player
+  - [ ] Playback controls and quality selector
+  - [ ] Captions/subtitles support (future)
+
+### 1.3 Interactive Quiz Component
+**Goal**: In-lesson quizzes with student progress tracking
+
+**Phase 1.3.1: Quiz Structure Design**
+- [ ] Define quiz types
+  - [ ] Multiple choice (single/multiple answers)
+  - [ ] True/False
+  - [ ] Fill in the blank
+  - [ ] Short answer (auto-graded with keyword matching)
+  - [ ] Code challenges (future: run code and check output)
+- [ ] Design quiz storage format
+  - [ ] JSON schema for quiz questions and answers
+  - [ ] Store as component data in markdown
+  - [ ] Version control for quiz content
+- [ ] Plan integration with user data service
+  - [ ] Submit answers anonymously (zero-knowledge)
+  - [ ] Track completion and scores
+  - [ ] Allow retry attempts
+
+**Phase 1.3.2: Quiz Component Implementation**
+- [ ] Build quiz renderer
+  - [ ] Create `src/components/quiz/quiz-renderer.tsx`
+  - [ ] Support all question types
+  - [ ] Immediate feedback on submission
+  - [ ] Show correct answers after submission
+- [ ] Build quiz editor
+  - [ ] Create `src/components/dashboard/quiz-editor.tsx`
+  - [ ] WYSIWYG interface for creating quizzes
+  - [ ] Add/remove/reorder questions
+  - [ ] Set correct answers and point values
+- [ ] Integrate with markdown pipeline
+  - [ ] Custom component plugin (uses plugin system from 1.2)
+  - [ ] Syntax: ` ```quiz` block with JSON config
+  - [ ] Render quiz in public pages
+- [ ] Connect to user data service (depends on Phase 2)
+  - [ ] Submit quiz responses via API
+  - [ ] Store anonymized results
+  - [ ] Display student's previous attempts
+
+### 1.4 Custom Component Plugin System
 **Goal**: Extensible plugin architecture for interactive lesson components
 
-**Phase 1.2.1: Architecture Planning**
+**Phase 1.4.1: Architecture Planning**
 - [ ] Brainstorm plugin architecture approaches
   - [ ] Sandboxed iframe approach vs. React component registration
   - [ ] Security model (XSS prevention, content security policy)
@@ -90,7 +238,7 @@
   - [ ] Licensing model (free vs. paid plugins)
   - [ ] Plugin dependencies and compatibility
 
-**Phase 1.2.2: Core Plugin Infrastructure**
+**Phase 1.4.2: Core Plugin Infrastructure**
 - [ ] Implement plugin loader system
   - [ ] Create plugin registry at `src/lib/plugins/registry.ts`
   - [ ] Plugin manifest schema and validation
@@ -113,97 +261,11 @@
   - [ ] Enable/disable toggle per skript or globally
   - [ ] Plugin settings/configuration interface
 
-**Phase 1.2.3: Marketplace Preparation (Future)**
+**Phase 1.4.3: Marketplace Preparation (Future)**
 - [ ] Plugin submission and review workflow
 - [ ] Public plugin directory
 - [ ] Rating and review system
 - [ ] Revenue sharing for paid plugins
-
-### 1.3 Video Hosting Integration
-**Goal**: Professional video hosting with Swiss data privacy compliance
-
-**Phase 1.3.1: Provider Research**
-- [ ] Evaluate Mux Video
-  - [ ] Pricing and storage limits
-  - [ ] Data residency (can data stay in EU/Switzerland?)
-  - [ ] Video processing capabilities (adaptive streaming, thumbnails)
-  - [ ] Privacy compliance (GDPR, Swiss data protection laws)
-- [ ] Research Infomaniak kDrive/kVideo
-  - [ ] Available APIs for video upload/streaming
-  - [ ] Data residency (Swiss-hosted)
-  - [ ] Pricing structure
-  - [ ] Features comparison with Mux
-- [ ] Research alternative Swiss/EU providers
-  - [ ] Swisscom, Cloudflare Stream (EU), bunny.net
-  - [ ] Compare features, pricing, and data residency
-- [ ] **Decision criteria**:
-  - ✅ Data stored in Switzerland or EU
-  - ✅ GDPR compliant
-  - ✅ Adaptive streaming support
-  - ✅ API for upload/playback
-  - ✅ Reasonable pricing for educational use
-
-**Phase 1.3.2: Video Upload Implementation**
-- [ ] Design video storage model
-  - [ ] Add `Video` table to Prisma schema
-  - [ ] Track upload status, processing state, provider metadata
-  - [ ] Link videos to skripts (similar to file storage)
-- [ ] Implement upload flow
-  - [ ] Create upload API endpoint: `/api/videos/upload`
-  - [ ] Direct upload to provider (avoid server relay)
-  - [ ] Progress tracking and error handling
-  - [ ] Generate thumbnail from first frame
-- [ ] Build video uploader component
-  - [ ] Drag-and-drop interface
-  - [ ] Upload progress indicator
-  - [ ] Video preview after upload
-  - [ ] Video management (delete, re-upload)
-- [ ] Add video embedding to markdown
-  - [ ] Custom remark plugin for `![[video:id]]` syntax
-  - [ ] Responsive video player
-  - [ ] Playback controls and quality selector
-  - [ ] Captions/subtitles support (future)
-
-### 1.4 Interactive Quiz Component
-**Goal**: In-lesson quizzes with student progress tracking
-
-**Phase 1.4.1: Quiz Structure Design**
-- [ ] Define quiz types
-  - [ ] Multiple choice (single/multiple answers)
-  - [ ] True/False
-  - [ ] Fill in the blank
-  - [ ] Short answer (auto-graded with keyword matching)
-  - [ ] Code challenges (future: run code and check output)
-- [ ] Design quiz storage format
-  - [ ] JSON schema for quiz questions and answers
-  - [ ] Store as component data in markdown
-  - [ ] Version control for quiz content
-- [ ] Plan integration with user data service
-  - [ ] Submit answers anonymously (zero-knowledge)
-  - [ ] Track completion and scores
-  - [ ] Allow retry attempts
-
-**Phase 1.4.2: Quiz Component Implementation**
-- [ ] Build quiz renderer
-  - [ ] Create `src/components/quiz/quiz-renderer.tsx`
-  - [ ] Support all question types
-  - [ ] Immediate feedback on submission
-  - [ ] Show correct answers after submission
-- [ ] Build quiz editor
-  - [ ] Create `src/components/dashboard/quiz-editor.tsx`
-  - [ ] WYSIWYG interface for creating quizzes
-  - [ ] Add/remove/reorder questions
-  - [ ] Set correct answers and point values
-- [ ] Integrate with markdown pipeline
-  - [ ] Custom component plugin (uses plugin system from 1.2)
-  - [ ] Syntax: ` ```quiz` block with JSON config
-  - [ ] Render quiz in public pages
-- [ ] Connect to user data service (depends on Phase 2)
-  - [ ] Submit quiz responses via API
-  - [ ] Store anonymized results
-  - [ ] Display student's previous attempts
-
-
 
 ## 👥 Phase 2: Student Analytics & User Data Service
 
@@ -281,15 +343,7 @@
   - [ ] Key loss = data loss (need backup mechanism)
   - [ ] More complex UX for teachers
 
-## 🚀 Phase 3: Enhanced Permission UX
-
-### 1. Access Management Dashboard for Collections
-- [x] **Collection-level permission overview** showing who has access to what
-- [x] **Clean up the old permission matrix** we no longer use it and went for a simpler UI
-- [x] **Individual skript permission settings** use the same interface as collections
-- [x] **Edge case**: when removing access to a skript or collection, the removed user will still see them in their page builder but without title. we should instead display a placeholder that says "Your access was revoked. This content can no longer be displayed on your page." on the user's page, we should then no longer display that script or collection!
-
-## 🏪 Phase 4: Marketplace Foundation
+## 🚀 Phase 3: Marketplace Foundation
 
 ### Extended Permission Model
 Customers are basically a viewer with a different name and symbol.
@@ -335,10 +389,3 @@ We'll need a license agreement that clearly states the uploader must have the ri
 - ✅ Secure content movement with automatic permission management
 - ✅ Clear audit trail of what's been shared and moved
 - ✅ Scalable for marketplace (customers only see purchased content)
-
-## 📝 Implementation Priority
-
-1. **Immediate**: Build access management dashboard for existing collaborators
-2. **Next**: Add bulk permission assignment tools
-3. **Then**: Create marketplace foundation (customer relationships)
-4. **Future**: Advanced analytics and revenue sharing

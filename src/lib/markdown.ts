@@ -17,6 +17,7 @@ import { rehypeInteractiveElements } from './rehype-plugins/interactive-elements
 import { rehypeExcalidrawDualImage } from './rehype-plugins/excalidraw-dual-image'
 import { rehypeImageWrapper } from './rehype-plugins/image-wrapper'
 import { rehypeHeadingSectionIds } from './rehype-plugins/heading-section-ids'
+import { remarkCodeEditor } from './remark-plugins/code-editor'
 
 export interface ProcessedMarkdown {
   content: string
@@ -51,6 +52,7 @@ export async function processMarkdown(
       fileList: context?.fileList
     }],
     remarkImageAttributes, // Parse image width attributes
+    remarkCodeEditor, // Convert code blocks with "editor" meta to interactive editors
     remarkMath,
     remarkGfm,
   ]
