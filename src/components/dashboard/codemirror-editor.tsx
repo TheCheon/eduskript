@@ -260,8 +260,9 @@ const CodeMirrorEditor = function CodeMirrorEditor({
         
         // Try to import CodeMirror modules one by one with better error handling
         const { basicSetup } = await import('codemirror')
-        const { EditorView } = await import('@codemirror/view')
+        const { EditorView, keymap } = await import('@codemirror/view')
         const { EditorState } = await import('@codemirror/state')
+        const { indentWithTab } = await import('@codemirror/commands')
         const { markdown, markdownLanguage } = await import('@codemirror/lang-markdown')
         const { LanguageDescription } = await import('@codemirror/language')
         
@@ -309,6 +310,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
           doc: editorContent,
           extensions: [
             basicSetup,
+            keymap.of([indentWithTab]), // Enable Tab/Shift+Tab for indentation
             markdownExtension,
             ...(isDark ? [vsCodeDark] : [vsCodeLight]),
             EditorView.updateListener.of((update: ViewUpdate) => {
