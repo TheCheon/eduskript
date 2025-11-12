@@ -32,6 +32,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
   const editorRef = useRef<HTMLDivElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
+  const previewRef = useRef<HTMLDivElement>(null)
   const [editorWidth, setEditorWidth] = useState(50) // Percentage
   const [isDragging, setIsDragging] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -231,6 +232,30 @@ const CodeMirrorEditor = function CodeMirrorEditor({
       document.removeEventListener('mouseup', handleMouseUp)
     }
   }, [isDragging])
+
+  // Prevent preview scroll from propagating to page
+  useEffect(() => {
+    const preview = previewRef.current
+    if (!preview) return
+
+    const handleWheel = (e: WheelEvent) => {
+      // Only stop propagation if we're not at the scroll boundary
+      const { scrollTop, scrollHeight, clientHeight } = preview
+      const isAtTop = scrollTop === 0 && e.deltaY < 0
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight && e.deltaY > 0
+
+      // Stop propagation unless we're at a boundary and trying to scroll further
+      if (!isAtTop && !isAtBottom) {
+        e.stopPropagation()
+      }
+    }
+
+    preview.addEventListener('wheel', handleWheel, { passive: true })
+
+    return () => {
+      preview.removeEventListener('wheel', handleWheel)
+    }
+  }, [])
 
   // Fallback for content
   const editorContent = content || ''
@@ -644,7 +669,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
 
         {/* Preview */}
         {showPreview && (
-          <div style={{ width: showEditor ? `${100 - editorWidth}%` : '100%' }} className="overflow-auto bg-card" id="markdown-preview-scroll-container">
+          <div ref={previewRef} style={{ width: showEditor ? `${100 - editorWidth}%` : '100%' }} className="overflow-auto bg-card" id="markdown-preview-scroll-container">
             <div className="p-4">
               <InteractivePreview
                 markdown={useSimpleEditor ? textareaContent : editorContent}

@@ -72,6 +72,7 @@ export function CodeEditor({
   const canvasRef = useRef<HTMLDivElement>(null)
   const canvasContainerRef = useRef<HTMLDivElement>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
+  const outputPanelRef = useRef<HTMLDivElement>(null)
 
   // Update canvas visibility when turtle module is detected
   useEffect(() => {
@@ -302,6 +303,54 @@ export function CodeEditor({
       container.removeEventListener('wheel', handleWheel)
     }
   }, [canvasTransform])
+
+  // Prevent editor scroll from propagating to page
+  useEffect(() => {
+    const editor = editorRef.current
+    if (!editor) return
+
+    const handleWheel = (e: WheelEvent) => {
+      // Only stop propagation if we're at the scroll boundary
+      const { scrollTop, scrollHeight, clientHeight } = editor
+      const isAtTop = scrollTop === 0 && e.deltaY < 0
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight && e.deltaY > 0
+
+      // Stop propagation unless we're at a boundary and trying to scroll further
+      if (!isAtTop && !isAtBottom) {
+        e.stopPropagation()
+      }
+    }
+
+    editor.addEventListener('wheel', handleWheel, { passive: true })
+
+    return () => {
+      editor.removeEventListener('wheel', handleWheel)
+    }
+  }, [])
+
+  // Prevent output panel scroll from propagating to page
+  useEffect(() => {
+    const outputPanel = outputPanelRef.current
+    if (!outputPanel) return
+
+    const handleWheel = (e: WheelEvent) => {
+      // Only stop propagation if we're at the scroll boundary
+      const { scrollTop, scrollHeight, clientHeight } = outputPanel
+      const isAtTop = scrollTop === 0 && e.deltaY < 0
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight && e.deltaY > 0
+
+      // Stop propagation unless we're at a boundary and trying to scroll further
+      if (!isAtTop && !isAtBottom) {
+        e.stopPropagation()
+      }
+    }
+
+    outputPanel.addEventListener('wheel', handleWheel, { passive: true })
+
+    return () => {
+      outputPanel.removeEventListener('wheel', handleWheel)
+    }
+  }, [])
 
   // Add output helper
   const addOutput = (message: string, level: OutputLevel = OutputLevel.OUTPUT) => {
@@ -876,7 +925,7 @@ plots
             Clear
           </Button>
         </div>
-        <div className="flex-1 overflow-auto p-2 font-mono text-sm">
+        <div ref={outputPanelRef} className="flex-1 overflow-auto p-2 font-mono text-sm">
           {output.length === 0 ? (
             <div className="text-muted-foreground italic">No output yet. Run your code to see results here.</div>
           ) : (
