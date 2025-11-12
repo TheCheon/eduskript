@@ -312,9 +312,13 @@ export function CodeEditor({
     const editor = editorRef.current
     if (!editor) return
 
+    // Find the CodeMirror scroller element (the actual scrollable container)
+    const scroller = editor.querySelector('.cm-scroller') as HTMLElement
+    if (!scroller) return
+
     const handleWheel = (e: WheelEvent) => {
-      // Only stop propagation if we're at the scroll boundary
-      const { scrollTop, scrollHeight, clientHeight } = editor
+      // Only stop propagation if we're not at the scroll boundary
+      const { scrollTop, scrollHeight, clientHeight } = scroller
       const isAtTop = scrollTop === 0 && e.deltaY < 0
       const isAtBottom = scrollTop + clientHeight >= scrollHeight && e.deltaY > 0
 
@@ -324,12 +328,12 @@ export function CodeEditor({
       }
     }
 
-    editor.addEventListener('wheel', handleWheel, { passive: true })
+    scroller.addEventListener('wheel', handleWheel, { passive: true })
 
     return () => {
-      editor.removeEventListener('wheel', handleWheel)
+      scroller.removeEventListener('wheel', handleWheel)
     }
-  }, [])
+  }, [mounted, editorViewRef.current])
 
   // Prevent output panel scroll from propagating to page
   useEffect(() => {
