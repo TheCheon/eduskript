@@ -209,44 +209,71 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
   }, [headingPositions, storedHeadingOffsets])
 
+  // Helper function to recalculate heading positions
+  const recalculateHeadingPositions = useCallback(() => {
+    if (!contentRef.current) return
+
+    // Get page dimensions
+    setPageHeight(contentRef.current.scrollHeight)
+
+    // Query for all headings with data-section-id (from h1, h2, h3 elements)
+    const headingElements = contentRef.current.querySelectorAll<HTMLElement>('[data-section-id]')
+    const positions: HeadingPosition[] = []
+
+    headingElements.forEach((element) => {
+      const sectionId = element.getAttribute('data-section-id')
+      const headingText = element.getAttribute('data-heading-text')
+
+      if (sectionId) {
+        // Get the heading element's position relative to contentRef
+        const rect = element.getBoundingClientRect()
+        const parentRect = contentRef.current!.getBoundingClientRect()
+        const offsetY = rect.top - parentRect.top + contentRef.current!.scrollTop
+
+        positions.push({
+          sectionId,
+          offsetY,
+          headingText: headingText || ''
+        })
+      }
+    })
+
+    setHeadingPositions(positions)
+    console.log('Tracked', positions.length, 'heading positions')
+  }, [])
+
   // Track heading positions and page height (after markdown renders)
   useEffect(() => {
     if (!contentRef.current) return
 
     const timer = setTimeout(() => {
-      if (!contentRef.current) return
-
-      // Get page dimensions
-      setPageHeight(contentRef.current.scrollHeight)
-
-      // Query for all headings with data-section-id (from h1, h2, h3 elements)
-      const headingElements = contentRef.current.querySelectorAll<HTMLElement>('[data-section-id]')
-      const positions: HeadingPosition[] = []
-
-      headingElements.forEach((element) => {
-        const sectionId = element.getAttribute('data-section-id')
-        const headingText = element.getAttribute('data-heading-text')
-
-        if (sectionId) {
-          // Get the heading element's position relative to contentRef
-          const rect = element.getBoundingClientRect()
-          const parentRect = contentRef.current!.getBoundingClientRect()
-          const offsetY = rect.top - parentRect.top + contentRef.current!.scrollTop
-
-          positions.push({
-            sectionId,
-            offsetY,
-            headingText: headingText || ''
-          })
-        }
-      })
-
-      setHeadingPositions(positions)
-      console.log('Tracked', positions.length, 'heading positions')
+      recalculateHeadingPositions()
     }, 500) // Wait for markdown to render
 
     return () => clearTimeout(timer)
-  }, [children]) // Re-run when children change (markdown re-renders)
+  }, [children, recalculateHeadingPositions]) // Re-run when children change (markdown re-renders)
+
+  // EXPERIMENTAL: Track heading positions on window resize
+  // This allows live repositioning when window width changes and text reflows
+  useEffect(() => {
+    let resizeTimer: NodeJS.Timeout | null = null
+
+    const handleResize = () => {
+      // Debounce resize events
+      if (resizeTimer) clearTimeout(resizeTimer)
+
+      resizeTimer = setTimeout(() => {
+        console.log('Window resized - recalculating heading positions')
+        recalculateHeadingPositions()
+      }, 150) // Debounce by 150ms
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      if (resizeTimer) clearTimeout(resizeTimer)
+    }
+  }, [recalculateHeadingPositions])
 
   // Function to perform the actual save
   const performSave = useCallback(async () => {
