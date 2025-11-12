@@ -722,7 +722,7 @@ plots
                     size="sm"
                     onClick={() => setEditorWidth(50)}
                     title="Show Turtle Canvas"
-                    style={{ color: 'hsl(var(--turtle-color))' }}
+                    className="text-primary hover:text-primary"
                   >
                     <Bug className="w-4 h-4" />
                   </Button>
