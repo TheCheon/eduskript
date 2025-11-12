@@ -572,6 +572,42 @@ export function CodeEditor({
     try {
       const pyodide = await (window as any).__pyodidePromise
 
+      // Detect and load required packages
+      const packagesToLoad: string[] = []
+      const packageMap: Record<string, string> = {
+        'matplotlib': 'matplotlib',
+        'numpy': 'numpy',
+        'pandas': 'pandas',
+        'scipy': 'scipy',
+        'sympy': 'sympy',
+        'scikit-learn': 'scikit-learn',
+        'sklearn': 'scikit-learn',
+      }
+
+      // Parse imports from code
+      const importRegex = /(?:^|\n)\s*(?:import|from)\s+([a-zA-Z_][a-zA-Z0-9_]*)/gm
+      let match
+      while ((match = importRegex.exec(code)) !== null) {
+        const moduleName = match[1]
+        if (packageMap[moduleName]) {
+          packagesToLoad.push(packageMap[moduleName])
+        }
+      }
+
+      // Remove duplicates
+      const uniquePackages = [...new Set(packagesToLoad)]
+
+      // Load packages if needed
+      if (uniquePackages.length > 0) {
+        addOutput(`Loading packages: ${uniquePackages.join(', ')}...`, OutputLevel.OUTPUT)
+        try {
+          await pyodide.loadPackage(uniquePackages)
+          addOutput('✓ Packages loaded successfully\n', OutputLevel.OUTPUT)
+        } catch (err) {
+          addOutput(`Warning: Failed to load some packages: ${err}\n`, OutputLevel.WARNING)
+        }
+      }
+
       // Capture stdout
       let stdoutBuffer: string[] = []
       pyodide.setStdout({
