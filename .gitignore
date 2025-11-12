@@ -14,6 +14,9 @@
 /coverage
 /public/uploads/**/*
 
+# uploads
+/uploads
+
 # next.js
 /.next/
 /out/
