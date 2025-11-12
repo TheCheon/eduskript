@@ -1,7 +1,7 @@
 **IMPORTANT: Do not mark items as complete in this roadmap unless explicitly instructed by the user.**
 
 *Last updated: 2025-01-11*
-*Current Status: Python Code Editor with multi-file support and autocomplete COMPLETED! Ready for video hosting integration.*
+*Current Status: Python Code Editor with multi-file support and autocomplete COMPLETED! Currently refining the UI.*
 
 > **Note**: Completed features have been moved to `COMPLETED_FEATURES.md`
 
@@ -9,14 +9,14 @@
 
 ## 🎯 Priority List (drag to reorder)
 
-**NEW Code Editor** - a code editor for students to learn python with turtle using codemirror
+**Currently working on: Code Editor** - a code editor for students to learn python with turtle using codemirror
 **Video Hosting** - Swiss-compliant video upload and embedding
 **Plugin System** - Extensible component architecture
 **Marketplace** - Content selling and customer relationships
 
 LMS stuff later
+**Student Analytics** - Class management and progress tracking (unsure: maybe it's even better to NOT have that and simply do sessions - no GDPR relevant data saved. could do exams this way, too)
 **Interactive Quizzes** - In-lesson quizzes with progress tracking
-**Student Analytics** - Class management and progress tracking
 
 ---
 

@@ -12,7 +12,7 @@ import { basicSetup } from 'codemirror'
 import { autocompletion } from '@codemirror/autocomplete'
 import { pythonCompletions } from './python-completions'
 import { Button } from '@/components/ui/button'
-import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText } from 'lucide-react'
+import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText, Bug } from 'lucide-react'
 import {
   RunState,
   OutputLevel,
@@ -40,7 +40,18 @@ export function CodeEditor({
   const [runState, setRunState] = useState<RunState>(RunState.STOPPED)
   const [output, setOutput] = useState<OutputEntry[]>([])
   const [fullscreen, setFullscreen] = useState(false)
-  const [canvasVisible, setCanvasVisible] = useState(showCanvas && language === 'python')
+
+  // Resizable panel state
+  const [editorWidth, setEditorWidth] = useState(50) // Percentage
+  const [isDraggingSplitter, setIsDraggingSplitter] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const MIN_VISIBLE_WIDTH = 100 // pixels
+
+  // Calculate visibility based on width and detect turtle module
+  const hasTurtleModule = language === 'python' && /import\s+turtle|from\s+turtle/.test(files[activeFileIndex]?.content || initialCode)
+  const showEditor = containerRef.current ? (editorWidth / 100) * containerRef.current.offsetWidth >= MIN_VISIBLE_WIDTH : true
+  const showTurtle = containerRef.current ? ((100 - editorWidth) / 100) * containerRef.current.offsetWidth >= MIN_VISIBLE_WIDTH : true
+  const [canvasVisible, setCanvasVisible] = useState(showCanvas && hasTurtleModule)
 
   // Multi-file support
   const [files, setFiles] = useState<PythonFile[]>([
@@ -61,6 +72,45 @@ export function CodeEditor({
   const canvasRef = useRef<HTMLDivElement>(null)
   const canvasContainerRef = useRef<HTMLDivElement>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
+
+  // Update canvas visibility when turtle module is detected
+  useEffect(() => {
+    if (hasTurtleModule && !canvasVisible) {
+      setCanvasVisible(true)
+    }
+  }, [hasTurtleModule])
+
+  // Handle splitter dragging
+  const handleSplitterMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsDraggingSplitter(true)
+  }
+
+  useEffect(() => {
+    if (!isDraggingSplitter) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!containerRef.current) return
+
+      const containerRect = containerRef.current.getBoundingClientRect()
+      const newEditorWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100
+
+      // Clamp between 5% and 95%
+      setEditorWidth(Math.max(5, Math.min(95, newEditorWidth)))
+    }
+
+    const handleMouseUp = () => {
+      setIsDraggingSplitter(false)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isDraggingSplitter])
 
   // Wait for theme to hydrate
   useEffect(() => {
@@ -504,103 +554,141 @@ export function CodeEditor({
       style={{ height: fullscreen ? '100vh' : '600px' }}
     >
       {/* Main content area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div ref={containerRef} className="flex flex-1 overflow-hidden relative">
         {/* Code Editor Panel */}
-        <div className="flex flex-col flex-1 border-r">
-          {/* Editor Controls */}
-          <div className="flex items-center justify-between gap-2 p-2 border-b bg-muted/30">
-            <div className="flex items-center gap-2">
-              {runState === RunState.STOPPED ? (
-                <Button onClick={runCode} size="sm" variant="default">
-                  <Play className="w-4 h-4 mr-1" />
-                  Run
+        {showEditor && (
+          <div
+            className="flex flex-col border-r"
+            style={{
+              width: canvasVisible && showTurtle ? `${editorWidth}%` : '100%',
+              display: showEditor ? 'flex' : 'none'
+            }}
+          >
+            {/* Editor Controls */}
+            <div className="flex items-center justify-between gap-2 p-2 border-b bg-muted/30">
+              <div className="flex items-center gap-2">
+                {runState === RunState.STOPPED ? (
+                  <Button onClick={runCode} size="sm" variant="default">
+                    <Play className="w-4 h-4 mr-1" />
+                    Run
+                  </Button>
+                ) : (
+                  <Button onClick={stopCode} size="sm" variant="destructive">
+                    <Square className="w-4 h-4 mr-1" />
+                    Stop
+                  </Button>
+                )}
+                <Button onClick={resetCode} size="sm" variant="outline">
+                  <RotateCcw className="w-4 h-4 mr-1" />
+                  Reset
                 </Button>
-              ) : (
-                <Button onClick={stopCode} size="sm" variant="destructive">
-                  <Square className="w-4 h-4 mr-1" />
-                  Stop
-                </Button>
-              )}
-              <Button onClick={resetCode} size="sm" variant="outline">
-                <RotateCcw className="w-4 h-4 mr-1" />
-                Reset
-              </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                {!showTurtle && canvasVisible && language === 'python' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditorWidth(50)}
+                    title="Show Turtle Canvas"
+                    style={{ color: 'hsl(var(--turtle-color))' }}
+                  >
+                    <Bug className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
             </div>
-            <div className="text-xs text-muted-foreground">{id}</div>
-          </div>
 
-          {/* File Tabs */}
-          {language === 'python' && (
-            <div className="flex items-center gap-1 px-2 py-1 border-b bg-muted/10 overflow-x-auto">
-              {files.map((file, index) => (
-                <div key={index} className="flex items-center">
-                  {renamingIndex === index ? (
-                    <input
-                      type="text"
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onBlur={() => confirmRename(index)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          confirmRename(index)
-                        } else if (e.key === 'Escape') {
-                          cancelRename()
-                        }
-                      }}
-                      autoFocus
-                      className="h-7 px-2 text-xs border rounded bg-background"
-                      style={{ width: '120px' }}
-                    />
-                  ) : (
-                    <>
-                      <Button
-                        size="sm"
-                        variant={activeFileIndex === index ? 'secondary' : 'ghost'}
-                        onClick={() => switchToFile(index)}
-                        onDoubleClick={() => startRename(index)}
-                        className="h-7 px-2 text-xs gap-1"
-                        title="Double-click to rename"
-                      >
-                        <FileText className="w-3 h-3" />
-                        {file.name}
-                      </Button>
-                      {files.length > 1 && (
+            {/* File Tabs */}
+            {language === 'python' && (
+              <div className="flex items-center gap-1 px-2 py-1 border-b bg-muted/10 overflow-x-auto">
+                {files.map((file, index) => (
+                  <div key={index} className="flex items-center">
+                    {renamingIndex === index ? (
+                      <input
+                        type="text"
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onBlur={() => confirmRename(index)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            confirmRename(index)
+                          } else if (e.key === 'Escape') {
+                            cancelRename()
+                          }
+                        }}
+                        autoFocus
+                        className="h-7 px-2 text-xs border rounded bg-background"
+                        style={{ width: '120px' }}
+                      />
+                    ) : (
+                      <>
                         <Button
                           size="sm"
-                          variant="ghost"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            removeFile(index)
-                          }}
-                          className="h-6 w-6 p-0 ml-1"
-                          title="Remove file"
+                          variant={activeFileIndex === index ? 'secondary' : 'ghost'}
+                          onClick={() => switchToFile(index)}
+                          onDoubleClick={() => startRename(index)}
+                          className="h-7 px-2 text-xs gap-1"
+                          title="Double-click to rename"
                         >
-                          <X className="w-3 h-3" />
+                          <FileText className="w-3 h-3" />
+                          {file.name}
                         </Button>
-                      )}
-                    </>
-                  )}
-                </div>
-              ))}
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={addNewFile}
-                className="h-7 px-2 text-xs"
-                title="Add new file"
-              >
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
+                        {files.length > 1 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              removeFile(index)
+                            }}
+                            className="h-6 w-6 p-0 ml-1"
+                            title="Remove file"
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ))}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={addNewFile}
+                  className="h-7 px-2 text-xs"
+                  title="Add new file"
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+            )}
 
-          {/* CodeMirror Editor */}
-          <div ref={editorRef} className="flex-1 overflow-auto w-full h-full" />
-        </div>
+            {/* CodeMirror Editor */}
+            <div ref={editorRef} className="flex-1 overflow-auto w-full h-full" />
+          </div>
+        )}
+
+        {/* Draggable Splitter */}
+        {showEditor && showTurtle && canvasVisible && (
+          <div
+            onMouseDown={handleSplitterMouseDown}
+            className={`w-2 bg-border hover:bg-primary/20 cursor-col-resize flex-shrink-0 transition-colors relative flex items-center justify-center ${
+              isDraggingSplitter ? 'bg-primary/30' : ''
+            }`}
+          >
+            {/* Drag indicator */}
+            <div className="text-muted-foreground/40 text-xs select-none pointer-events-none">
+              ⋮
+            </div>
+          </div>
+        )}
 
         {/* Canvas Panel (Turtle Graphics for Python) */}
-        {canvasVisible && (
-          <div className="flex flex-col w-1/2 relative">
+        {canvasVisible && showTurtle && (
+          <div
+            className="flex flex-col relative"
+            style={{ width: showEditor ? `${100 - editorWidth}%` : '100%' }}
+          >
             <div className="flex items-center justify-between gap-2 p-2 border-b bg-muted/30">
               <div className="text-sm font-medium">
                 {language === 'python' ? 'Turtle Graphics' : 'Canvas'}
