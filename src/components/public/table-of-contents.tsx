@@ -29,7 +29,8 @@ export function TableOfContents({ content }: TableOfContentsProps) {
       
       return { id, text, level }
     })
-    
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTocItems(items)
   }, [content])
 

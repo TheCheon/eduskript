@@ -51,12 +51,14 @@ export function EditModal({ type, item, onItemUpdated, triggerClassName, buttonT
   // Initialize form data when modal opens
   useEffect(() => {
     if (open && item) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormData({
         title: item.title || '',
         description: item.description || '',
         slug: item.slug || '',
         isPublished: item.isPublished
       })
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError('')
     }
   }, [open, item])

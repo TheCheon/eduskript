@@ -102,14 +102,6 @@ export function ImageWithResize({ src, alt = '', title, style, onWidthChange, or
     setCurrentWidth(Math.round(newWidthPercent))
   }, [isDragging, currentAlign])
 
-  const handleMouseUp = useCallback(() => {
-    if (isDragging && onWidthChange) {
-      updateMarkdown(effectiveWidth, currentAlign, currentWrap)
-    }
-    setIsDragging(false)
-    dragStartRef.current = null // Clear drag state
-  }, [isDragging, effectiveWidth, currentAlign, currentWrap, alt, src, originalSrc, onWidthChange])
-
   const updateMarkdown = useCallback((width: number, alignment: 'left' | 'center' | 'right', wrapEnabled?: boolean) => {
     if (!onWidthChange) return
 
@@ -127,6 +119,14 @@ export function ImageWithResize({ src, alt = '', title, style, onWidthChange, or
 
     onWidthChange(`![${alt}](${srcForMarkdown}){${attributes}}`)
   }, [alt, src, originalSrc, onWidthChange])
+
+  const handleMouseUp = useCallback(() => {
+    if (isDragging && onWidthChange) {
+      updateMarkdown(effectiveWidth, currentAlign, currentWrap)
+    }
+    setIsDragging(false)
+    dragStartRef.current = null // Clear drag state
+  }, [isDragging, effectiveWidth, currentAlign, currentWrap, updateMarkdown])
 
   const handleAlignChange = useCallback((alignment: 'left' | 'center' | 'right') => {
     setCurrentAlign(alignment)

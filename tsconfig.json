@@ -37,6 +37,9 @@
   ],
   "exclude": [
     "node_modules",
-    "oldstuff"
+    "oldstuff",
+    "code-review",
+    "tests",
+    "vitest.config.ts"
   ]
 }

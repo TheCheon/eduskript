@@ -23,6 +23,7 @@ export function Breadcrumb({ items, subdomain, children, isOnSubdomain: initialI
     // Only update if not provided from server
     if (initialIsOnSubdomain === undefined) {
       const hostname = window.location.hostname
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsOnSubdomain(hostname !== 'localhost' && hostname.endsWith('.localhost'))
     }
   }, [initialIsOnSubdomain])

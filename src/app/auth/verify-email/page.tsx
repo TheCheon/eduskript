@@ -16,7 +16,9 @@ export default function VerifyEmailPage() {
     const email = searchParams.get('email')
 
     if (!token || !email) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStatus('error')
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMessage('Invalid verification link')
       return
     }

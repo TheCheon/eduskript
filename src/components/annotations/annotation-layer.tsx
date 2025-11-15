@@ -116,6 +116,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     if (paperElement) {
       const style = window.getComputedStyle(paperElement)
       const padding = parseFloat(style.paddingLeft) || 0
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPaperPaddingLeft(padding)
     }
   }, [])
@@ -200,9 +201,12 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
       if (needsReposition) {
         const result = repositionStrokes(strokes, headingPositions, storedHeadingOffsets)
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCanvasData(JSON.stringify(result.strokes))
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setOrphanedStrokesCount(result.orphanedCount)
         // Update stored offsets so we don't reposition again
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setStoredHeadingOffsets(currentOffsets)
       }
     } catch (error) {

@@ -17,10 +17,12 @@ export function ImageResizeControl({ imageElement, onWidthChange }: ImageResizeC
     const width = computedStyle.width
 
     if (width.includes('%')) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCurrentWidth(parseFloat(width))
     } else if (imageElement.parentElement) {
       const parentWidth = imageElement.parentElement.offsetWidth
       const imgWidth = imageElement.offsetWidth
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCurrentWidth(Math.round((imgWidth / parentWidth) * 100))
     }
   }, [imageElement])

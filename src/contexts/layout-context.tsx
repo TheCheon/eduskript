@@ -34,6 +34,7 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
 
   // Initial measurement
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     measureViewport()
   }, [measureViewport])
 

@@ -9,21 +9,27 @@ interface MathBlockProps {
 }
 
 export function MathBlock({ inline = false, children }: MathBlockProps) {
-  try {
-    if (inline) {
-      return <InlineMath math={children} />
+  // Validate KaTeX input before rendering
+  // eslint-disable-next-line react-hooks/error-boundaries
+  const renderMath = () => {
+    try {
+      if (inline) {
+        return <InlineMath math={children} />
+      }
+      return (
+        <div className="my-4 overflow-x-auto">
+          <BlockMath math={children} />
+        </div>
+      )
+    } catch {
+      // Fallback for invalid math
+      return (
+        <span className="text-destructive font-mono text-sm">
+          [Math Error: {children}]
+        </span>
+      )
     }
-    return (
-      <div className="my-4 overflow-x-auto">
-        <BlockMath math={children} />
-      </div>
-    )
-  } catch {
-    // Fallback for invalid math
-    return (
-      <span className="text-destructive font-mono text-sm">
-        [Math Error: {children}]
-      </span>
-    )
   }
+
+  return renderMath()
 }

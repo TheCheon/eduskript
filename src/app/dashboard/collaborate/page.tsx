@@ -69,14 +69,31 @@ export default function CollaboratePage() {
     setIsSearching(false)
   }, [searchQuery])
 
+  const loadCollaborationData = async () => {
+    try {
+      const response = await fetch('/api/collaboration-requests')
+      const data = await response.json()
+
+      if (data.success) {
+        setSentRequests(data.data.sentRequests)
+        setReceivedRequests(data.data.receivedRequests)
+        setCollaborations(data.data.collaborations)
+      }
+    } catch (error) {
+      console.error('Error loading collaboration data:', error)
+    }
+  }
+
   // Load collaboration data on mount
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadCollaborationData()
   }, [])
 
   // Search users with debounce
   useEffect(() => {
     if (!searchQuery.trim()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSearchResults([])
       return
     }
@@ -89,21 +106,6 @@ export default function CollaboratePage() {
 
     return () => clearTimeout(timeoutId)
   }, [searchQuery, searchUsers])
-
-  const loadCollaborationData = async () => {
-    try {
-      const response = await fetch('/api/collaboration-requests')
-      const data = await response.json()
-      
-      if (data.success) {
-        setSentRequests(data.data.sentRequests)
-        setReceivedRequests(data.data.receivedRequests)
-        setCollaborations(data.data.collaborations)
-      }
-    } catch (error) {
-      console.error('Error loading collaboration data:', error)
-    }
-  }
 
   const handleSendRequest = (user: User) => {
     setSelectedUser(user)

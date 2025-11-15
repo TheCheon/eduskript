@@ -136,7 +136,7 @@ export function ErrorModal({
               onClick={onDontShowAgain}
               className="text-xs"
             >
-              Don't show again this session
+              Don&apos;t show again this session
             </Button>
           )}
           

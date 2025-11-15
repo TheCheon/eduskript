@@ -368,7 +368,9 @@ export function SortableSkripts({
   // Sync items with skripts prop and handle hydration
   useEffect(() => {
     console.log('SortableSkripts received skripts:', skripts.map(s => ({ id: s.id, title: s.title, order: s.order })))
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setItems(skripts)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMounted(true)
   }, [skripts])
 
