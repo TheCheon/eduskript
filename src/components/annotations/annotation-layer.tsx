@@ -4,15 +4,9 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { SimpleCanvas, type SimpleCanvasHandle, type DrawMode } from './simple-canvas'
 import { AnnotationToolbar, type AnnotationMode } from './annotation-toolbar'
-import {
-  getPageAnnotations,
-  savePageAnnotations,
-  clearPageAnnotations,
-  generateContentHash,
-  checkVersionMismatch,
-  type HeadingPosition,
-  type StrokeData
-} from '@/lib/indexeddb/annotations'
+import { useUserData } from '@/lib/userdata/hooks'
+import type { AnnotationData } from '@/lib/userdata/types'
+import { generateContentHash, type HeadingPosition, type StrokeData } from '@/lib/indexeddb/annotations'
 import { repositionStrokes } from '@/lib/annotations/reposition-strokes'
 import { useLayout } from '@/contexts/layout-context'
 
@@ -24,6 +18,14 @@ interface AnnotationLayerProps {
 
 export function AnnotationLayer({ pageId, content, children }: AnnotationLayerProps) {
   const { sidebarWidth, viewportWidth, viewportHeight } = useLayout()
+
+  // Use user data service for annotations
+  const { data: annotationData, updateData: updateAnnotationData, deleteData: deleteAnnotationData } = useUserData<AnnotationData>(
+    pageId,
+    'annotations',
+    null
+  )
+
   const [mode, setMode] = useState<AnnotationMode>('view')
   const [pageVersion, setPageVersion] = useState<string>('')
   const [versionMismatch, setVersionMismatch] = useState(false)
@@ -151,35 +153,55 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
   // Check for version mismatch
   useEffect(() => {
-    if (pageVersion && pageId) {
-      checkVersionMismatch(pageId, pageVersion).then(mismatch => {
-        setVersionMismatch(mismatch)
-      })
+    if (pageVersion && annotationData) {
+      const mismatch = annotationData.pageVersion !== pageVersion
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setVersionMismatch(mismatch)
+    } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setVersionMismatch(false)
     }
-  }, [pageId, pageVersion])
+  }, [pageVersion, annotationData])
 
-  // Load annotations from IndexedDB (only when pageId changes)
+  // Load annotations from user data service
   useEffect(() => {
-    if (!pageId) return
+    if (annotationData && annotationData.canvasData) {
+      try {
+        const strokes: StrokeData[] = JSON.parse(annotationData.canvasData)
 
-    getPageAnnotations(pageId).then(pageAnnotation => {
-      if (pageAnnotation && pageAnnotation.canvasData) {
-        try {
-          const strokes: StrokeData[] = JSON.parse(pageAnnotation.canvasData)
-
-          if (strokes.length > 0) {
-            setHasAnnotations(true)
-            setCanvasData(JSON.stringify(strokes))
-            setStoredHeadingOffsets(pageAnnotation.headingOffsets || {})
-          }
-        } catch (error) {
-          console.error('Error parsing canvas data:', error)
+        if (strokes.length > 0) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setHasAnnotations(true)
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setCanvasData(annotationData.canvasData)
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setStoredHeadingOffsets(annotationData.headingOffsets || {})
+        } else {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setHasAnnotations(false)
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setCanvasData('')
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setStoredHeadingOffsets({})
         }
-      } else {
+      } catch (error) {
+        console.error('Error parsing canvas data:', error)
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setHasAnnotations(false)
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setCanvasData('')
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setStoredHeadingOffsets({})
       }
-    })
-  }, [pageId])
+    } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setHasAnnotations(false)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCanvasData('')
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setStoredHeadingOffsets({})
+    }
+  }, [annotationData])
 
   // Apply repositioning when heading positions change (only if needed)
   useEffect(() => {
@@ -286,7 +308,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     // Don't save if we're in the middle of clearing
     if (isClearingRef.current) return
 
-    if (!canvasData || !pageId || !pageVersion) return
+    if (!canvasData || !pageVersion) return
 
     // Don't save if heading positions haven't been tracked yet
     if (headingPositions.length === 0) return
@@ -302,11 +324,17 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         headingPositions.map(h => [h.sectionId, h.offsetY])
       )
 
-      await savePageAnnotations(pageId, pageVersion, canvasData, headingOffsets)
+      const data: AnnotationData = {
+        canvasData,
+        headingOffsets,
+        pageVersion
+      }
+
+      await updateAnnotationData(data, { debounce: 2000 })
     } catch (error) {
       console.error('Error saving annotations:', error)
     }
-  }, [canvasData, pageId, pageVersion, headingPositions])
+  }, [canvasData, pageVersion, headingPositions, updateAnnotationData])
 
   // Save on unmount (navigation away)
   useEffect(() => {
@@ -394,8 +422,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       setVersionMismatch(false)
       setOrphanedStrokesCount(0)
 
-      // Clear database
-      await clearPageAnnotations(pageId)
+      // Clear user data
+      await deleteAnnotationData()
 
       // Clear canvas
       if (canvasRef.current) {
@@ -404,7 +432,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     } catch (error) {
       console.error('Error clearing annotations:', error)
     }
-  }, [pageId])
+  }, [deleteAnnotationData])
 
   // Handle removal of orphaned strokes
   const handleRemoveOrphans = useCallback(() => {

@@ -14,6 +14,8 @@ import { autocompletion } from '@codemirror/autocomplete'
 import { pythonCompletions } from './python-completions'
 import { Button } from '@/components/ui/button'
 import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText, Palette, ZoomIn, ZoomOut } from 'lucide-react'
+import { useUserData } from '@/lib/userdata/hooks'
+import type { CodeEditorData } from '@/lib/userdata/types'
 import {
   RunState,
   OutputLevel,
@@ -25,6 +27,7 @@ import {
 
 interface CodeEditorProps {
   id?: string
+  pageId?: string
   language?: 'python' | 'javascript'
   initialCode?: string
   showCanvas?: boolean
@@ -32,6 +35,7 @@ interface CodeEditorProps {
 
 export function CodeEditor({
   id = 'code-editor',
+  pageId,
   language = 'python',
   initialCode = '# Write your code here\nprint("Hello, World!")',
   showCanvas = true
@@ -42,17 +46,31 @@ export function CodeEditor({
   const [output, setOutput] = useState<OutputEntry[]>([])
   const [fullscreen, setFullscreen] = useState(false)
 
+  // User data persistence - only if pageId is provided
+  const componentId = `code-editor-${id}`
+  const { data: savedData, updateData: savePersistentData } = useUserData<CodeEditorData>(
+    pageId || 'no-page', // Fallback if no pageId
+    componentId,
+    null
+  )
+
+  // Initialize default data
+  const defaultData: CodeEditorData = {
+    files: [{ name: 'main.py', content: initialCode }],
+    activeFileIndex: 0,
+    fontSize: 14,
+    editorWidth: 50,
+  }
+
   // Resizable panel state
-  const [editorWidth, setEditorWidth] = useState(50) // Percentage
+  const [editorWidth, setEditorWidth] = useState<number>(savedData?.editorWidth ?? defaultData.editorWidth ?? 50)
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const MIN_VISIBLE_WIDTH = 100 // pixels
 
   // Multi-file support
-  const [files, setFiles] = useState<PythonFile[]>([
-    { name: 'main.py', content: initialCode }
-  ])
-  const [activeFileIndex, setActiveFileIndex] = useState(0)
+  const [files, setFiles] = useState<PythonFile[]>(savedData?.files ?? defaultData.files)
+  const [activeFileIndex, setActiveFileIndex] = useState(savedData?.activeFileIndex ?? defaultData.activeFileIndex)
   const [renamingIndex, setRenamingIndex] = useState<number | null>(null)
   const [renameValue, setRenameValue] = useState('')
 
@@ -66,10 +84,10 @@ export function CodeEditor({
   const [canvasVisible, setCanvasVisible] = useState(false) // Start hidden, show only when graphics detected
 
   // Font size state
-  const [fontSize, setFontSize] = useState(14) // Default 14px
+  const [fontSize, setFontSize] = useState<number>(savedData?.fontSize ?? defaultData.fontSize ?? 14)
 
   // Canvas pan and zoom state
-  const [canvasTransform, setCanvasTransform] = useState({ x: 0, y: 0, scale: 1 })
+  const [canvasTransform, setCanvasTransform] = useState(savedData?.canvasTransform ?? { x: 0, y: 0, scale: 1 })
   const [isDragging, setIsDragging] = useState(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
 
@@ -85,6 +103,23 @@ export function CodeEditor({
   useEffect(() => {
     setCanvasVisible(hasGraphics)
   }, [hasGraphics])
+
+  // Save state to user data service whenever it changes
+  useEffect(() => {
+    // Only save if pageId is provided (not in fallback mode)
+    if (!pageId) return
+
+    const dataToSave: CodeEditorData = {
+      files,
+      activeFileIndex,
+      fontSize,
+      editorWidth,
+      canvasTransform,
+    }
+
+    // Save with debounce (1 second default)
+    savePersistentData(dataToSave)
+  }, [files, activeFileIndex, fontSize, editorWidth, canvasTransform, pageId, savePersistentData])
 
   // Handle splitter dragging
   const handleSplitterMouseDown = (e: React.MouseEvent) => {

@@ -173,6 +173,7 @@ function DivComponent({ className, children, ...props }: React.HTMLAttributes<HT
 
 function CodeEditorComponent({ children, ...props }: React.HTMLAttributes<HTMLElement> & Record<string, unknown>) {
   const { resolvedTheme } = useTheme()
+  const { markdownContext } = useContext(MarkdownEditContext)
   const language = (props['dataLanguage'] as string) || (props['data-language'] as string) || 'python'
   const code = (props['dataCode'] as string) || (props['data-code'] as string) || ''
   const id = (props['dataId'] as string) || (props['data-id'] as string)
@@ -184,6 +185,7 @@ function CodeEditorComponent({ children, ...props }: React.HTMLAttributes<HTMLEl
     <CodeEditor
       key={`${id}-${resolvedTheme}`}
       id={id}
+      pageId={markdownContext?.pageId}
       language={language as 'python' | 'javascript'}
       initialCode={decodedCode}
       showCanvas={showCanvas !== 'false'}

@@ -47,12 +47,14 @@
 ## 🎯 Priority List (drag to reorder)
 
 **Next up:**
+- **IndexDB User Data Service** - Create a user data service 
+- **Improvements to page editor**: add buttons on top and a indicator that shows which paragraph we're on. sync scroll.
 - **Plugin System** - Extensible component architecture, MDX
 - **Video Hosting** - Swiss-compliant video upload and embedding
 - **Marketplace** - Content selling and customer relationships
 
 **LMS features (later):**
-- **Student Analytics** - Class management and progress tracking (unsure: maybe it's even better to NOT have that and simply do sessions - no GDPR relevant data saved. could do exams this way, too)
+- **Student Accounts** - Class management and progress tracking (unsure: maybe it's even better to NOT have that and simply do sessions - no GDPR relevant data saved. could do exams this way, too)
 - **Interactive Quizzes** - In-lesson quizzes with progress tracking
 
 ---

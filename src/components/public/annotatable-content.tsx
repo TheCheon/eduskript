@@ -41,6 +41,7 @@ export function AnnotatableContent({ pageId, content, domain, skriptId }: Annota
 
   // Build context for React markdown renderer
   const context = {
+    pageId,
     domain,
     skriptId,
     fileList

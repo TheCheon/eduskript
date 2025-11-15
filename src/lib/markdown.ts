@@ -26,6 +26,8 @@ export interface ProcessedMarkdown {
 }
 
 export interface MarkdownContext {
+  /** The page ID for user data persistence */
+  pageId?: string
   /** The domain/username for the current content */
   domain?: string
   /** The skript ID for skript-specific file searches */
