@@ -1,9 +1,45 @@
 **IMPORTANT: Do not mark items as complete in this roadmap unless explicitly instructed by the user.**
 
-*Last updated: 2025-01-11*
-*Current Status: Python Code Editor with multi-file support and autocomplete COMPLETED! Currently refining the UI.*
+*Last updated: 2025-01-15*
+*Current Status: Python Code Editor COMPLETED! Infrastructure fixes and subdomain routing improvements completed.*
 
 > **Note**: Completed features have been moved to `COMPLETED_FEATURES.md`
+
+---
+
+## 🔧 Recent Infrastructure Improvements (2025-01-15)
+
+**Build Configuration & CI/CD**:
+- ✅ **Next.js 16 Migration** - Updated ESLint configuration for Next.js 16
+  - Migrated from `next lint` to direct `eslint .` (Next.js 16 removed built-in lint command)
+  - Converted ESLint config to flat config format (eslint.config.mjs)
+  - Fixed pnpm version mismatch in GitHub Actions workflow
+  - Updated TypeScript configuration to exclude test directories from production builds
+  - Resolved all 19 ESLint errors (React hooks patterns, variable declarations)
+  - Build now passes successfully with zero errors
+
+**Subdomain Routing Fixes**:
+- ✅ **Preview Button URL Generation** - Fixed incorrect URL construction in page builder
+  - Preview button now correctly generates URLs like `eduadmin.eduskript.org` instead of `eduadmin.org`
+  - Properly detects base domain vs subdomain (eduskript.org vs dashboard.eduskript.org)
+- ✅ **Native Subdomain Support** - CustomDomainHandler now recognizes `.eduskript.org` subdomains
+  - Added detection for both `.eduskript.org` (production) and `.localhost` (development)
+  - Automatically rewrites subdomain URLs to `/{subdomain}` path for proper routing
+  - Users can now access their pages via `username.eduskript.org` and see correct content
+
+**UI Cleanup**:
+- ✅ **Removed Duplicate Footer** - Cleaned up redundant VersionFooter component
+  - Kept GitInfo component in bottom right (expandable git commit info)
+  - Removed full-width VersionFooter from main page
+
+**Files Modified**:
+- `.github/workflows/ci.yml` - Removed hardcoded pnpm version
+- `package.json` - Updated lint script to use eslint directly
+- `eslint.config.mjs` - Migrated to flat config format
+- `tsconfig.json` - Excluded test/review directories
+- `src/components/CustomDomainHandler.tsx` - Added native subdomain detection
+- `src/components/dashboard/page-builder-interface.tsx` - Fixed preview URL logic
+- `src/app/page.tsx` - Removed duplicate footer
 
 ---
 
