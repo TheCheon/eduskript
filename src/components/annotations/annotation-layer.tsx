@@ -4,11 +4,13 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { SimpleCanvas, type SimpleCanvasHandle, type DrawMode } from './simple-canvas'
 import { AnnotationToolbar, type AnnotationMode } from './annotation-toolbar'
-import { useUserData } from '@/lib/userdata/hooks'
+import { useUserData, useCreateVersion } from '@/lib/userdata/hooks'
 import type { AnnotationData } from '@/lib/userdata/types'
 import { generateContentHash, type HeadingPosition, type StrokeData } from '@/lib/indexeddb/annotations'
 import { repositionStrokes } from '@/lib/annotations/reposition-strokes'
 import { useLayout } from '@/contexts/layout-context'
+import { VersionBrowser } from '@/components/userdata/version-browser'
+import { VersionActions } from '@/components/userdata/quick-undo'
 
 interface AnnotationLayerProps {
   pageId: string
@@ -25,6 +27,11 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     'annotations',
     null
   )
+
+  // Version history hooks
+  const createVersion = useCreateVersion<AnnotationData>(pageId, 'annotations')
+  const [showVersionBrowser, setShowVersionBrowser] = useState(false)
+  const strokeCountRef = useRef(0) // Count strokes for version creation
 
   const [mode, setMode] = useState<AnnotationMode>('view')
   const [pageVersion, setPageVersion] = useState<string>('')
@@ -192,6 +199,17 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       }
     }
   }, [annotationData, canvasData])
+
+  // Initialize storedHeadingOffsets when heading positions are first available
+  useEffect(() => {
+    if (headingPositions.length > 0 && Object.keys(storedHeadingOffsets).length === 0) {
+      const currentOffsets = Object.fromEntries(
+        headingPositions.map(h => [h.sectionId, h.offsetY])
+      )
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setStoredHeadingOffsets(currentOffsets)
+    }
+  }, [headingPositions, storedHeadingOffsets])
 
   // Apply repositioning when heading positions change (only if needed)
   useEffect(() => {
@@ -365,6 +383,28 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
   }, [performSave])
 
+  // Helper function to create a version snapshot
+  const createVersionSnapshot = useCallback(async () => {
+    if (!annotationData || !hasAnnotations) return
+    if (isClearingRef.current) return
+
+    // Don't create version if annotations are empty/default
+    try {
+      const strokes: StrokeData[] = JSON.parse(annotationData.canvasData)
+      if (strokes.length === 0) {
+        strokeCountRef.current = 0
+        return
+      }
+    } catch (error) {
+      console.error('Error parsing canvas data for version:', error)
+      strokeCountRef.current = 0
+      return
+    }
+
+    await createVersion(annotationData)
+    strokeCountRef.current = 0 // Reset counter after creating version
+  }, [annotationData, hasAnnotations, createVersion])
+
   // Handle canvas annotation update with debounced save
   const handleCanvasUpdate = useCallback((data: string) => {
     // Update local state immediately
@@ -385,6 +425,12 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       }
 
       if (!hasData) return
+
+      // Increment stroke counter and create version every 5 strokes
+      strokeCountRef.current++
+      if (strokeCountRef.current >= 5) {
+        createVersionSnapshot()
+      }
     } catch (error) {
       console.error('Error parsing canvas data:', error)
       return
@@ -413,6 +459,11 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   // Handle clear all annotations
   const handleClearAll = useCallback(async () => {
     try {
+      // Create a version snapshot before clearing (if we have data to preserve)
+      if (annotationData && hasAnnotations) {
+        await createVersion(annotationData, { label: 'Before clear' })
+      }
+
       // Set flag to prevent any saves during/after clear operation
       isClearingRef.current = true
 
@@ -438,7 +489,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     } catch (error) {
       console.error('Error clearing annotations:', error)
     }
-  }, [deleteAnnotationData])
+  }, [deleteAnnotationData, annotationData, hasAnnotations, createVersion])
 
   // Handle removal of orphaned strokes
   const handleRemoveOrphans = useCallback(() => {
@@ -1025,6 +1076,25 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
           )}
         </div>
       )}
+
+      {/* Version Actions - Quick undo and history buttons */}
+      {hasAnnotations && (
+        <div className="fixed bottom-6 right-32 z-50">
+          <VersionActions
+            pageId={pageId}
+            componentId="annotations"
+            onViewHistory={() => setShowVersionBrowser(true)}
+          />
+        </div>
+      )}
+
+      {/* Version Browser Dialog */}
+      <VersionBrowser
+        pageId={pageId}
+        componentId="annotations"
+        open={showVersionBrowser}
+        onOpenChange={setShowVersionBrowser}
+      />
     </>
   )
 }

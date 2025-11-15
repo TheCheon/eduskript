@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useTheme } from 'next-themes'
 import { EditorView, keymap } from '@codemirror/view'
-import { EditorState } from '@codemirror/state'
-import { indentWithTab } from '@codemirror/commands'
+import { EditorState, Annotation } from '@codemirror/state'
+import { indentWithTab, undo } from '@codemirror/commands'
 import { python } from '@codemirror/lang-python'
 import { javascript } from '@codemirror/lang-javascript'
 import { vsCodeDark } from '@fsegurai/codemirror-theme-vscode-dark'
@@ -13,8 +13,8 @@ import { basicSetup } from 'codemirror'
 import { autocompletion } from '@codemirror/autocomplete'
 import { pythonCompletions } from './python-completions'
 import { Button } from '@/components/ui/button'
-import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText, Palette, ZoomIn, ZoomOut } from 'lucide-react'
-import { useUserData } from '@/lib/userdata/hooks'
+import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText, ZoomIn, ZoomOut, Save } from 'lucide-react'
+import { useUserData, useCreateVersion, useVersionHistory, useRestoreVersion, useDeleteVersion, useUpdateVersionLabel } from '@/lib/userdata/hooks'
 import type { CodeEditorData } from '@/lib/userdata/types'
 import {
   RunState,
@@ -32,6 +32,9 @@ interface CodeEditorProps {
   initialCode?: string
   showCanvas?: boolean
 }
+
+// Custom annotation to mark programmatic changes (defined once outside component)
+const programmaticChange = Annotation.define<boolean>()
 
 export function CodeEditor({
   id = 'code-editor',
@@ -53,6 +56,24 @@ export function CodeEditor({
     componentId,
     null
   )
+
+  // Version history hooks
+  const createVersion = useCreateVersion<CodeEditorData>(pageId || 'no-page', componentId)
+  const { versions, isLoading: versionsLoading, refresh: refreshVersions } = useVersionHistory(pageId || 'no-page', componentId)
+  const { restore, isRestoring } = useRestoreVersion<CodeEditorData>(pageId || 'no-page', componentId)
+  const { deleteVersion, isDeleting } = useDeleteVersion(pageId || 'no-page', componentId)
+  const updateLabel = useUpdateVersionLabel(pageId || 'no-page', componentId)
+
+  // Output/History panel state
+  const [activePanel, setActivePanel] = useState<'output' | 'history'>('output')
+  const [highlightedVersion, setHighlightedVersion] = useState<number | null>(null)
+  const [editingVersion, setEditingVersion] = useState<number | null>(null)
+  const [editingLabel, setEditingLabel] = useState<string>('')
+  const [confirmDeletion, setConfirmDeletion] = useState(false)
+  const [showAutosaves, setShowAutosaves] = useState(false)
+
+  // Keystroke counter for version creation
+  const keystrokeCountRef = useRef(0)
 
   // Initialize default data
   const defaultData: CodeEditorData = {
@@ -92,18 +113,9 @@ export function CodeEditor({
   // Restore saved data when it loads
   const hasLoadedData = useRef(false)
   useEffect(() => {
-    console.log('[CodeEditor] Restore effect:', {
-      isLoading,
-      hasSavedData: !!savedData,
-      hasLoadedData: hasLoadedData.current,
-      componentId,
-      pageId
-    })
-
     // Only restore once when data first loads
     if (!isLoading && savedData && !hasLoadedData.current) {
       hasLoadedData.current = true
-      console.log('[CodeEditor] Restoring saved data:', savedData)
 
       if (savedData.files) setFiles(savedData.files)
       if (savedData.activeFileIndex !== undefined) setActiveFileIndex(savedData.activeFileIndex)
@@ -135,11 +147,6 @@ export function CodeEditor({
     if (!editorViewRef.current) return
 
     const content = editorViewRef.current.state.doc.toString()
-    console.log('[CodeEditor] Debounced save - updating file content:', {
-      activeFileIndex,
-      contentLength: content.length,
-      componentId
-    })
     setFiles(prev => prev.map((file, idx) =>
       idx === activeFileIndex ? { ...file, content } : file
     ))
@@ -151,6 +158,11 @@ export function CodeEditor({
     // Only save if pageId is provided (not in fallback mode)
     if (!pageId) return
 
+    // Don't save during initial load - wait until data has been loaded/restored
+    if (isLoading) {
+      return
+    }
+
     const dataToSave: CodeEditorData = {
       files,
       activeFileIndex,
@@ -159,11 +171,44 @@ export function CodeEditor({
       canvasTransform,
     }
 
-    console.log('[CodeEditor] Saving to IndexedDB:', { componentId, pageId, dataToSave })
-
     // Save immediately (debouncing already happened at the update listener level for content)
     savePersistentData(dataToSave, { immediate: true })
-  }, [activeFileIndex, fontSize, editorWidth, canvasTransform, pageId, savePersistentData, files, componentId])
+  }, [activeFileIndex, fontSize, editorWidth, canvasTransform, pageId, savePersistentData, files, componentId, isLoading])
+
+  // Helper function to create a version snapshot
+  const createVersionSnapshot = useCallback(async (isManualSave = false) => {
+    if (!pageId) return
+
+    const dataToVersion: CodeEditorData = {
+      files,
+      activeFileIndex,
+      fontSize,
+      editorWidth,
+      canvasTransform,
+    }
+
+    // Don't create version if content matches initial/default code
+    const currentContent = files.map(f => f.content).join('\n')
+    const isDefaultContent = currentContent === initialCode || currentContent.trim() === ''
+    if (isDefaultContent) {
+      keystrokeCountRef.current = 0
+      return
+    }
+
+    // Note: Duplicate detection is handled by the service layer via SHA-256 hashing
+    // If the data is identical to a previous version, it will reuse the same blob
+    const version = await createVersion(dataToVersion, { isManualSave })
+    await refreshVersions()
+    keystrokeCountRef.current = 0 // Reset counter after creating version
+
+    // Only open history tab for manual saves
+    if (isManualSave) {
+      setActivePanel('history')
+      setHighlightedVersion(version.versionNumber)
+      // Clear highlight after 2 seconds
+      setTimeout(() => setHighlightedVersion(null), 2000)
+    }
+  }, [pageId, files, activeFileIndex, fontSize, editorWidth, canvasTransform, createVersion, refreshVersions, initialCode])
 
   // Handle splitter dragging
   const handleSplitterMouseDown = (e: React.MouseEvent) => {
@@ -311,7 +356,10 @@ export function CodeEditor({
 
     const extensions = [
       basicSetup,
-      keymap.of([indentWithTab]), // Enable Tab/Shift+Tab for indentation
+      keymap.of([
+        indentWithTab, // Enable Tab/Shift+Tab for indentation
+        { key: 'Mod-z', run: undo }, // Enable Ctrl+Z (Cmd+Z on Mac) for undo
+      ]),
       langExtension,
       EditorView.theme({
         '&': {
@@ -346,22 +394,30 @@ export function CodeEditor({
     // Add update listener for auto-save
     extensions.push(
       EditorView.updateListener.of((update) => {
-        // Only trigger save on user input, not programmatic changes
-        if (update.docChanged && update.transactions.some(tr => tr.annotation(EditorView.userEvent))) {
-          console.log('[CodeEditor] Document changed by USER, scheduling save in 2 seconds')
+        if (update.docChanged) {
+          // Check if any transaction is marked as programmatic
+          const isProgrammatic = update.transactions.some(tr => tr.annotation(programmaticChange))
 
-          // Clear existing timeout
-          if (contentSaveTimeoutRef.current) {
-            clearTimeout(contentSaveTimeoutRef.current)
+          // Only trigger save and version creation on user input (not programmatic changes)
+          if (!isProgrammatic) {
+            // Increment keystroke counter
+            keystrokeCountRef.current++
+
+            // Create version every 5 keystrokes
+            if (keystrokeCountRef.current >= 5) {
+              createVersionSnapshot()
+            }
+
+            // Clear existing timeout
+            if (contentSaveTimeoutRef.current) {
+              clearTimeout(contentSaveTimeoutRef.current)
+            }
+
+            // Debounce save by 2 seconds after typing stops
+            contentSaveTimeoutRef.current = setTimeout(() => {
+              debouncedSaveContent()
+            }, 2000)
           }
-
-          // Debounce save by 2 seconds after typing stops
-          contentSaveTimeoutRef.current = setTimeout(() => {
-            console.log('[CodeEditor] 2 seconds elapsed, triggering debounced save')
-            debouncedSaveContent()
-          }, 2000)
-        } else if (update.docChanged) {
-          console.log('[CodeEditor] Document changed PROGRAMMATICALLY, not saving')
         }
       })
     )
@@ -576,18 +632,14 @@ export function CodeEditor({
   useEffect(() => {
     if (editorViewRef.current && files[activeFileIndex]) {
       const content = files[activeFileIndex].content
-      console.log('[CodeEditor] Updating editor content:', {
-        activeFileIndex,
-        fileName: files[activeFileIndex].name,
-        contentLength: content.length
-      })
       const view = editorViewRef.current
       const transaction = view.state.update({
         changes: {
           from: 0,
           to: view.state.doc.length,
           insert: content
-        }
+        },
+        annotations: programmaticChange.of(true)
       })
       view.dispatch(transaction)
     }
@@ -603,8 +655,11 @@ export function CodeEditor({
     const code = editorViewRef.current.state.doc.toString()
 
     if (language === 'python') {
-      // Decide which runtime to use based on turtle module detection
-      if (hasTurtleModule) {
+      // Decide which runtime to use based on current editor content (not saved state)
+      // This allows switching between Skulpt and Pyodide when code changes
+      const hasTurtle = /import\s+turtle|from\s+turtle/.test(code)
+
+      if (hasTurtle) {
         runPythonCode(code) // Use Skulpt for turtle
       } else {
         runPyodideCode(code) // Use Pyodide for everything else (including matplotlib)
@@ -812,6 +867,18 @@ plt.show = lambda: None
         }
       })
 
+      // Write all files to Pyodide's virtual filesystem (for multi-file support)
+      if (files.length > 1) {
+        for (const file of files) {
+          const fileName = file.name
+          const fileContent = file.content
+
+          // Write file to Pyodide's filesystem
+          pyodide.FS.writeFile(fileName, fileContent)
+        }
+        addOutput(`✓ Loaded ${files.length} files into filesystem\n`, OutputLevel.OUTPUT)
+      }
+
       // Run the code
       const result = await pyodide.runPythonAsync(code)
 
@@ -973,11 +1040,6 @@ plots
     setCanvasTransform({ x: 0, y: 0, scale: 1 })
   }
 
-  // Clear output
-  const clearOutput = () => {
-    setOutput([])
-  }
-
   // Screenshot turtle canvas
   const screenshotCanvas = () => {
     // TODO: Implement canvas screenshot functionality
@@ -1101,7 +1163,7 @@ plots
 
             {/* CodeMirror Editor */}
             <div ref={editorRef} className="flex-1 overflow-auto w-full h-full relative">
-              {/* Floating Control Buttons */}
+              {/* Floating Control Buttons - Bottom Left */}
               <div className="absolute bottom-2 left-2 flex items-center gap-1 z-10">
                 {runState === RunState.STOPPED ? (
                   <Button onClick={runCode} size="sm" variant="default" className="h-7 px-2 shadow-lg">
@@ -1114,21 +1176,30 @@ plots
                     Stop
                   </Button>
                 )}
-                <Button onClick={resetCode} size="sm" variant="outline" className="h-7 px-2 shadow-lg">
-                  <RotateCcw className="w-3 h-3" />
-                </Button>
-                {!showGraphics && hasGraphics && language === 'python' && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEditorWidth(50)}
-                    title="Show Graphics Panel"
-                    className="h-7 px-2 shadow-lg text-primary hover:text-primary"
-                  >
-                    <Palette className="w-3 h-3" />
-                  </Button>
-                )}
               </div>
+              {/* Floating Control Buttons - Bottom Right */}
+              {pageId && (
+                <div className="absolute bottom-2 right-2 flex items-center gap-1 z-10">
+                  <Button
+                    onClick={resetCode}
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 shadow-lg"
+                    title="Reset to default content"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                  </Button>
+                  <Button
+                    onClick={() => createVersionSnapshot(true)}
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 shadow-lg"
+                    title="Save version"
+                  >
+                    <Save className="w-3 h-3" />
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1191,38 +1262,225 @@ plots
         )}
       </div>
 
-      {/* Output Panel */}
-      <div className="h-48 border-t flex flex-col">
-        <div className="flex items-center justify-between gap-2 p-2 border-b bg-muted/30">
-          <div className="text-sm font-medium">Output</div>
-          <Button onClick={clearOutput} size="sm" variant="ghost">
-            Clear
+      {/* Output/History Panel */}
+      <div className="min-h-32 max-h-64 border-t flex flex-col">
+        {/* Tabs */}
+        <div className="flex items-center gap-1 p-1 border-b bg-muted/30">
+          <Button
+            onClick={() => setActivePanel('output')}
+            size="sm"
+            variant={activePanel === 'output' ? 'secondary' : 'ghost'}
+            className="h-7"
+          >
+            Output
           </Button>
-        </div>
-        <div ref={outputPanelRef} className="flex-1 overflow-auto p-2 font-mono text-sm">
-          {output.length === 0 ? (
-            <div className="text-muted-foreground italic">No output yet. Run your code to see results here.</div>
-          ) : (
-            output.map((entry, index) => (
-              <div
-                key={index}
-                className={`${entry.isHtml ? '' : 'whitespace-pre-wrap'} ${
-                  entry.level === OutputLevel.ERROR
-                    ? 'text-red-600 dark:text-red-400'
-                    : entry.level === OutputLevel.WARNING
-                    ? 'text-yellow-600 dark:text-yellow-400'
-                    : 'text-foreground'
-                }`}
-              >
-                {entry.isHtml ? (
-                  <div dangerouslySetInnerHTML={{ __html: entry.message }} />
-                ) : (
-                  entry.message
-                )}
-              </div>
-            ))
+          {pageId && (
+            <Button
+              onClick={() => setActivePanel('history')}
+              size="sm"
+              variant={activePanel === 'history' ? 'secondary' : 'ghost'}
+              className="h-7"
+            >
+              History
+            </Button>
           )}
         </div>
+
+        {/* Panel Content */}
+        {activePanel === 'output' ? (
+          <div ref={outputPanelRef} className="flex-1 overflow-auto p-2 font-mono text-sm">
+            {output.length === 0 ? (
+              <div className="text-muted-foreground italic">No output yet. Run your code to see results here.</div>
+            ) : (
+              output.map((entry, index) => (
+                <div
+                  key={index}
+                  className={`${entry.isHtml ? '' : 'whitespace-pre-wrap'} ${
+                    entry.level === OutputLevel.ERROR
+                      ? 'text-red-600 dark:text-red-400'
+                      : entry.level === OutputLevel.WARNING
+                      ? 'text-yellow-600 dark:text-yellow-400'
+                      : 'text-foreground'
+                  }`}
+                >
+                  {entry.isHtml ? (
+                    <div dangerouslySetInnerHTML={{ __html: entry.message }} />
+                  ) : (
+                    entry.message
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        ) : (
+          <div className="flex-1 overflow-x-auto overflow-y-hidden p-2">
+            {versionsLoading ? (
+              <div className="flex items-center justify-center py-8 text-muted-foreground">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-current" />
+                <span className="ml-2">Loading versions...</span>
+              </div>
+            ) : versions.length === 0 ? (
+              <div className="text-muted-foreground italic">No version history available</div>
+            ) : (
+              <>
+                {/* Version timeline */}
+                <div className="flex gap-2 px-2 py-2 overflow-x-auto">
+                {versions
+                  .filter(v => showAutosaves || v.isManualSave)
+                  .map((version) => {
+                  const date = new Date(version.createdAt)
+                  const now = Date.now()
+                  const diff = now - version.createdAt
+                  const seconds = Math.floor(diff / 1000)
+                  const minutes = Math.floor(seconds / 60)
+                  const hours = Math.floor(minutes / 60)
+                  const days = Math.floor(hours / 24)
+
+                  const timeAgo =
+                    seconds < 60 ? 'now' :
+                    minutes < 60 ? `${minutes}m` :
+                    hours < 24 ? `${hours}h` :
+                    days < 7 ? `${days}d` :
+                    date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+
+                  const isHighlighted = highlightedVersion === version.versionNumber
+                  const isEditing = editingVersion === version.versionNumber
+
+                  return (
+                    <div
+                      key={version.versionNumber}
+                      className={`group relative flex-shrink-0 w-24 min-h-28 max-h-40 border rounded-lg p-3 transition-all flex flex-col items-center justify-center gap-1 ${
+                        isHighlighted ? 'bg-primary/20 border-primary ring-2 ring-primary/50' : 'hover:bg-accent/50'
+                      }`}
+                    >
+                      {/* Delete button - appears on hover */}
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          if (!confirmDeletion || confirm(`Delete version ${version.versionNumber}?`)) {
+                            await deleteVersion(version.versionNumber)
+                            await refreshVersions()
+                          }
+                        }}
+                        disabled={isDeleting}
+                        className="absolute -top-2 -right-2 w-5 h-5 bg-destructive text-destructive-foreground rounded-full items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hidden group-hover:flex hover:bg-destructive/90"
+                        title="Delete version"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+
+                      {/* Click to restore */}
+                      <button
+                        disabled={isRestoring || isEditing}
+                        onClick={async () => {
+                          const data = await restore(version.versionNumber)
+                          if (data) {
+                            // Restore the data to component state
+                            if (data.files) setFiles(data.files)
+                            if (data.activeFileIndex !== undefined) setActiveFileIndex(data.activeFileIndex)
+                            if (data.fontSize !== undefined) setFontSize(data.fontSize)
+                            if (data.editorWidth !== undefined) setEditorWidth(data.editorWidth)
+                            if (data.canvasTransform) setCanvasTransform(data.canvasTransform)
+                            await refreshVersions()
+
+                            // Highlight the restored version
+                            setHighlightedVersion(version.versionNumber)
+                            setTimeout(() => setHighlightedVersion(null), 2000)
+                          }
+                        }}
+                        className="absolute inset-0 rounded-lg disabled:cursor-default"
+                      />
+
+                      {/* Editable version name */}
+                      {isEditing ? (
+                        <div className="flex flex-col items-center gap-1 w-full relative z-10">
+                          <input
+                            type="text"
+                            value={editingLabel}
+                            onChange={(e) => setEditingLabel(e.target.value)}
+                            onBlur={async () => {
+                              await updateLabel(version.versionNumber, editingLabel)
+                              await refreshVersions()
+                              setEditingVersion(null)
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.currentTarget.blur()
+                              } else if (e.key === 'Escape') {
+                                setEditingVersion(null)
+                              }
+                            }}
+                            autoFocus
+                            placeholder={`v${version.versionNumber}`}
+                            className="w-full text-xs text-center bg-background border rounded px-1 py-0.5 font-bold"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <div className="text-xs text-muted-foreground">{timeAgo}</div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-1 w-full">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setEditingVersion(version.versionNumber)
+                              setEditingLabel(version.label || '')
+                            }}
+                            className="relative z-10 font-bold text-sm text-foreground w-full text-center px-1 hover:text-primary transition-colors line-clamp-2"
+                            title="Click to rename version"
+                          >
+                            {version.label || `v${version.versionNumber}`}
+                          </button>
+                          <div className="text-xs text-muted-foreground pointer-events-none">{timeAgo}</div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+                </div>
+
+                {/* Version toggles */}
+                <div className="flex items-center gap-4 px-2 pt-2 text-xs">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <span className="text-foreground">Confirm deletion</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={confirmDeletion}
+                      onClick={() => setConfirmDeletion(!confirmDeletion)}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                        confirmDeletion ? 'bg-primary' : 'bg-muted'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          confirmDeletion ? 'translate-x-4' : 'translate-x-0.5'
+                        }`}
+                      />
+                    </button>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <span className="text-foreground">Show autosaves</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={showAutosaves}
+                      onClick={() => setShowAutosaves(!showAutosaves)}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                        showAutosaves ? 'bg-primary' : 'bg-muted'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          showAutosaves ? 'translate-x-4' : 'translate-x-0.5'
+                        }`}
+                      />
+                    </button>
+                  </label>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

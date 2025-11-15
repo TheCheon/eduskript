@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { userDataService } from './userDataService'
-import type { UseUserDataResult, SaveOptions } from './types'
+import type { UseUserDataResult, SaveOptions, VersionSummary, CreateVersionOptions, UserDataVersion } from './types'
 
 /**
  * Hook for managing user data for a specific page component
@@ -178,4 +178,223 @@ export function useUserDataExists(
   }, [pageId, componentId])
 
   return { exists, lastUpdated, isLoading }
+}
+
+/* ========================================================================
+ * VERSION HISTORY HOOKS
+ * ======================================================================== */
+
+/**
+ * Hook for managing version history for a component
+ *
+ * @param pageId - Database ID of the page
+ * @param componentId - Component identifier
+ * @returns Version history and loading state
+ *
+ * @example
+ * ```tsx
+ * const { versions, isLoading, refresh } = useVersionHistory(pageId, 'code-editor-0')
+ * ```
+ */
+export function useVersionHistory(
+  pageId: string,
+  componentId: string
+): {
+  versions: VersionSummary[]
+  isLoading: boolean
+  refresh: () => Promise<void>
+} {
+  const [versions, setVersions] = useState<VersionSummary[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  const loadVersions = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      const history = await userDataService.getVersionHistory(pageId, componentId)
+      setVersions(history)
+    } catch (error) {
+      console.error('Failed to load version history:', error)
+      setVersions([])
+    } finally {
+      setIsLoading(false)
+    }
+  }, [pageId, componentId])
+
+  useEffect(() => {
+    loadVersions()
+  }, [loadVersions])
+
+  return {
+    versions,
+    isLoading,
+    refresh: loadVersions
+  }
+}
+
+/**
+ * Hook for creating version snapshots
+ *
+ * @param pageId - Database ID of the page
+ * @param componentId - Component identifier
+ * @returns Function to create a version snapshot
+ *
+ * @example
+ * ```tsx
+ * const createVersion = useCreateVersion(pageId, 'code-editor-0')
+ * await createVersion(data, { label: 'Before major refactor' })
+ * ```
+ */
+export function useCreateVersion<T = any>(
+  pageId: string,
+  componentId: string
+): (data: T, options?: CreateVersionOptions) => Promise<UserDataVersion> {
+  return useCallback(
+    async (data: T, options?: CreateVersionOptions): Promise<UserDataVersion> => {
+      try {
+        const version = await userDataService.createVersion(pageId, componentId, data, options)
+        return version
+      } catch (error) {
+        console.error('Failed to create version:', error)
+        throw error
+      }
+    },
+    [pageId, componentId]
+  )
+}
+
+/**
+ * Hook for restoring versions
+ *
+ * @param pageId - Database ID of the page
+ * @param componentId - Component identifier
+ * @returns Functions for restoring versions
+ *
+ * @example
+ * ```tsx
+ * const { restore, isRestoring } = useRestoreVersion(pageId, 'code-editor-0')
+ * await restore(5) // Restore version 5
+ * ```
+ */
+export function useRestoreVersion<T = any>(
+  pageId: string,
+  componentId: string
+): {
+  restore: (versionNumber: number) => Promise<T | null>
+  restorePrevious: () => Promise<T | null>
+  isRestoring: boolean
+} {
+  const [isRestoring, setIsRestoring] = useState(false)
+
+  const restore = useCallback(
+    async (versionNumber: number): Promise<T | null> => {
+      try {
+        setIsRestoring(true)
+        const data = await userDataService.restoreVersion<T>(pageId, componentId, versionNumber)
+        return data
+      } catch (error) {
+        console.error('Failed to restore version:', error)
+        throw error
+      } finally {
+        setIsRestoring(false)
+      }
+    },
+    [pageId, componentId]
+  )
+
+  const restorePrevious = useCallback(async (): Promise<T | null> => {
+    try {
+      setIsRestoring(true)
+      const previousVersion = await userDataService.getPreviousVersion(pageId, componentId)
+      if (!previousVersion) {
+        console.warn('No previous version available')
+        return null
+      }
+      const data = await userDataService.restoreVersion<T>(pageId, componentId, previousVersion.versionNumber)
+      return data
+    } catch (error) {
+      console.error('Failed to restore previous version:', error)
+      throw error
+    } finally {
+      setIsRestoring(false)
+    }
+  }, [pageId, componentId])
+
+  return {
+    restore,
+    restorePrevious,
+    isRestoring
+  }
+}
+
+/**
+ * Hook for deleting versions
+ *
+ * @param pageId - Database ID of the page
+ * @param componentId - Component identifier
+ * @returns Function to delete a version and loading state
+ *
+ * @example
+ * ```tsx
+ * const { deleteVersion, isDeleting } = useDeleteVersion(pageId, 'code-editor-0')
+ * await deleteVersion(5) // Delete version 5
+ * ```
+ */
+export function useDeleteVersion(
+  pageId: string,
+  componentId: string
+): {
+  deleteVersion: (versionNumber: number) => Promise<void>
+  isDeleting: boolean
+} {
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const deleteVersion = useCallback(
+    async (versionNumber: number): Promise<void> => {
+      try {
+        setIsDeleting(true)
+        await userDataService.deleteVersion(pageId, componentId, versionNumber)
+      } catch (error) {
+        console.error('Failed to delete version:', error)
+        throw error
+      } finally {
+        setIsDeleting(false)
+      }
+    },
+    [pageId, componentId]
+  )
+
+  return {
+    deleteVersion,
+    isDeleting
+  }
+}
+
+/**
+ * Hook for updating version labels
+ *
+ * @param pageId - Database ID of the page
+ * @param componentId - Component identifier
+ * @returns Function to update a version label
+ *
+ * @example
+ * ```tsx
+ * const updateLabel = useUpdateVersionLabel(pageId, 'code-editor-0')
+ * await updateLabel(5, 'Before refactor') // Update version 5's label
+ * ```
+ */
+export function useUpdateVersionLabel(
+  pageId: string,
+  componentId: string
+): (versionNumber: number, label: string) => Promise<void> {
+  return useCallback(
+    async (versionNumber: number, label: string): Promise<void> => {
+      try {
+        await userDataService.updateVersionLabel(pageId, componentId, versionNumber, label)
+      } catch (error) {
+        console.error('Failed to update version label:', error)
+        throw error
+      }
+    },
+    [pageId, componentId]
+  )
 }

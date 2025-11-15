@@ -75,3 +75,49 @@ export interface UseUserDataResult<T> {
   isSynced: boolean
   lastUpdated: number | null
 }
+
+/**
+ * Version history record
+ */
+export interface UserDataVersion {
+  id?: number                    // Auto-increment primary key
+  pageId: string                 // Foreign key to main record
+  componentId: string            // Foreign key to main record
+  versionNumber: number          // Sequential version number
+  dataHash: string               // SHA-256 hash of data for deduplication
+  blobId: string                 // Reference to versionBlobs table
+  createdAt: number              // Unix timestamp
+  label?: string                 // Optional user label ("checkpoint", "before clear")
+  sizeBytes: number              // Uncompressed size for metrics
+  isManualSave?: boolean         // True if manually saved by user, false for autosaves
+}
+
+/**
+ * Deduplicated version blob storage
+ */
+export interface VersionBlob {
+  blobId: string                 // SHA-256 hash (primary key)
+  data: Blob                     // gzip compressed data
+  refCount: number               // How many versions reference this
+  createdAt: number              // For cleanup
+}
+
+/**
+ * Options for creating a version
+ */
+export interface CreateVersionOptions extends SaveOptions {
+  label?: string                 // Optional label for this version
+  isManualSave?: boolean         // True if manually saved by user
+}
+
+/**
+ * Version history summary for UI
+ */
+export interface VersionSummary {
+  versionNumber: number
+  createdAt: number
+  label?: string
+  sizeBytes: number
+  canRestore: boolean
+  isManualSave?: boolean
+}

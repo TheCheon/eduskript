@@ -6,7 +6,8 @@
  */
 
 import { db } from './schema'
-import type { UserDataRecord, SaveOptions } from './types'
+import type { UserDataRecord, SaveOptions, UserDataVersion, VersionBlob, CreateVersionOptions, VersionSummary } from './types'
+import { generateSHA256, gzipCompress, gzipDecompress, calculateSize } from './compression'
 
 /**
  * Singleton service for user data management
@@ -193,6 +194,349 @@ export class UserDataService {
 
     this.saveTimers.clear()
     await Promise.all(promises)
+  }
+
+  /* ========================================================================
+   * VERSION HISTORY METHODS
+   * ======================================================================== */
+
+  /**
+   * Create a new version snapshot of the current data
+   * @param pageId - Page identifier
+   * @param componentId - Component identifier
+   * @param data - Data to snapshot
+   * @param options - Optional label and save options
+   * @returns The created version record
+   */
+  public async createVersion<T = any>(
+    pageId: string,
+    componentId: string,
+    data: T,
+    options: CreateVersionOptions = {}
+  ): Promise<UserDataVersion> {
+    try {
+      const { label, isManualSave = false } = options
+
+      // Serialize data to JSON
+      const dataJson = JSON.stringify(data)
+      const sizeBytes = calculateSize(dataJson)
+
+      // Generate hash for deduplication
+      const dataHash = await generateSHA256(dataJson)
+
+      // Check if we already have this exact data in a blob
+      let blobId = dataHash
+      let existingBlob = await db.versionBlobs.get(blobId)
+
+      if (existingBlob) {
+        // Increment reference count on existing blob
+        await db.versionBlobs.update(blobId, { refCount: existingBlob.refCount + 1 })
+      } else {
+        // Compress and create new blob
+        const compressedBlob = await gzipCompress(dataJson)
+        const versionBlob: VersionBlob = {
+          blobId,
+          data: compressedBlob,
+          refCount: 1,
+          createdAt: Date.now()
+        }
+        await db.versionBlobs.put(versionBlob)
+      }
+
+      // Get next version number
+      const existingVersions = await db.userData_history
+        .where('[pageId+componentId]')
+        .equals([pageId, componentId])
+        .toArray()
+
+      const versionNumber = existingVersions.length > 0
+        ? Math.max(...existingVersions.map(v => v.versionNumber)) + 1
+        : 1
+
+      // Create version record
+      const version: UserDataVersion = {
+        pageId,
+        componentId,
+        versionNumber,
+        dataHash,
+        blobId,
+        createdAt: Date.now(),
+        label,
+        sizeBytes,
+        isManualSave
+      }
+
+      const id = await db.userData_history.add(version)
+      version.id = id
+
+      // Cleanup old versions (enforce 64 version limit)
+      await this.cleanupOldVersions(pageId, componentId, 64)
+
+      return version
+    } catch (error) {
+      console.error('Failed to create version:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get version history for a component
+   * @param pageId - Page identifier
+   * @param componentId - Component identifier
+   * @returns Array of version summaries, newest first
+   */
+  public async getVersionHistory(
+    pageId: string,
+    componentId: string
+  ): Promise<VersionSummary[]> {
+    try {
+      const versions = await db.userData_history
+        .where('[pageId+componentId]')
+        .equals([pageId, componentId])
+        .reverse()
+        .sortBy('versionNumber')
+
+      return versions.map(v => ({
+        versionNumber: v.versionNumber,
+        createdAt: v.createdAt,
+        label: v.label,
+        sizeBytes: v.sizeBytes,
+        canRestore: true,
+        isManualSave: v.isManualSave
+      }))
+    } catch (error) {
+      console.error('Failed to get version history:', error)
+      return []
+    }
+  }
+
+  /**
+   * Restore data from a specific version
+   * @param pageId - Page identifier
+   * @param componentId - Component identifier
+   * @param versionNumber - Version to restore
+   * @returns The restored data
+   */
+  public async restoreVersion<T = any>(
+    pageId: string,
+    componentId: string,
+    versionNumber: number
+  ): Promise<T | null> {
+    try {
+      // Find the version record
+      const versions = await db.userData_history
+        .where('[pageId+componentId]')
+        .equals([pageId, componentId])
+        .filter(v => v.versionNumber === versionNumber)
+        .toArray()
+
+      if (versions.length === 0) {
+        console.error('Version not found:', versionNumber)
+        return null
+      }
+
+      const version = versions[0]
+
+      // Get the blob
+      const blob = await db.versionBlobs.get(version.blobId)
+      if (!blob) {
+        console.error('Version blob not found:', version.blobId)
+        return null
+      }
+
+      // Decompress and parse
+      const dataJson = await gzipDecompress(blob.data)
+      const data = JSON.parse(dataJson) as T
+
+      // Save the restored data as current (this will also create a new version via normal save flow)
+      await this.save(pageId, componentId, data, { immediate: true })
+
+      return data
+    } catch (error) {
+      console.error('Failed to restore version:', error)
+      return null
+    }
+  }
+
+  /**
+   * Delete a specific version
+   * @param pageId - Page identifier
+   * @param componentId - Component identifier
+   * @param versionNumber - Version number to delete
+   */
+  public async deleteVersion(
+    pageId: string,
+    componentId: string,
+    versionNumber: number
+  ): Promise<void> {
+    try {
+      // Find the version
+      const version = await db.userData_history
+        .where('[pageId+componentId]')
+        .equals([pageId, componentId])
+        .filter(v => v.versionNumber === versionNumber)
+        .first()
+
+      if (!version) {
+        throw new Error(`Version ${versionNumber} not found`)
+      }
+
+      // Decrement blob refCount
+      const blob = await db.versionBlobs.get(version.blobId)
+      if (blob) {
+        if (blob.refCount <= 1) {
+          // No more references, delete the blob
+          await db.versionBlobs.delete(version.blobId)
+        } else {
+          // Decrement reference count
+          await db.versionBlobs.update(version.blobId, { refCount: blob.refCount - 1 })
+        }
+      }
+
+      // Delete the version record
+      if (version.id) {
+        await db.userData_history.delete(version.id)
+      }
+    } catch (error) {
+      console.error('Failed to delete version:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Update a version's label
+   * @param pageId - Page identifier
+   * @param componentId - Component identifier
+   * @param versionNumber - Version number to update
+   * @param label - New label
+   */
+  public async updateVersionLabel(
+    pageId: string,
+    componentId: string,
+    versionNumber: number,
+    label: string
+  ): Promise<void> {
+    try {
+      // Find the version
+      const version = await db.userData_history
+        .where('[pageId+componentId]')
+        .equals([pageId, componentId])
+        .filter(v => v.versionNumber === versionNumber)
+        .first()
+
+      if (!version || !version.id) {
+        throw new Error(`Version ${versionNumber} not found`)
+      }
+
+      // Update the label
+      await db.userData_history.update(version.id, { label })
+    } catch (error) {
+      console.error('Failed to update version label:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Cleanup old versions to maintain retention limit
+   * @param pageId - Page identifier
+   * @param componentId - Component identifier
+   * @param maxVersions - Maximum versions to keep (default: 64)
+   */
+  private async cleanupOldVersions(
+    pageId: string,
+    componentId: string,
+    maxVersions: number = 64
+  ): Promise<void> {
+    try {
+      const versions = await db.userData_history
+        .where('[pageId+componentId]')
+        .equals([pageId, componentId])
+        .sortBy('versionNumber')
+
+      if (versions.length <= maxVersions) {
+        return // Nothing to cleanup
+      }
+
+      // Calculate how many to delete
+      const toDelete = versions.slice(0, versions.length - maxVersions)
+
+      for (const version of toDelete) {
+        // Decrement blob refCount
+        const blob = await db.versionBlobs.get(version.blobId)
+        if (blob) {
+          if (blob.refCount <= 1) {
+            // No more references, delete the blob
+            await db.versionBlobs.delete(version.blobId)
+          } else {
+            // Decrement reference count
+            await db.versionBlobs.update(version.blobId, { refCount: blob.refCount - 1 })
+          }
+        }
+
+        // Delete the version record
+        if (version.id) {
+          await db.userData_history.delete(version.id)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to cleanup old versions:', error)
+    }
+  }
+
+  /**
+   * Delete all versions for a component
+   * @param pageId - Page identifier
+   * @param componentId - Component identifier
+   */
+  public async deleteAllVersions(
+    pageId: string,
+    componentId: string
+  ): Promise<void> {
+    try {
+      const versions = await db.userData_history
+        .where('[pageId+componentId]')
+        .equals([pageId, componentId])
+        .toArray()
+
+      for (const version of versions) {
+        // Decrement blob refCount
+        const blob = await db.versionBlobs.get(version.blobId)
+        if (blob) {
+          if (blob.refCount <= 1) {
+            await db.versionBlobs.delete(version.blobId)
+          } else {
+            await db.versionBlobs.update(version.blobId, { refCount: blob.refCount - 1 })
+          }
+        }
+
+        // Delete version record
+        if (version.id) {
+          await db.userData_history.delete(version.id)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to delete all versions:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get the most recent version (quick undo)
+   * @param pageId - Page identifier
+   * @param componentId - Component identifier
+   * @returns The most recent version or null
+   */
+  public async getPreviousVersion(
+    pageId: string,
+    componentId: string
+  ): Promise<VersionSummary | null> {
+    try {
+      const versions = await this.getVersionHistory(pageId, componentId)
+      return versions.length > 0 ? versions[0] : null
+    } catch (error) {
+      console.error('Failed to get previous version:', error)
+      return null
+    }
   }
 }
 
