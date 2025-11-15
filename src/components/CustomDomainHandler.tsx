@@ -79,14 +79,51 @@ export function CustomDomainHandler({ children }: CustomDomainHandlerProps) {
     const checkCustomDomain = async () => {
       try {
         const hostname = window.location.hostname
-        
+
         // Skip check for localhost and known main domains (unless in debug mode)
-        if (!isDebugMode && (hostname === 'localhost' || 
-            hostname === 'eduskript.org' || 
-            hostname === 'www.eduskript.org' ||
-            hostname.endsWith('.localhost'))) {
+        if (!isDebugMode && (hostname === 'localhost' ||
+            hostname === 'eduskript.org' ||
+            hostname === 'www.eduskript.org')) {
           setIsChecking(false)
           return
+        }
+
+        // Check if this is a native subdomain (e.g., eduadmin.eduskript.org)
+        if (!isDebugMode && hostname.endsWith('.eduskript.org')) {
+          const subdomain = hostname.replace('.eduskript.org', '')
+
+          // Make sure it's not www
+          if (subdomain && subdomain !== 'www') {
+            const subdomainPrefix = `/${subdomain}`
+
+            // If we're not already under the subdomain path, redirect
+            if (!pathname.startsWith(subdomainPrefix)) {
+              const expectedPath = `${subdomainPrefix}${pathname}`
+              router.replace(expectedPath)
+              return
+            }
+
+            setIsChecking(false)
+            return
+          }
+        }
+
+        // Skip localhost subdomains (e.g., eduadmin.localhost) for development
+        if (!isDebugMode && hostname.endsWith('.localhost')) {
+          const subdomain = hostname.replace('.localhost', '')
+
+          if (subdomain && subdomain !== 'www') {
+            const subdomainPrefix = `/${subdomain}`
+
+            if (!pathname.startsWith(subdomainPrefix)) {
+              const expectedPath = `${subdomainPrefix}${pathname}`
+              router.replace(expectedPath)
+              return
+            }
+
+            setIsChecking(false)
+            return
+          }
         }
         
         // In debug mode, simulate a custom domain

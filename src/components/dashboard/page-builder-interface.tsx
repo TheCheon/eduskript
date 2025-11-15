@@ -674,14 +674,24 @@ export function PageBuilderInterface() {
     if (session?.user?.subdomain) {
       const protocol = window.location.protocol
       const host = window.location.host
-      
+
       // For localhost development, navigate to the subdomain route
       if (host.includes('localhost')) {
         const url = `${protocol}//${host}/${session.user.subdomain}`
         window.open(url, '_blank')
       } else {
         // For production with actual subdomains
-        const baseHost = host.replace(/^[^.]+\./, '') // Remove any existing subdomain
+        // Check if we're already on a subdomain or on the base domain
+        const hostParts = host.split('.')
+        let baseHost = host
+
+        // If we have more than 2 parts (e.g., "dashboard.eduskript.org" has 3 parts),
+        // remove the first part to get the base domain
+        // If we have exactly 2 parts (e.g., "eduskript.org"), keep it as is
+        if (hostParts.length > 2) {
+          baseHost = hostParts.slice(1).join('.')
+        }
+
         const url = `${protocol}//${session.user.subdomain}.${baseHost}`
         window.open(url, '_blank')
       }

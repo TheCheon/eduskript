@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Navigation } from '@/components/navigation'
-import { VersionFooter } from '@/components/version-footer'
 
 export default function HomePage() {
   return (
@@ -65,8 +64,6 @@ export default function HomePage() {
           </div>
         </div>
       </main>
-
-      <VersionFooter />
     </div>
   )
 }
