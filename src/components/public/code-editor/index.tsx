@@ -48,7 +48,7 @@ export function CodeEditor({
 
   // User data persistence - only if pageId is provided
   const componentId = `code-editor-${id}`
-  const { data: savedData, updateData: savePersistentData } = useUserData<CodeEditorData>(
+  const { data: savedData, updateData: savePersistentData, isLoading } = useUserData<CodeEditorData>(
     pageId || 'no-page', // Fallback if no pageId
     componentId,
     null
@@ -63,14 +63,14 @@ export function CodeEditor({
   }
 
   // Resizable panel state
-  const [editorWidth, setEditorWidth] = useState<number>(savedData?.editorWidth ?? defaultData.editorWidth ?? 50)
+  const [editorWidth, setEditorWidth] = useState<number>(defaultData.editorWidth ?? 50)
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const MIN_VISIBLE_WIDTH = 100 // pixels
 
   // Multi-file support
-  const [files, setFiles] = useState<PythonFile[]>(savedData?.files ?? defaultData.files)
-  const [activeFileIndex, setActiveFileIndex] = useState(savedData?.activeFileIndex ?? defaultData.activeFileIndex)
+  const [files, setFiles] = useState<PythonFile[]>(defaultData.files)
+  const [activeFileIndex, setActiveFileIndex] = useState(defaultData.activeFileIndex)
   const [renamingIndex, setRenamingIndex] = useState<number | null>(null)
   const [renameValue, setRenameValue] = useState('')
 
@@ -84,10 +84,25 @@ export function CodeEditor({
   const [canvasVisible, setCanvasVisible] = useState(false) // Start hidden, show only when graphics detected
 
   // Font size state
-  const [fontSize, setFontSize] = useState<number>(savedData?.fontSize ?? defaultData.fontSize ?? 14)
+  const [fontSize, setFontSize] = useState<number>(defaultData.fontSize ?? 14)
 
   // Canvas pan and zoom state
-  const [canvasTransform, setCanvasTransform] = useState(savedData?.canvasTransform ?? { x: 0, y: 0, scale: 1 })
+  const [canvasTransform, setCanvasTransform] = useState(defaultData.canvasTransform ?? { x: 0, y: 0, scale: 1 })
+
+  // Restore saved data when it loads
+  const hasLoadedData = useRef(false)
+  useEffect(() => {
+    // Only restore once when data first loads
+    if (!isLoading && savedData && !hasLoadedData.current) {
+      hasLoadedData.current = true
+
+      if (savedData.files) setFiles(savedData.files)
+      if (savedData.activeFileIndex !== undefined) setActiveFileIndex(savedData.activeFileIndex)
+      if (savedData.fontSize !== undefined) setFontSize(savedData.fontSize)
+      if (savedData.editorWidth !== undefined) setEditorWidth(savedData.editorWidth)
+      if (savedData.canvasTransform) setCanvasTransform(savedData.canvasTransform)
+    }
+  }, [isLoading, savedData])
   const [isDragging, setIsDragging] = useState(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
 
