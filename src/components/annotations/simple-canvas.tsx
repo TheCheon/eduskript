@@ -230,7 +230,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
 
         ctx.globalAlpha = 1.0
       }
-    }, [zoom, smoothPoints, strokesMarkedForDeletionRef])
+    }, [smoothPoints])
 
     // Set up high-DPI canvas scaling with zoom support
     useEffect(() => {
@@ -435,7 +435,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
           }
         }
       })
-    }, [mode, strokeColor, strokeWidth, width, height, isPointNearStroke, redrawCanvas])
+    }, [mode, strokeColor, strokeWidth, width, height, isPointNearStroke, redrawCanvas, isEraserActive])
 
     const stopDrawing = useCallback((e?: React.PointerEvent<HTMLCanvasElement>) => {
       // Remove pointer from tracking
