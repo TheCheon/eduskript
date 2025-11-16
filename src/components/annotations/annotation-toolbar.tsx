@@ -21,8 +21,6 @@ interface AnnotationToolbarProps {
   onPenColorChange: (penIndex: number, color: string) => void
   penSizes: [number, number, number]
   onPenSizeChange: (penIndex: number, size: number) => void
-  eraserSize: number
-  onEraserSizeChange: (size: number) => void
 }
 
 export function AnnotationToolbar({
@@ -35,9 +33,7 @@ export function AnnotationToolbar({
   penColors,
   onPenColorChange,
   penSizes,
-  onPenSizeChange,
-  eraserSize,
-  onEraserSizeChange
+  onPenSizeChange
 }: AnnotationToolbarProps) {
   // Save confirm preference to localStorage
   const handleToggleConfirm = (value: boolean) => {
@@ -63,20 +59,9 @@ export function AnnotationToolbar({
     }
   }
 
-  const handleEraserSizeChange = (size: number) => {
-    onEraserSizeChange(size)
-    if (mode !== 'erase') {
-      onModeChange('erase')
-    }
-  }
-
   const [showPenControls, setShowPenControls] = useState<number | null>(null)
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null)
   const hideTimerRef = useRef<NodeJS.Timeout | null>(null)
-
-  const [showEraserControls, setShowEraserControls] = useState(false)
-  const eraserHoverTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const eraserHideTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const [showDeleteControls, setShowDeleteControls] = useState(false)
   const deleteHoverTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -132,39 +117,7 @@ export function AnnotationToolbar({
     }
   }
 
-  const handleEraserMouseEnter = () => {
-    // Clear any pending hide timer
-    if (eraserHideTimerRef.current) {
-      clearTimeout(eraserHideTimerRef.current)
-      eraserHideTimerRef.current = null
-    }
-
-    // Set timer to show eraser controls
-    eraserHoverTimerRef.current = setTimeout(() => {
-      setShowEraserControls(true)
-    }, 300)
-  }
-
-  const handleEraserMouseLeave = () => {
-    if (eraserHoverTimerRef.current) {
-      clearTimeout(eraserHoverTimerRef.current)
-      eraserHoverTimerRef.current = null
-    }
-
-    // If eraser controls are showing, delay hiding them
-    if (showEraserControls) {
-      eraserHideTimerRef.current = setTimeout(() => {
-        setShowEraserControls(false)
-      }, 200)
-    }
-  }
-
   const handleEraserClick = () => {
-    if (eraserHoverTimerRef.current) {
-      clearTimeout(eraserHoverTimerRef.current)
-      eraserHoverTimerRef.current = null
-    }
-    setShowEraserControls(false)
     onModeChange(mode === 'erase' ? 'view' : 'erase')
   }
 
@@ -297,71 +250,18 @@ export function AnnotationToolbar({
       ))}
 
       {/* Eraser Tool */}
-      <div className="relative">
-        <button
-          onClick={handleEraserClick}
-          onMouseEnter={handleEraserMouseEnter}
-          onMouseLeave={handleEraserMouseLeave}
-          className={`p-3 rounded-md transition-colors ${
-            mode === 'erase'
-              ? 'bg-primary text-primary-foreground'
-              : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-          }`}
-          title="Erase"
-          aria-label="Toggle eraser mode"
-        >
-          <Eraser className="w-5 h-5" />
-        </button>
-
-        {/* Eraser size slider popover */}
-        {showEraserControls && (
-          <div
-            className="absolute right-full mr-2 bottom-0 flex gap-2"
-            onMouseEnter={() => {
-              if (eraserHoverTimerRef.current) {
-                clearTimeout(eraserHoverTimerRef.current)
-              }
-              if (eraserHideTimerRef.current) {
-                clearTimeout(eraserHideTimerRef.current)
-                eraserHideTimerRef.current = null
-              }
-            }}
-            onMouseLeave={() => setShowEraserControls(false)}
-          >
-            {/* Size slider */}
-            <div className="bg-background border border-border rounded-full shadow-lg p-3 flex flex-col items-center gap-3 h-full min-h-[200px]">
-              {/* Thick brush icon (top) */}
-              <Image
-                src={brushThickIcon}
-                alt="Thick eraser"
-                width={16}
-                height={16}
-                className="flex-shrink-0 opacity-60"
-              />
-
-              {/* Vertical slider */}
-              <input
-                type="range"
-                min="50"
-                max="300"
-                step="5"
-                value={eraserSize}
-                onChange={(e) => handleEraserSizeChange(parseFloat(e.target.value))}
-                className="flex-grow cursor-pointer [writing-mode:vertical-lr] [direction:rtl] slider-vertical"
-              />
-
-              {/* Thin brush icon (bottom) */}
-              <Image
-                src={brushThinIcon}
-                alt="Thin eraser"
-                width={16}
-                height={16}
-                className="flex-shrink-0 opacity-60"
-              />
-            </div>
-          </div>
-        )}
-      </div>
+      <button
+        onClick={handleEraserClick}
+        className={`p-3 rounded-md transition-colors ${
+          mode === 'erase'
+            ? 'bg-primary text-primary-foreground'
+            : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+        }`}
+        title="Erase"
+        aria-label="Toggle eraser mode"
+      >
+        <Eraser className="w-5 h-5" />
+      </button>
 
       {/* View/Hide Annotations */}
       <button

@@ -88,23 +88,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
     return [2, 3, 4]
   })
-  const [eraserSize, setEraserSize] = useState<number>(() => {
-    // Load eraser size from localStorage
-    if (typeof window !== 'undefined') {
-      const savedSize = localStorage.getItem('annotation-eraser-size')
-      if (savedSize) {
-        try {
-          const parsed = parseFloat(savedSize)
-          if (!isNaN(parsed) && parsed > 0) {
-            return parsed
-          }
-        } catch (e) {
-          console.error('Error loading eraser size:', e)
-        }
-      }
-    }
-    return 100 // Default eraser size
-  })
   const contentRef = useRef<HTMLDivElement>(null)
   const mainRef = useRef<HTMLElement | null>(null)
   const canvasRef = useRef<SimpleCanvasHandle | null>(null)
@@ -147,12 +130,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
   }, [penSizes])
 
-  // Save eraser size to localStorage whenever it changes
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('annotation-eraser-size', eraserSize.toString())
-    }
-  }, [eraserSize])
 
   // Generate page version hash
   useEffect(() => {
@@ -541,10 +518,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     })
   }, [])
 
-  // Handle eraser size change
-  const handleEraserSizeChange = useCallback((size: number) => {
-    setEraserSize(size)
-  }, [])
 
   // Handle stylus detection
   const handleStylusDetected = useCallback(() => {
@@ -1024,7 +997,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
               initialData={canvasData}
               strokeColor={penColors[activePen]}
               strokeWidth={penSizes[activePen]}
-              eraserWidth={eraserSize}
               stylusModeActive={stylusModeActive}
               onStylusDetected={handleStylusDetected}
               onNonStylusInput={handleNonStylusInput}
@@ -1047,8 +1019,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         onPenColorChange={handlePenColorChange}
         penSizes={penSizes}
         onPenSizeChange={handlePenSizeChange}
-        eraserSize={eraserSize}
-        onEraserSizeChange={handleEraserSizeChange}
       />
 
       {/* Save state indicator - subtle, fixed to viewport, left of toolbar */}

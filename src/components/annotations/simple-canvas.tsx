@@ -13,7 +13,6 @@ interface SimpleCanvasProps {
   initialData?: string
   strokeWidth?: number
   strokeColor?: string
-  eraserWidth?: number
   stylusModeActive?: boolean
   onStylusDetected?: () => void
   onNonStylusInput?: () => void
@@ -27,7 +26,7 @@ export interface SimpleCanvasHandle {
 }
 
 export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
-  ({ width, height, mode, onUpdate, initialData, strokeWidth = 2, strokeColor = '#000000', eraserWidth = 100, stylusModeActive = false, onStylusDetected, onNonStylusInput, zoom = 1.0, headingPositions = [] }, ref) => {
+  ({ width, height, mode, onUpdate, initialData, strokeWidth = 2, strokeColor = '#000000', stylusModeActive = false, onStylusDetected, onNonStylusInput, zoom = 1.0, headingPositions = [] }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const isDrawingRef = useRef(false)
     const pathsRef = useRef<Array<{
@@ -39,10 +38,39 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       sectionOffsetY: number
     }>>([])
     const currentPathRef = useRef<Array<{ x: number; y: number; pressure: number }>>([])
+    const currentModeRef = useRef<DrawMode>('draw') // Track the effective mode for current stroke
+    const strokesMarkedForDeletionRef = useRef<Set<number>>(new Set()) // Track strokes to delete when eraser lifts
     const [shouldFadeIn, setShouldFadeIn] = useState(false)
     const hasLoadedInitialDataRef = useRef(false)
     const activePointersRef = useRef<Set<number>>(new Set())
     const activeTouchPointersRef = useRef<Set<number>>(new Set()) // Track only touch/mouse (not pen) for multi-touch detection
+
+    // Check if a point is near a stroke (for eraser collision detection)
+    const isPointNearStroke = useCallback((px: number, py: number, stroke: typeof pathsRef.current[0], threshold: number = 20): boolean => {
+      for (let i = 0; i < stroke.points.length - 1; i++) {
+        const p1 = stroke.points[i]
+        const p2 = stroke.points[i + 1]
+
+        // Calculate distance from point to line segment
+        const dx = p2.x - p1.x
+        const dy = p2.y - p1.y
+        const lengthSquared = dx * dx + dy * dy
+
+        if (lengthSquared === 0) {
+          // Point to point distance
+          const dist = Math.sqrt((px - p1.x) ** 2 + (py - p1.y) ** 2)
+          if (dist < threshold) return true
+        } else {
+          // Project point onto line segment
+          const t = Math.max(0, Math.min(1, ((px - p1.x) * dx + (py - p1.y) * dy) / lengthSquared))
+          const projX = p1.x + t * dx
+          const projY = p1.y + t * dy
+          const dist = Math.sqrt((px - projX) ** 2 + (py - projY) ** 2)
+          if (dist < threshold) return true
+        }
+      }
+      return false
+    }, [])
 
     // Apply moving average smoothing to point positions while preserving pressure
     const smoothPoints = useCallback((points: Array<{ x: number; y: number; pressure: number }>, windowSize: number = 3): Array<{ x: number; y: number; pressure: number }> => {
@@ -76,21 +104,29 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
       // Redraw all paths with pressure-sensitive line width and Bezier smoothing
-      pathsRef.current.forEach(path => {
+      pathsRef.current.forEach((path, index) => {
         if (path.points.length < 2) return
 
-        ctx.strokeStyle = path.mode === 'erase' ? '#FFFFFF' : path.color
+        // Skip strokes that are marked for deletion (they're old erase strokes)
+        if (path.mode === 'erase') return
+
+        // Check if this stroke is marked for deletion
+        const isMarkedForDeletion = strokesMarkedForDeletionRef.current.has(index)
+
+        // Set opacity for strokes marked for deletion
+        ctx.globalAlpha = isMarkedForDeletion ? 0.3 : 1.0
+
+        ctx.strokeStyle = path.color
         ctx.lineCap = 'round'
         ctx.lineJoin = 'round'
-        ctx.globalCompositeOperation = path.mode === 'erase' ? 'destination-out' : 'source-over'
+        ctx.globalCompositeOperation = 'source-over'
 
         // Apply moving average smoothing to reduce choppiness when zoomed
         const points = smoothPoints(path.points, 3)
 
         // For very short strokes (2 points), just draw a straight line
         if (points.length === 2) {
-          const baseWidth = path.mode === 'erase' ? eraserWidth : path.width
-          const lineWidth = baseWidth * (points[1].pressure || 0.5)
+          const lineWidth = path.width * (points[1].pressure || 0.5)
 
           ctx.beginPath()
           ctx.lineWidth = lineWidth
@@ -103,7 +139,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         // For longer strokes, use quadratic Bezier curves with pressure-sensitive width
         // Draw with special handling for endpoints to avoid blobs
 
-        const baseWidth = path.mode === 'erase' ? eraserWidth : path.width
+        const baseWidth = path.width
 
         // Draw first segment as a straight line to preserve pen-down appearance
         ctx.beginPath()
@@ -157,7 +193,10 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
           ctx.stroke()
         }
       })
-    }, [eraserWidth, zoom, smoothPoints])
+
+      // Reset globalAlpha
+      ctx.globalAlpha = 1.0
+    }, [zoom, smoothPoints, strokesMarkedForDeletionRef])
 
     // Set up high-DPI canvas scaling with zoom support
     useEffect(() => {
@@ -216,6 +255,8 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
     const startDrawing = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
       // Detect stylus input first
       const isStylusInput = e.pointerType === 'pen'
+      // Detect eraser button (button 5 = 32 in bitmask)
+      const isEraserButton = isStylusInput && (e.buttons & 32) !== 0
 
       // Track active pointers for multi-touch detection
       activePointersRef.current.add(e.pointerId)
@@ -250,6 +291,15 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         return
       }
 
+      // Auto-detect eraser mode from hardware eraser button
+      const effectiveMode = isEraserButton ? 'erase' : mode
+      currentModeRef.current = effectiveMode as DrawMode
+
+      // Clear marked strokes when starting a new erase stroke
+      if (currentModeRef.current === 'erase') {
+        strokesMarkedForDeletionRef.current.clear()
+      }
+
       const canvas = canvasRef.current
       if (!canvas) {
         return
@@ -264,7 +314,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       const pressure = e.pressure || 0.5 // Default to 0.5 for mouse
 
       currentPathRef.current = [{ x, y, pressure }]
-    }, [mode, stylusModeActive, onStylusDetected, onNonStylusInput, zoom, width, height])
+    }, [mode, stylusModeActive, onStylusDetected, onNonStylusInput, width, height])
 
     const draw = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
       // Don't draw if multiple touch/mouse pointers are active (pinch gesture)
@@ -298,28 +348,38 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
 
         currentPathRef.current.push({ x, y, pressure })
 
-        // Draw segment with pressure-sensitive width
-        const points = currentPathRef.current
-        if (points.length >= 2) {
-          const lastPoint = points[points.length - 2]
-          const currentPoint = points[points.length - 1]
+        // For eraser mode, check for collisions with existing strokes
+        if (currentModeRef.current === 'erase') {
+          pathsRef.current.forEach((stroke, index) => {
+            if (stroke.mode !== 'erase' && isPointNearStroke(x, y, stroke)) {
+              strokesMarkedForDeletionRef.current.add(index)
+            }
+          })
+          // Redraw to show marked strokes as transparent
+          redrawCanvas()
+        } else {
+          // Draw segment with pressure-sensitive width for draw mode
+          const points = currentPathRef.current
+          if (points.length >= 2) {
+            const lastPoint = points[points.length - 2]
+            const currentPoint = points[points.length - 1]
 
-          const baseWidth = mode === 'erase' ? eraserWidth : strokeWidth
-          const lineWidth = baseWidth * currentPoint.pressure
+            const lineWidth = strokeWidth * currentPoint.pressure
 
-          ctx.beginPath()
-          ctx.strokeStyle = mode === 'erase' ? '#FFFFFF' : strokeColor
-          ctx.lineWidth = lineWidth
-          ctx.lineCap = 'round'
-          ctx.lineJoin = 'round'
-          ctx.globalCompositeOperation = mode === 'erase' ? 'destination-out' : 'source-over'
+            ctx.beginPath()
+            ctx.strokeStyle = strokeColor
+            ctx.lineWidth = lineWidth
+            ctx.lineCap = 'round'
+            ctx.lineJoin = 'round'
+            ctx.globalCompositeOperation = 'source-over'
 
-          ctx.moveTo(lastPoint.x, lastPoint.y)
-          ctx.lineTo(currentPoint.x, currentPoint.y)
-          ctx.stroke()
+            ctx.moveTo(lastPoint.x, lastPoint.y)
+            ctx.lineTo(currentPoint.x, currentPoint.y)
+            ctx.stroke()
+          }
         }
       })
-    }, [mode, strokeColor, strokeWidth, eraserWidth, zoom, width, height])
+    }, [mode, strokeColor, strokeWidth, width, height, isPointNearStroke, redrawCanvas])
 
     const stopDrawing = useCallback((e?: React.PointerEvent<HTMLCanvasElement>) => {
       // Remove pointer from tracking
@@ -332,6 +392,30 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
 
       isDrawingRef.current = false
 
+      // If we just finished an eraser stroke, delete all marked strokes
+      if (currentModeRef.current === 'erase' && strokesMarkedForDeletionRef.current.size > 0) {
+        // Filter out strokes that were marked for deletion
+        const indicesToDelete = new Set(strokesMarkedForDeletionRef.current)
+        pathsRef.current = pathsRef.current.filter((_, index) => !indicesToDelete.has(index))
+
+        // Clear the marked strokes set
+        strokesMarkedForDeletionRef.current.clear()
+
+        // Redraw canvas to show deleted strokes are gone
+        redrawCanvas()
+
+        // Notify parent with updated data
+        const data = JSON.stringify(pathsRef.current)
+        const totalPoints = pathsRef.current.reduce((sum, path) => sum + path.points.length, 0)
+        const sizeKB = (new Blob([data]).size / 1024).toFixed(2)
+        console.log(`Canvas data after erase: ${pathsRef.current.length} paths, ${totalPoints} points, ${sizeKB} KB`)
+        onUpdate(data)
+
+        // Clear current path for eraser
+        currentPathRef.current = []
+        return
+      }
+
       if (currentPathRef.current.length > 0 && mode !== 'view') {
         // Determine which section this stroke belongs to based on first point
         const firstPoint = currentPathRef.current[0]
@@ -342,7 +426,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         // Visual smoothing is handled by Bezier curves during rendering
         pathsRef.current.push({
           points: currentPathRef.current,
-          mode: mode as DrawMode,
+          mode: currentModeRef.current,
           color: strokeColor,
           width: strokeWidth,
           sectionId,
@@ -360,7 +444,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
 
         onUpdate(data)
       }
-    }, [mode, strokeColor, strokeWidth, onUpdate, headingPositions])
+    }, [mode, strokeColor, strokeWidth, onUpdate, headingPositions, redrawCanvas])
 
     const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
       // Clean up when pointer is cancelled
