@@ -35,6 +35,10 @@ import {
   saveEmailMappings,
   getEmailMappingsForClass,
   getRealEmail,
+  addUnmappedEmails,
+  getUnmappedEmailsForClass,
+  removeUnmappedEmail,
+  saveEmailMapping,
 } from '@/lib/email-mapping-db'
 
 interface Student {
@@ -146,6 +150,9 @@ export default function ClassesPage() {
             : c
         )
       )
+
+      // Resolve unmapped emails to pseudonyms (for students who have consented)
+      await resolveEmailsForClass(classId)
     } catch (error) {
       console.error('Error loading class details:', error)
     }
@@ -247,6 +254,9 @@ export default function ClassesPage() {
       const data = await response.json()
       console.log('Bulk import response:', data)
 
+      // Save emails to local unmapped list for later resolution
+      addUnmappedEmails(classId, emails)
+
       let message = ''
       if (data.imported > 0) {
         message += `${data.imported} new pre-authorization${data.imported !== 1 ? 's' : ''} added\n`
@@ -268,6 +278,9 @@ export default function ClassesPage() {
 
       setEmailInputs({ ...emailInputs, [classId]: '' })
       await loadClassDetails(classId)
+
+      // Resolve emails to pseudonyms for students who have consented
+      await resolveEmailsForClass(classId)
     } catch (error) {
       console.error('Error adding students:', error)
       setDialogType('error')
@@ -277,6 +290,83 @@ export default function ClassesPage() {
     } finally {
       setImporting({ ...importing, [classId]: false })
     }
+  }
+
+  const resolveEmailsForClass = async (classId: string) => {
+    try {
+      const unmappedEmails = getUnmappedEmailsForClass(classId)
+
+      if (unmappedEmails.length === 0) {
+        return // No emails to resolve
+      }
+
+      console.log('[Resolve] Resolving emails for class:', classId, unmappedEmails)
+
+      const response = await fetch(`/api/classes/${classId}/resolve-emails`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emails: unmappedEmails }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to resolve emails')
+      }
+
+      const data = await response.json()
+      console.log('[Resolve] Resolution response:', data)
+
+      // Update mappings for resolved emails
+      for (const item of data.resolved) {
+        if (item.resolved && item.pseudonym) {
+          // Save mapping: realEmail -> pseudonymEmail
+          await saveEmailMapping(classId, item.email, item.pseudonym)
+          // Remove from unmapped list
+          removeUnmappedEmail(classId, item.email)
+          console.log('[Resolve] Mapped:', item.email, '->', item.pseudonym)
+        }
+      }
+
+      // Reload class details to show updated mappings
+      await loadClassDetails(classId)
+    } catch (error) {
+      console.error('[Resolve] Error resolving emails:', error)
+    }
+  }
+
+  const handleUnenrollStudent = async (classId: string, studentId: string, studentName: string) => {
+    if (!confirm(`Are you sure you want to unenroll ${studentName} from this class?`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/classes/${classId}/students/${studentId}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to unenroll student')
+      }
+
+      // Reload class details
+      await loadClassDetails(classId)
+
+      setDialogType('success')
+      setDialogTitle('Student Unenrolled')
+      setDialogMessage(`${studentName} has been removed from the class.`)
+      setDialogOpen(true)
+    } catch (error) {
+      console.error('Error unenrolling student:', error)
+      setDialogType('error')
+      setDialogTitle('Failed to Unenroll')
+      setDialogMessage(error instanceof Error ? error.message : 'An unexpected error occurred.')
+      setDialogOpen(true)
+    }
+  }
+
+  const handleDeleteUnmappedEmail = (classId: string, email: string) => {
+    removeUnmappedEmail(classId, email)
+    // Force re-render by reloading class details
+    loadClassDetails(classId)
   }
 
   const getEmailForPseudonym = (classId: string, pseudonymEmail: string): string | null => {
@@ -530,7 +620,7 @@ export default function ClassesPage() {
                           />
                           <div className="flex items-center justify-between">
                             <p className="text-xs text-muted-foreground">
-                              Students will be pre-authorized. Already enrolled students will be highlighted below.
+                              Students will receive a class invitation when they sign in. Already enrolled students who have shared their identity will be highlighted below.
                             </p>
                             <Button
                               onClick={() => handleAddStudents(classItem.id)}
@@ -587,45 +677,57 @@ export default function ClassesPage() {
                                         {getSortIcon(classItem.id, 'joined')}
                                       </button>
                                     </th>
+                                    <th className="text-right p-3 font-medium text-sm">
+                                      Actions
+                                    </th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {getSortedStudents(classItem.id, students).map((student, index) => {
-                                    const realEmail = getEmailForPseudonym(classItem.id, student.email)
+                                    // Look up real email using the student's pseudonym
+                                    const realEmail = getEmailForPseudonym(classItem.id, student.pseudonym)
                                     const isIdentified = !!realEmail
+                                    // Shorten pseudonym display
+                                    const shortPseudonym = student.pseudonym?.substring(0, 8) + '...' || 'unknown'
 
                                     return (
                                       <tr
                                         key={student.id}
                                         className={`border-b last:border-b-0 ${
-                                          isIdentified
-                                            ? 'bg-green-50 dark:bg-green-950/20'
-                                            : index % 2 === 0
-                                            ? 'bg-background'
-                                            : 'bg-muted/30'
+                                          index % 2 === 0 ? 'bg-background' : 'bg-muted/30'
                                         }`}
                                       >
-                                        <td className="p-3">
+                                        <td className="p-3 w-1/3">
                                           <div className="font-medium text-sm">{student.displayName}</div>
                                         </td>
                                         <td className="p-3">
                                           {isIdentified ? (
-                                            <div className="text-sm text-green-700 dark:text-green-400">
+                                            <div className="text-sm text-green-700 dark:text-green-400 font-medium">
                                               {realEmail}
                                             </div>
                                           ) : (
                                             <div className="flex items-center gap-2">
                                               <span className="text-xs text-muted-foreground font-mono">
-                                                {student.pseudonym}
+                                                {shortPseudonym}
                                               </span>
                                               <span className="text-xs text-muted-foreground">
-                                                • joined via invite
+                                                • anonymous
                                               </span>
                                             </div>
                                           )}
                                         </td>
                                         <td className="p-3 text-sm text-muted-foreground">
                                           {new Date(student.joinedAt).toLocaleDateString()}
+                                        </td>
+                                        <td className="p-3 text-right">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleUnenrollStudent(classItem.id, student.id, student.displayName)}
+                                            className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
+                                          >
+                                            Unenroll
+                                          </Button>
                                         </td>
                                       </tr>
                                     )
@@ -634,6 +736,41 @@ export default function ClassesPage() {
                               </table>
                             </div>
                           )}
+
+                          {/* Unmapped Emails (Pending Invitations) */}
+                          {(() => {
+                            const unmappedEmails = getUnmappedEmailsForClass(classItem.id)
+                            if (unmappedEmails.length === 0) return null
+
+                            return (
+                              <div className="mt-6 space-y-3">
+                                <Label className="text-base font-semibold">
+                                  Pending Invitations ({unmappedEmails.length})
+                                </Label>
+                                <p className="text-xs text-muted-foreground">
+                                  Students who haven&apos;t joined yet or haven&apos;t consented to reveal their identity
+                                </p>
+                                <div className="space-y-2">
+                                  {unmappedEmails.map((email) => (
+                                    <div
+                                      key={email}
+                                      className="flex items-center justify-between p-3 bg-muted/30 rounded-md border"
+                                    >
+                                      <span className="text-sm font-mono">{email}</span>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleDeleteUnmappedEmail(classItem.id, email)}
+                                        className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
+                                      >
+                                        Delete
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )
+                          })()}
                         </div>
                       </div>
                     )}

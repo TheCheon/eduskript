@@ -23,7 +23,7 @@ interface ShareSkriptModalProps {
   collaborators: Array<{
     id: string
     name: string | null
-    email: string
+    email: string | null
     image: string | null
     hasCollectionAccess: boolean
     skriptAccess: {
@@ -131,7 +131,7 @@ export function ShareSkriptModal({
                       </div>
                       <div>
                         <div className="font-medium">{collaborator.name || 'No name'}</div>
-                        <div className="text-xs text-gray-600">{collaborator.email}</div>
+                        <div className="text-xs text-gray-600">{collaborator.email || 'No email'}</div>
                       </div>
                     </div>
                   </SelectItem>
@@ -184,7 +184,7 @@ export function ShareSkriptModal({
                   </div>
                   <div className="flex-1">
                     <div className="font-medium">{selectedCollaboratorData.name || 'No name'}</div>
-                    <div className="text-sm text-muted-foreground">{selectedCollaboratorData.email}</div>
+                    <div className="text-sm text-muted-foreground">{selectedCollaboratorData.email || 'No email'}</div>
                   </div>
                   <div className="text-right">
                     <div className="flex items-center gap-1 text-sm">

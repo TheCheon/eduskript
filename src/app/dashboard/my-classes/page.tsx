@@ -7,13 +7,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
-import { Users, BookOpen, Shield, AlertCircle, Check, X } from 'lucide-react'
+import { Users, BookOpen } from 'lucide-react'
 
-interface IdentityRequest {
-  id: string
-  email: string
-  requestedAt: string
-  teacherEmail: string
+interface JoinRequest {
+  classId: string
+  className: string
+  classDescription: string | null
+  teacherName: string | null
+  inviteCode: string
+  addedAt: string
 }
 
 interface StudentClass {
@@ -23,15 +25,15 @@ interface StudentClass {
   teacherName: string | null
   memberCount: number
   joinedAt: string
-  identityRequests: IdentityRequest[]
 }
 
 export default function MyClassesPage() {
   const router = useRouter()
   const { data: session, status } = useSession()
   const [classes, setClasses] = useState<StudentClass[]>([])
+  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([])
   const [loading, setLoading] = useState(true)
-  const [responding, setResponding] = useState<string | null>(null)
+  const [joining, setJoining] = useState<string | null>(null)
   const alert = useAlertDialog()
 
   useEffect(() => {
@@ -61,6 +63,7 @@ export default function MyClassesPage() {
 
       const data = await response.json()
       setClasses(data.classes)
+      setJoinRequests(data.joinRequests || [])
     } catch (error) {
       console.error('Error loading classes:', error)
     } finally {
@@ -68,32 +71,31 @@ export default function MyClassesPage() {
     }
   }
 
-  const handleRespondToRequest = async (requestId: string, approved: boolean) => {
+  const handleJoinClass = async (inviteCode: string, teacherName: string) => {
     try {
-      setResponding(requestId)
+      setJoining(inviteCode)
 
-      const response = await fetch(`/api/identity-reveal-requests/${requestId}/respond`, {
+      // Join the class directly with identity consent
+      const response = await fetch(`/api/classes/join/${inviteCode}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approved }),
+        body: JSON.stringify({ identityConsent: true })
       })
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-        throw new Error(errorData.error || 'Failed to respond')
+        throw new Error(errorData.error || 'Failed to join class')
       }
 
-      // Reload classes to update the requests
+      // Reload classes to show the newly joined class
       await loadClasses()
 
-      if (approved) {
-        alert.showSuccess('Identity revealed successfully. The teacher can now see your email address for this class.')
-      }
+      alert.showSuccess(`You've joined the class! ${teacherName} can now see your identity.`)
     } catch (error) {
-      console.error('Error responding to request:', error)
-      alert.showError(error instanceof Error ? error.message : 'Failed to respond to request')
+      console.error('Error joining class:', error)
+      alert.showError(error instanceof Error ? error.message : 'Failed to join class')
     } finally {
-      setResponding(null)
+      setJoining(null)
     }
   }
 
@@ -117,7 +119,49 @@ export default function MyClassesPage() {
           </p>
         </div>
 
-        {classes.length === 0 ? (
+        {/* Join Requests Section */}
+        {joinRequests.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold mb-3">Class Invitations</h2>
+            <div className="space-y-3">
+              {joinRequests.map((request) => (
+                <Card key={request.inviteCode} className="border-blue-200 dark:border-blue-900">
+                  <CardContent className="p-4">
+                    <div className="space-y-3">
+                      <div>
+                        <h3 className="font-semibold text-lg mb-1">{request.className}</h3>
+                        {request.classDescription && (
+                          <p className="text-sm text-muted-foreground mb-2">
+                            {request.classDescription}
+                          </p>
+                        )}
+                      </div>
+                      <div className="rounded-md p-3 border bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
+                        <p className="text-sm text-gray-900 dark:text-gray-100">
+                          Teacher <strong>{request.teacherName}</strong> has asked you to join this class.
+                          They will be able to identify you if you join.
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">
+                          Invited {new Date(request.addedAt).toLocaleDateString()}
+                        </p>
+                        <Button
+                          onClick={() => handleJoinClass(request.inviteCode, request.teacherName || 'Unknown')}
+                          disabled={joining === request.inviteCode}
+                        >
+                          {joining === request.inviteCode ? 'Joining...' : 'Join Class'}
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {classes.length === 0 && joinRequests.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <BookOpen className="w-12 h-12 text-muted-foreground mb-4" />
@@ -127,7 +171,7 @@ export default function MyClassesPage() {
               </p>
             </CardContent>
           </Card>
-        ) : (
+        ) : classes.length > 0 && (
           <div className="space-y-4">
             {classes.map((classItem) => (
               <Card key={classItem.id}>
@@ -150,58 +194,6 @@ export default function MyClassesPage() {
                       Joined {new Date(classItem.joinedAt).toLocaleDateString()}
                     </div>
                   </div>
-
-                  {/* Identity Reveal Requests */}
-                  {classItem.identityRequests.length > 0 && (
-                    <div className="space-y-3 pt-4 border-t">
-                      {classItem.identityRequests.map((request) => (
-                        <div key={request.id} className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900 rounded-lg p-4">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Shield className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-                                <h4 className="font-semibold text-sm">Privacy Request</h4>
-                              </div>
-                              <p className="text-sm text-muted-foreground mb-3">
-                                Your teacher wants to identify you in this class. They provided the email <strong>{request.email}</strong> and are asking for your consent to link it to your account.
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                <AlertCircle className="w-3 h-3 inline mr-1" />
-                                If you approve, the teacher will see your email address instead of your anonymous nickname.
-                              </p>
-                            </div>
-                            <div className="flex gap-2 shrink-0">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleRespondToRequest(request.id, false)}
-                                disabled={responding === request.id}
-                                className="gap-1"
-                              >
-                                <X className="w-4 h-4" />
-                                Decline
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={() => handleRespondToRequest(request.id, true)}
-                                disabled={responding === request.id}
-                                className="gap-1"
-                              >
-                                {responding === request.id ? (
-                                  'Processing...'
-                                ) : (
-                                  <>
-                                    <Check className="w-4 h-4" />
-                                    Approve
-                                  </>
-                                )}
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             ))}

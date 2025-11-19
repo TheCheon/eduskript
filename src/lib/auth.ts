@@ -107,7 +107,8 @@ export const authOptions: NextAuthOptions = {
             tenantId: process.env.AZURE_AD_TENANT_ID || 'common',
             authorization: {
               params: {
-                scope: 'openid profile email offline_access'
+                scope: 'openid profile email offline_access',
+                prompt: 'select_account' // Always show account selector
               }
             }
           })

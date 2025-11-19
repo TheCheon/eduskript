@@ -12,7 +12,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea
 interface User {
   id: string
   name: string | null
-  email: string
+  email: string | null
   image: string | null
   title: string | null
 }
@@ -97,7 +97,7 @@ function UserCard({
           {userPermission.user.name || 'No name'}
           {isCurrentUser && <span className="text-muted-foreground ml-2">(You)</span>}
         </div>
-        <div className="text-sm text-muted-foreground truncate">{userPermission.user.email}</div>
+        <div className="text-sm text-muted-foreground truncate">{userPermission.user.email || 'No email'}</div>
         {userPermission.user.title && (
           <div className="text-xs text-muted-foreground truncate">{userPermission.user.title}</div>
         )}
@@ -111,7 +111,7 @@ function UserCard({
         <TooltipProvider>
           <ConfirmationDialog
             title="Revoke Access?"
-            description={`Revoke all rights to this collection for ${userPermission.user.name || userPermission.user.email}?${isCurrentUser ? ' You will no longer have access to it.' : ''}`}
+            description={`Revoke all rights to this collection for ${userPermission.user.name || userPermission.user.email || 'this user'}?${isCurrentUser ? ' You will no longer have access to it.' : ''}`}
             confirmText="Revoke Access"
             variant="destructive"
             onConfirm={handleRemoveUser}

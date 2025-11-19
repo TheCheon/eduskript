@@ -21,7 +21,7 @@ interface SkriptAccessManagerProps {
 interface UserForPermissionManager {
   id: string
   name: string | null
-  email: string
+  email: string | null
   image: string | null
   title: string | null
 }
@@ -37,13 +37,13 @@ interface Collaboration {
   requester: {
     id: string
     name: string | null
-    email: string
+    email: string | null
     image: string | null
   }
   receiver: {
     id: string
     name: string | null
-    email: string
+    email: string | null
     image: string | null
   }
 }
@@ -51,7 +51,7 @@ interface Collaboration {
 interface CollaboratorForSharing {
   id: string
   name: string | null
-  email: string
+  email: string | null
   image: string | null
   hasCollectionAccess: boolean
   collectionPermission?: string

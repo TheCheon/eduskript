@@ -1,6 +1,6 @@
 /**
  * IndexedDB storage for teacher's email mappings
- * Stores real email -> pseudonym mappings locally (never sent to server)
+ * Stores real email -> pseudonym mappings locally
  */
 
 const DB_NAME = 'eduskript_teacher_data'
@@ -156,4 +156,54 @@ export async function getAllEmailMappings(): Promise<EmailMapping[]> {
     request.onsuccess = () => resolve(request.result)
     request.onerror = () => reject(request.error)
   })
+}
+
+/**
+ * Get unmapped emails for a class (emails that haven't been resolved to pseudonyms yet)
+ * Stored in localStorage for simplicity
+ */
+export function getUnmappedEmailsForClass(classId: string): string[] {
+  if (typeof window === 'undefined') return []
+
+  try {
+    const key = `eduskript_unmapped_emails_${classId}`
+    const stored = localStorage.getItem(key)
+    return stored ? JSON.parse(stored) : []
+  } catch (error) {
+    console.error('[EmailMapping] Error reading unmapped emails:', error)
+    return []
+  }
+}
+
+/**
+ * Save unmapped emails for a class
+ */
+export function saveUnmappedEmailsForClass(classId: string, emails: string[]): void {
+  if (typeof window === 'undefined') return
+
+  try {
+    const key = `eduskript_unmapped_emails_${classId}`
+    localStorage.setItem(key, JSON.stringify(emails))
+  } catch (error) {
+    console.error('[EmailMapping] Error saving unmapped emails:', error)
+  }
+}
+
+/**
+ * Add emails to unmapped list
+ */
+export function addUnmappedEmails(classId: string, newEmails: string[]): void {
+  const existing = getUnmappedEmailsForClass(classId)
+  const normalized = newEmails.map(e => e.toLowerCase().trim()).filter(e => e.length > 0)
+  const combined = Array.from(new Set([...existing, ...normalized]))
+  saveUnmappedEmailsForClass(classId, combined)
+}
+
+/**
+ * Remove an unmapped email
+ */
+export function removeUnmappedEmail(classId: string, email: string): void {
+  const existing = getUnmappedEmailsForClass(classId)
+  const filtered = existing.filter(e => e !== email.toLowerCase().trim())
+  saveUnmappedEmailsForClass(classId, filtered)
 }

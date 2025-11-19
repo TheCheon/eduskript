@@ -34,6 +34,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Get identity consent from request body
+    const body = await request.json().catch(() => ({}))
+    const { identityConsent = false } = body
+
     // Verify user is a student
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
@@ -111,18 +115,28 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         where: {
           classId_pseudonym: {
             classId: classRecord.id,
-            pseudonym: user.studentPseudonym.replace('student_', '').replace('@eduskript.local', '')
+            pseudonym: user.studentPseudonym
           }
         }
       })
       wasPreAuthorized = !!preAuth
+
+      // If pre-authorized, teacher has their email - consent is REQUIRED
+      if (wasPreAuthorized && !identityConsent) {
+        return NextResponse.json({
+          error: 'This teacher has your email address. You must consent to identity reveal to join this class.',
+          requiresConsent: true
+        }, { status: 400 })
+      }
     }
 
-    // Create membership
+    // Create membership with identity consent
     await prisma.classMembership.create({
       data: {
         classId: classRecord.id,
-        studentId: session.user.id
+        studentId: session.user.id,
+        identityConsent: wasPreAuthorized ? true : (identityConsent || false),
+        consentedAt: (wasPreAuthorized || identityConsent) ? new Date() : null
       }
     })
 
@@ -131,7 +145,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       await prisma.preAuthorizedStudent.deleteMany({
         where: {
           classId: classRecord.id,
-          pseudonym: user.studentPseudonym.replace('student_', '').replace('@eduskript.local', '')
+          pseudonym: user.studentPseudonym
         }
       })
     }
@@ -140,7 +154,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       classId: classRecord.id,
       studentId: session.user.id,
       inviteCode,
-      wasPreAuthorized
+      wasPreAuthorized,
+      identityConsent: wasPreAuthorized ? true : (identityConsent || false)
     })
 
     return NextResponse.json({
@@ -151,7 +166,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         description: classRecord.description,
         teacherName: classRecord.teacher.name
       },
-      requiresIdentityConsent: wasPreAuthorized
+      identityRevealed: wasPreAuthorized || identityConsent
     }, { status: 201 })
   } catch (error) {
     console.error('[API] Error joining class:', error)

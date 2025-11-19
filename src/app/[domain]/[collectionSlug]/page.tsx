@@ -71,7 +71,7 @@ export async function generateMetadata({ params }: CollectionPreviewProps): Prom
 interface Teacher {
   id: string
   name: string | null
-  email: string
+  email: string | null
   title: string | null
   bio: string | null
   subdomain: string | null

@@ -47,7 +47,7 @@ interface CollectionEditorProps {
       user: {
         id: string
         name: string | null
-        email: string
+        email: string | null
         image: string | null
         title: string | null
       }

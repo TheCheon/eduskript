@@ -7,6 +7,9 @@
 
 ---
 
+Consider carefully if there is a way to identify students not only without storing emails, but without the emails even leaving the teacher's computer. (then again, is that necessary? oauth sends around emails all the time)
+default student nicknames should be stoic philosophers or something like that.
+
 ## 📋 Current Implementation Status
 
 ### ✅ Phase 0: Microsoft Authentication & GDPR Privacy Infrastructure (COMPLETED)

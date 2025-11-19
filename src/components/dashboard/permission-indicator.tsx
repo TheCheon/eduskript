@@ -27,8 +27,8 @@ export function PermissionIndicator({
 
   const formatUserNames = (users: Pick<User, 'id' | 'name' | 'email'>[], maxShow = 3) => {
     if (users.length === 0) return null
-    
-    const names = users.slice(0, maxShow).map(user => user.name || user.email.split('@')[0])
+
+    const names = users.slice(0, maxShow).map(user => user.name || user.email?.split('@')[0] || 'Anonymous')
     const remaining = users.length - maxShow
     
     if (remaining > 0) {

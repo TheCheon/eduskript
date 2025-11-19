@@ -1,0 +1,38 @@
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
+
+async function testCreate() {
+  try {
+    console.log('Testing user creation with email=null...')
+    
+    const testUser = await prisma.user.create({
+      data: {
+        email: null, // NO EMAIL STORAGE FOR STUDENTS
+        emailVerified: null,
+        name: 'Test Student',
+        image: null,
+        accountType: 'student',
+        studentPseudonym: null,
+        oauthProvider: null,
+        oauthProviderId: null,
+        gdprConsentAt: null,
+        lastSeenAt: new Date(),
+      },
+    })
+    
+    console.log('✅ User created successfully:', testUser)
+    
+    // Clean up
+    await prisma.user.delete({ where: { id: testUser.id } })
+    console.log('✅ Cleaned up test user')
+    
+  } catch (error) {
+    console.error('❌ Error creating user:', error.message)
+    console.error('Full error:', error)
+  } finally {
+    await prisma.$disconnect()
+  }
+}
+
+testCreate()

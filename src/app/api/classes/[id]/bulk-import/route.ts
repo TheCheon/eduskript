@@ -153,54 +153,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       })
     }
 
-    // Create identity reveal requests for enrolled students
-    const revealRequestsCreated: string[] = []
-    for (const [email, pseudonymEmail] of Object.entries(emailPseudonymMap)) {
-      const pseudonym = generatePseudonym(email)
-      const studentId = pseudonymToStudentId.get(pseudonym)
+    // NO LONGER CREATING IDENTITY REVEAL REQUESTS
+    // Email is hashed and discarded - never stored on server
+    // Students who match the pseudonym will see join requests in their dashboard
 
-      if (studentId) {
-        // Student is already enrolled, create identity reveal request
-        try {
-          await prisma.identityRevealRequest.upsert({
-            where: {
-              classId_studentId_email: {
-                classId,
-                studentId,
-                email
-              }
-            },
-            update: {
-              // If request already exists and was rejected, don't update
-              // If it was pending, keep it pending
-            },
-            create: {
-              classId,
-              teacherId: session.user.id,
-              studentId,
-              email,
-              status: 'pending'
-            }
-          })
-          revealRequestsCreated.push(email)
-        } catch (error) {
-          console.error(`[API] Failed to create reveal request for ${email}:`, error)
-        }
-      }
-    }
+    console.log('[API] Bulk import complete - emails hashed and discarded')
 
-    console.log('[API] Created identity reveal requests:', {
-      classId,
-      count: revealRequestsCreated.length
-    })
-
-    // Return statistics (note: no mappings returned - students must consent first)
+    // Return statistics
     return NextResponse.json({
       imported: pseudonymsToAdd.length,
       alreadyMembers: existingPseudonyms.size,
       alreadyPreAuthorized: preAuthPseudonyms.size,
-      revealRequestsSent: revealRequestsCreated.length,
       total: normalizedEmails.length,
+      message: `${pseudonymsToAdd.length} student${pseudonymsToAdd.length !== 1 ? 's' : ''} will see a class invitation when they sign in`
     })
   } catch (error) {
     console.error('[API] Error bulk importing students:', error)

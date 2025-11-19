@@ -56,31 +56,39 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Get all pending identity reveal requests for this student
-    const identityRequests = await prisma.identityRevealRequest.findMany({
-      where: {
-        studentId: session.user.id,
-        status: 'pending'
-      },
-      include: {
-        class: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        teacher: {
-          select: {
-            name: true,
-            email: true
-          }
-        }
-      }
+    // Get student's pseudonym to check for pre-authorizations (join requests)
+    const studentUser = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { studentPseudonym: true }
     })
 
-    // Group identity requests by class ID
-    const requestsByClass = new Map<string, typeof identityRequests>()
-    identityRequests.forEach(req => {
+    // Get all pending join requests for this student (via pseudonym match)
+    const joinRequests = studentUser?.studentPseudonym
+      ? await prisma.preAuthorizedStudent.findMany({
+          where: {
+            pseudonym: studentUser.studentPseudonym
+          },
+          include: {
+            class: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                inviteCode: true,
+                teacher: {
+                  select: {
+                    name: true
+                  }
+                }
+              }
+            }
+          }
+        })
+      : []
+
+    // Group join requests by class ID
+    const requestsByClass = new Map<string, typeof joinRequests>()
+    joinRequests.forEach(req => {
       const classId = req.classId
       if (!requestsByClass.has(classId)) {
         requestsByClass.set(classId, [])
@@ -96,12 +104,15 @@ export async function GET(request: NextRequest) {
         teacherName: m.class.teacher.name,
         memberCount: m.class._count.memberships,
         joinedAt: m.joinedAt,
-        identityRequests: (requestsByClass.get(m.class.id) || []).map(req => ({
-          id: req.id,
-          email: req.email,
-          requestedAt: req.requestedAt,
-          teacherEmail: req.teacher.email
-        }))
+      })),
+      // Include pending join requests as separate list (not grouped by class)
+      joinRequests: joinRequests.map(req => ({
+        classId: req.classId,
+        className: req.class.name,
+        classDescription: req.class.description,
+        teacherName: req.class.teacher.name,
+        inviteCode: req.class.inviteCode,
+        addedAt: req.addedAt
       }))
     })
   } catch (error) {
