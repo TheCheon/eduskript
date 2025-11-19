@@ -57,19 +57,19 @@ model VerificationToken {
 model User {
   id          String    @id @default(cuid())
   name        String?
-  email       String    @unique
+  email       String?   @unique // Optional for students (OAuth-only)
   emailVerified DateTime?
   image       String?
   hashedPassword String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  
+
   // Webpage-specific fields
   subdomain     String?   @unique
   webpageDescription String? // Description of their webpage
   bio           String?
   title         String?
-  
+
   // User preferences
   themePreference String? @default("system") // "light", "dark", or "system"
   sidebarBehavior String? @default("contextual") // "contextual" (default - show only current collection) or "full" (always show all)
@@ -80,9 +80,13 @@ model User {
 
   // Privacy and account type
   accountType      String    @default("teacher") // "teacher" or "student"
-  studentPseudonym String?   @unique // HMAC-SHA256(email) for student privacy
+  studentPseudonym String?   @unique // For student privacy: hash(oauthProvider:oauthProviderId) for OAuth, hash(email) for legacy
   gdprConsentAt    DateTime? // Timestamp of GDPR consent acceptance
   lastSeenAt       DateTime? // For inactive account cleanup
+
+  // OAuth identification (for students - replaces email storage)
+  oauthProvider    String?   // "github", "google", "microsoft", "azure-ad"
+  oauthProviderId  String?   // Provider's unique user ID
 
   // Relations
   accounts      Account[]
@@ -118,10 +122,11 @@ model User {
   teacherClasses     Class[]             @relation("TeacherClasses")
   studentMemberships ClassMembership[]   @relation("StudentMemberships")
 
-  // Identity reveal requests
+  // Identity reveal requests (deprecated - will be removed)
   teacherIdentityRequests IdentityRevealRequest[] @relation("TeacherIdentityRequests")
   studentIdentityRequests IdentityRevealRequest[] @relation("StudentIdentityRequests")
 
+  @@unique([oauthProvider, oauthProviderId]) // Students identified by OAuth provider
   @@map("users")
 }
 
@@ -433,10 +438,14 @@ model Class {
 
 // Junction table for Class-Student many-to-many
 model ClassMembership {
-  id        String   @id @default(cuid())
-  classId   String   @map("class_id")
-  studentId String   @map("student_id")
-  joinedAt  DateTime @default(now()) @map("joined_at")
+  id              String    @id @default(cuid())
+  classId         String    @map("class_id")
+  studentId       String    @map("student_id")
+  joinedAt        DateTime  @default(now()) @map("joined_at")
+
+  // Privacy: Student consent for teacher to see their real identity
+  identityConsent Boolean   @default(false) @map("identity_consent")
+  consentedAt     DateTime? @map("consented_at")
 
   // Relations
   class   Class @relation(fields: [classId], references: [id], onDelete: Cascade)
@@ -464,13 +473,15 @@ model PreAuthorizedStudent {
   @@map("pre_authorized_students")
 }
 
-// Identity reveal requests - teacher asks student to reveal their identity
+// DEPRECATED - Identity reveal requests
+// This model will be removed in favor of ClassMembership.identityConsent
+// Keeping temporarily for migration purposes
 model IdentityRevealRequest {
   id         String   @id @default(cuid())
   classId    String   @map("class_id")
   teacherId  String   @map("teacher_id")
   studentId  String   @map("student_id") // The actual student user ID
-  email      String   // The email the teacher claims matches this student
+  email      String   // PRIVACY ISSUE: Email stored on server - being removed
   status     String   @default("pending") // "pending", "approved", "rejected"
   requestedAt DateTime @default(now()) @map("requested_at")
   respondedAt DateTime? @map("responded_at")

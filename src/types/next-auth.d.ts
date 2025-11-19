@@ -10,6 +10,7 @@ declare module "next-auth" {
       image?: string | null
       subdomain?: string | null
       title?: string | null
+      bio?: string | null
       isAdmin?: boolean
       requirePasswordReset?: boolean
       accountType?: string
@@ -24,6 +25,7 @@ declare module "next-auth" {
     image?: string | null
     subdomain?: string | null
     title?: string | null
+    bio?: string | null
     isAdmin?: boolean
     requirePasswordReset?: boolean
     accountType?: string
@@ -39,6 +41,7 @@ declare module "next-auth/jwt" {
     image?: string | null
     subdomain?: string | null
     title?: string | null
+    bio?: string | null
     isAdmin?: boolean
     requirePasswordReset?: boolean
     accountType?: string

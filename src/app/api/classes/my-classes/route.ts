@@ -56,6 +56,38 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    // Get all pending identity reveal requests for this student
+    const identityRequests = await prisma.identityRevealRequest.findMany({
+      where: {
+        studentId: session.user.id,
+        status: 'pending'
+      },
+      include: {
+        class: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        teacher: {
+          select: {
+            name: true,
+            email: true
+          }
+        }
+      }
+    })
+
+    // Group identity requests by class ID
+    const requestsByClass = new Map<string, typeof identityRequests>()
+    identityRequests.forEach(req => {
+      const classId = req.classId
+      if (!requestsByClass.has(classId)) {
+        requestsByClass.set(classId, [])
+      }
+      requestsByClass.get(classId)!.push(req)
+    })
+
     return NextResponse.json({
       classes: memberships.map(m => ({
         id: m.class.id,
@@ -63,7 +95,13 @@ export async function GET(request: NextRequest) {
         description: m.class.description,
         teacherName: m.class.teacher.name,
         memberCount: m.class._count.memberships,
-        joinedAt: m.joinedAt
+        joinedAt: m.joinedAt,
+        identityRequests: (requestsByClass.get(m.class.id) || []).map(req => ({
+          id: req.id,
+          email: req.email,
+          requestedAt: req.requestedAt,
+          teacherEmail: req.teacher.email
+        }))
       }))
     })
   } catch (error) {

@@ -104,6 +104,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       })
     }
 
+    // Check if this student was pre-authorized (teacher has their email)
+    let wasPreAuthorized = false
+    if (user.studentPseudonym) {
+      const preAuth = await prisma.preAuthorizedStudent.findUnique({
+        where: {
+          classId_pseudonym: {
+            classId: classRecord.id,
+            pseudonym: user.studentPseudonym.replace('student_', '').replace('@eduskript.local', '')
+          }
+        }
+      })
+      wasPreAuthorized = !!preAuth
+    }
+
     // Create membership
     await prisma.classMembership.create({
       data: {
@@ -113,7 +127,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     })
 
     // If this student was pre-authorized, remove from pre-auth table
-    if (user.studentPseudonym) {
+    if (wasPreAuthorized && user.studentPseudonym) {
       await prisma.preAuthorizedStudent.deleteMany({
         where: {
           classId: classRecord.id,
@@ -125,7 +139,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     console.log('[API] Student joined class:', {
       classId: classRecord.id,
       studentId: session.user.id,
-      inviteCode
+      inviteCode,
+      wasPreAuthorized
     })
 
     return NextResponse.json({
@@ -135,7 +150,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         name: classRecord.name,
         description: classRecord.description,
         teacherName: classRecord.teacher.name
-      }
+      },
+      requiresIdentityConsent: wasPreAuthorized
     }, { status: 201 })
   } catch (error) {
     console.error('[API] Error joining class:', error)

@@ -135,6 +135,7 @@ export const authOptions: NextAuthOptions = {
             image: true,
             subdomain: true,
             title: true,
+            bio: true,
             isAdmin: true,
             requirePasswordReset: true,
             accountType: true,
@@ -145,6 +146,7 @@ export const authOptions: NextAuthOptions = {
         if (dbUser) {
           token.subdomain = dbUser.subdomain
           token.title = dbUser.title
+          token.bio = dbUser.bio
           token.name = dbUser.name
           token.email = dbUser.email
           token.image = dbUser.image
@@ -196,6 +198,7 @@ export const authOptions: NextAuthOptions = {
             image: true,
             subdomain: true,
             title: true,
+            bio: true,
             isAdmin: true,
             requirePasswordReset: true,
             accountType: true,
@@ -206,6 +209,7 @@ export const authOptions: NextAuthOptions = {
         if (dbUser) {
           token.subdomain = dbUser.subdomain
           token.title = dbUser.title
+          token.bio = dbUser.bio
           token.name = dbUser.name
           token.email = dbUser.email
           token.image = dbUser.image
@@ -223,6 +227,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string
         session.user.subdomain = token.subdomain as string
         session.user.title = token.title as string
+        session.user.bio = token.bio as string
         session.user.name = token.name as string
         session.user.email = token.email as string
         session.user.image = token.image as string

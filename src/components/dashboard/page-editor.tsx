@@ -336,14 +336,12 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
       })
 
       if (response.ok) {
-        const data = await response.json()
         // Update the editor content with restored content
         setContent(versionContent)
         setHasUnsavedChanges(false)
         setLastSaved(new Date())
         // Reload versions to show the new restoration entry
         loadVersions()
-        alert.showSuccess(`Successfully restored to version ${data.restoredFromVersion}`)
       } else {
         const data = await response.json()
         alert.showError(data.error || 'Failed to restore version')

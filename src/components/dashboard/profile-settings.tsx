@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -17,11 +17,22 @@ export function ProfileSettings() {
   const [isLoading, setIsLoading] = useState(false)
   const isStudent = session?.user?.accountType === 'student'
   const [formData, setFormData] = useState({
-    name: session?.user?.name || '',
-    bio: (session?.user as { bio?: string })?.bio || '',
-    title: (session?.user as { title?: string })?.title || ''
+    name: '',
+    bio: '',
+    title: ''
   })
   const alert = useAlertDialog()
+
+  // Update form data when session loads
+  useEffect(() => {
+    if (session?.user) {
+      setFormData({
+        name: session.user.name || '',
+        bio: session.user.bio || '',
+        title: session.user.title || ''
+      })
+    }
+  }, [session])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -46,8 +57,6 @@ export function ProfileSettings() {
 
       // Refresh the page to reflect changes
       router.refresh()
-
-      alert.showSuccess('Profile updated successfully!')
     } catch (error) {
       console.error('Error updating profile:', error)
       alert.showError(error instanceof Error ? error.message : 'Failed to update profile')

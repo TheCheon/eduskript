@@ -650,8 +650,6 @@ const CodeMirrorEditor = function CodeMirrorEditor({
       if (onFileUpload) {
         onFileUpload()
       }
-
-      alert.showSuccess('Drawing saved successfully!')
     } catch (error) {
       console.error('Error saving drawing:', error)
       alert.showError('Failed to save drawing. Please try again.')
