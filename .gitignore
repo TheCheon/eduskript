@@ -30,6 +30,7 @@
 /oldstuff
 /code-review
 /tmp
+/.cert
 
 # debug
 npm-debug.log*
