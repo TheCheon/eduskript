@@ -1,6 +1,16 @@
 import { PageBuilderInterface } from '@/components/dashboard/page-builder-interface'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { redirect } from 'next/navigation'
 
-export default function PageBuilderPage() {
+export default async function PageBuilderPage() {
+  const session = await getServerSession(authOptions)
+
+  // Redirect students to their dashboard
+  if (session?.user?.accountType === 'student') {
+    redirect('/dashboard/my-classes')
+  }
+
   return (
     <div className="space-y-6">
       <div>

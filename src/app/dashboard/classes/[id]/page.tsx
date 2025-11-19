@@ -196,6 +196,18 @@ export default function ClassDetailPage() {
     })
   }
 
+  // Reverse lookup: given a pseudonym email, find the real email from localStorage
+  const getEmailForPseudonym = (pseudonymEmail: string): string | null => {
+    // emailMapping is { realEmail: pseudonymEmail }
+    // We need to find the key where the value matches pseudonymEmail
+    for (const [realEmail, pseudo] of Object.entries(emailMapping)) {
+      if (pseudo === pseudonymEmail) {
+        return realEmail
+      }
+    }
+    return null
+  }
+
   const copyInviteLink = () => {
     const inviteUrl = `${window.location.origin}/classes/join/${inviteCode}`
     navigator.clipboard.writeText(inviteUrl)
@@ -377,27 +389,36 @@ export default function ClassDetailPage() {
               </p>
             ) : (
               <div className="space-y-2">
-                {students.map((student) => (
-                  <div
-                    key={student.id}
-                    className="flex items-center justify-between p-3 border rounded-lg"
-                  >
-                    <div>
-                      <div className="font-medium">{student.displayName}</div>
-                      <div className="text-xs text-muted-foreground font-mono">
-                        {student.pseudonym}
+                {students.map((student) => {
+                  const realEmail = getEmailForPseudonym(student.email)
+                  return (
+                    <div
+                      key={student.id}
+                      className="flex items-center justify-between p-3 border rounded-lg"
+                    >
+                      <div className="flex-1">
+                        <div className="font-medium">{student.displayName}</div>
+                        {realEmail ? (
+                          <div className="text-sm text-muted-foreground mt-1">
+                            {realEmail}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-muted-foreground font-mono mt-1">
+                            {student.pseudonym}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right text-sm text-muted-foreground">
+                        <div>Joined {new Date(student.joinedAt).toLocaleDateString()}</div>
+                        {student.lastSeenAt && (
+                          <div className="text-xs">
+                            Last seen {new Date(student.lastSeenAt).toLocaleDateString()}
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <div className="text-right text-sm text-muted-foreground">
-                      <div>Joined {new Date(student.joinedAt).toLocaleDateString()}</div>
-                      {student.lastSeenAt && (
-                        <div className="text-xs">
-                          Last seen {new Date(student.lastSeenAt).toLocaleDateString()}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </CardContent>

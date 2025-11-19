@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { Search, UserPlus, Users, Clock, Check, X, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -41,18 +43,27 @@ interface Collaboration {
 }
 
 export default function CollaboratePage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<User[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [sentRequests, setSentRequests] = useState<CollaborationRequest[]>([])
   const [receivedRequests, setReceivedRequests] = useState<CollaborationRequest[]>([])
   const [collaborations, setCollaborations] = useState<Collaboration[]>([])
-  
+
   // Modal state
   const [showSendRequestModal, setShowSendRequestModal] = useState(false)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [requestMessage, setRequestMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
+
+  // Redirect students to their dashboard
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user?.accountType === 'student') {
+      router.push('/dashboard/my-classes')
+    }
+  }, [session, status, router])
 
   const searchUsers = useCallback(async () => {
     setIsSearching(true)

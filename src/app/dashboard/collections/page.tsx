@@ -24,10 +24,17 @@ interface Collection {
 }
 
 export default function CollectionsPage() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const router = useRouter()
   const [collections, setCollections] = useState<Collection[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Redirect students to their dashboard
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user?.accountType === 'student') {
+      router.push('/dashboard/my-classes')
+    }
+  }, [session, status, router])
 
   useEffect(() => {
     const fetchCollections = async () => {
