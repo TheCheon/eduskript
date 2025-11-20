@@ -34,6 +34,16 @@ vi.mock('@/lib/privacy/pseudonym', () => ({
   }),
 }))
 
+vi.mock('@/lib/rate-limit', () => ({
+  bulkImportRateLimiter: {
+    check: vi.fn(() => ({
+      allowed: true,
+      remaining: 5,
+      resetAt: Date.now() + 3600000
+    }))
+  }
+}))
+
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { generatePseudonym } from '@/lib/privacy/pseudonym'
@@ -274,18 +284,22 @@ describe('API /classes/[id]/bulk-import', () => {
     })
 
     it('should create deterministic pseudonyms', async () => {
-      const request = createRequest('class-123', {
+      const request1 = createRequest('class-123', {
         emails: ['student@example.com'],
       })
 
-      await POST(request, { params: Promise.resolve({ id: 'class-123' }) })
+      await POST(request1, { params: Promise.resolve({ id: 'class-123' }) })
 
       const firstPseudonym = vi.mocked(generatePseudonym).mock.results[0].value
 
       vi.clearAllMocks()
       vi.mocked(prisma.preAuthorizedStudent.createMany).mockResolvedValue({ count: 1 } as any)
 
-      await POST(request, { params: Promise.resolve({ id: 'class-123' }) })
+      const request2 = createRequest('class-123', {
+        emails: ['student@example.com'],
+      })
+
+      await POST(request2, { params: Promise.resolve({ id: 'class-123' }) })
 
       const secondPseudonym = vi.mocked(generatePseudonym).mock.results[0].value
 
@@ -440,12 +454,14 @@ describe('API /classes/[id]/bulk-import', () => {
         alreadyMembers: 1,
         alreadyPreAuthorized: 1,
         total: 3,
-        mappings: expect.any(Object),
+        message: expect.any(String),
       })
+      // Verify mappings are NOT returned (security fix)
+      expect(data.mappings).toBeUndefined()
     })
 
-    // 🚨 SECURITY ISSUE: This test documents the vulnerability
-    it('should NOT return email->pseudonym mappings (SECURITY VULNERABILITY)', async () => {
+    // ✅ SECURITY FIX: Email->pseudonym mappings should NOT be returned
+    it('should NOT return email->pseudonym mappings (privacy-preserving)', async () => {
       vi.mocked(prisma.classMembership.findMany).mockResolvedValue([])
       vi.mocked(prisma.preAuthorizedStudent.findMany).mockResolvedValue([])
       vi.mocked(prisma.preAuthorizedStudent.createMany).mockResolvedValue({ count: 1 } as any)
@@ -457,13 +473,10 @@ describe('API /classes/[id]/bulk-import', () => {
       const response = await POST(request, { params: Promise.resolve({ id: 'class-123' }) })
       const data = await response.json()
 
-      // This test FAILS with current implementation - mappings are returned
-      // TODO: Fix this security vulnerability
-      console.warn('⚠️  SECURITY: Email mappings are exposed in API response')
-      expect(data.mappings).toBeDefined() // Current (vulnerable) behavior
-
-      // After fix, this should pass:
-      // expect(data.mappings).toBeUndefined()
+      // Verify the security fix - mappings should NOT be in response
+      expect(data.mappings).toBeUndefined()
+      expect(data.imported).toBeDefined()
+      expect(data.total).toBeDefined()
     })
   })
 

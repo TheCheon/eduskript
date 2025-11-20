@@ -33,6 +33,17 @@ vi.mock('@/lib/markdown', () => ({
   generateSlug: vi.fn((text: string) => text.toLowerCase().replace(/\s+/g, '-')),
 }))
 
+vi.mock('@/lib/rate-limit', () => ({
+  registrationRateLimiter: {
+    check: vi.fn(() => ({
+      allowed: true,
+      remaining: 3,
+      resetAt: Date.now() + 3600000
+    }))
+  },
+  getClientIdentifier: vi.fn(() => '127.0.0.1')
+}))
+
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { sendEmail } from '@/lib/email'
