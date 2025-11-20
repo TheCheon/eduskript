@@ -1,11 +1,14 @@
 # ----------------------------
 # Base stage: Node.js setup
 # ----------------------------
-FROM node:22-alpine AS base
+FROM node:22-slim AS base
 WORKDIR /app
 
 # Install runtime deps for Prisma / SQLite
-RUN apk add --no-cache libc6-compat openssl
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # ----------------------------
 # Deps stage: install dependencies
@@ -13,7 +16,11 @@ RUN apk add --no-cache libc6-compat openssl
 FROM base AS deps
 
 # Install build dependencies for native modules (oniguruma)
-RUN apk add --no-cache python3 make g++
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml ./
 COPY prisma ./prisma
@@ -32,7 +39,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Capture git commit info during build
-RUN apk add --no-cache git
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 ARG GIT_COMMIT_SHA
 ARG GIT_COMMIT_MESSAGE
 ARG BUILD_TIME
@@ -55,7 +62,7 @@ RUN pnpm build
 # ----------------------------
 # Runner stage: production image
 # ----------------------------
-FROM node:22-alpine AS runner
+FROM node:22-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -64,28 +71,36 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 # Install sudo for permission fixes and enable pnpm
-RUN apk add --no-cache sudo && corepack enable pnpm
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    sudo \
+    openssl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable pnpm
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs && \
     echo "nextjs ALL=(ALL) NOPASSWD: /bin/chown, /bin/chmod" >> /etc/sudoers
 
-# Copy Next.js standalone output
+# Copy Next.js standalone output (most dependencies bundled)
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
-# Copy Prisma configuration, schema, and generated client
+# Copy Prisma files for runtime
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
-COPY --from=builder --chown=nextjs:nodejs /app/pnpm-lock.yaml ./pnpm-lock.yaml
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@libsql ./node_modules/@libsql
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/bcryptjs ./node_modules/bcryptjs
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/dotenv ./node_modules/dotenv
+
+# Copy pnpm store and create symlinks for Prisma packages
+# (marked as serverExternalPackages so not bundled by Next.js)
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.pnpm ./node_modules/.pnpm
+RUN mkdir -p node_modules/@prisma node_modules/@libsql node_modules/prisma && \
+    ln -s ../.pnpm/@prisma+client@7.0.0_prisma@7.0.0_@types+react@19.2.2_react-dom@19.2.0_react@19.2.0__re_f27ab0a588f3a3c93c5aed3dd3fe1042/node_modules/@prisma/client node_modules/@prisma/client && \
+    ln -s ../.pnpm/@prisma+adapter-libsql@7.0.0_@libsql+client@0.14.1_@prisma+client@7.0.0/node_modules/@prisma/adapter-libsql node_modules/@prisma/adapter-libsql && \
+    ln -s ../.pnpm/@libsql+client@0.14.1/node_modules/@libsql/client node_modules/@libsql/client && \
+    ln -s ../.pnpm/prisma@7.0.0/node_modules/prisma node_modules/prisma
 
 # Create persistent directories (uploads + SQLite)
 RUN mkdir -p /app/data /app/uploads && \

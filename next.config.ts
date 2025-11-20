@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   // (Turbopack doesn't need the fs/path fallback that webpack required)
   turbopack: {},
   // Configure server external packages for Prisma 7.x with LibSQL adapter
+  // These packages contain native bindings and must not be bundled
   serverExternalPackages: [
     '@prisma/client',
     '@prisma/adapter-libsql',
