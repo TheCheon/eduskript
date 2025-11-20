@@ -8,7 +8,7 @@ sudo chmod -R 755 /app/data /app/uploads
 
 echo "Starting database migration..."
 # Run Prisma migrations (apply all pending migration files)
-# Use local prisma to ensure version matches package.json (6.11.0, not latest 7.x)
+# Use local prisma from node_modules to ensure version matches package.json (6.11.0, not latest 7.x)
 node_modules/.bin/prisma migrate deploy
 
 echo "Seeding admin user if needed..."
