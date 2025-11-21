@@ -9,8 +9,10 @@ const nextConfig: NextConfig = {
   ],
   // Allow local network access for development
   allowedDevOrigins: ['192.168.1.112'],
-  // Empty turbopack config to acknowledge we're using Turbopack with webpack fallback
-  turbopack: {},
+  // Set explicit root directory for Turbopack to find next/package.json
+  turbopack: {
+    root: '/workspace',
+  },
   webpack(config, { isServer }) {
     // disabling fs and path to avoid the tears
     if (!isServer) {
