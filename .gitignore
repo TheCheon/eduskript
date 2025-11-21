@@ -61,5 +61,5 @@ data/.env
 /dev-scripts/
 /coverage/
 
-# Dev scripts (temporary)
+# Dev scripts
 dev-scripts/
