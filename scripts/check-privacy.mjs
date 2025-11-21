@@ -4,12 +4,8 @@
  */
 
 import { PrismaClient } from '@prisma/client'
-import { PrismaLibSql } from '@prisma/adapter-libsql'
 
-const adapter = new PrismaLibSql({
-  url: `file:${process.env.DATABASE_URL?.replace('file:', '') || './prisma/data/dev.db'}`
-})
-const prisma = new PrismaClient({ adapter })
+const prisma = new PrismaClient()
 
 async function checkPrivacy() {
   console.log('🔍 Checking privacy compliance...\n')

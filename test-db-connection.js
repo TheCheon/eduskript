@@ -1,11 +1,7 @@
 import { PrismaClient } from '@prisma/client'
-import { PrismaLibSql } from '@prisma/adapter-libsql'
 
 async function testConnection() {
-  const adapter = new PrismaLibSql({
-    url: `file:${process.env.DATABASE_URL?.replace('file:', '') || './prisma/data/dev.db'}`
-  })
-  const prisma = new PrismaClient({ adapter })
+  const prisma = new PrismaClient()
   try {
     await prisma.$connect()
     console.log('✅ Database connection successful')

@@ -1,80 +1,85 @@
 /**
  * Test Database Utilities
  *
- * Provides utilities for setting up and managing in-memory SQLite databases
+ * Provides utilities for setting up and managing test PostgreSQL databases
  * for integration tests. Uses Prisma for schema management and seeding.
  */
 
 import { PrismaClient } from '@prisma/client'
-import { PrismaLibSql } from '@prisma/adapter-libsql'
 import { execSync } from 'child_process'
 import { randomBytes } from 'crypto'
 import { vi } from 'vitest'
-import fs from 'fs'
-import path from 'path'
 
 // Store active test database instances
-const testDatabases = new Map<string, { prisma: PrismaClient; dbPath: string }>()
+const testDatabases = new Map<string, { prisma: PrismaClient; dbName: string }>()
 
 /**
- * Creates a new in-memory SQLite database with the Prisma schema applied
- * @returns Object containing the Prisma client and database path
+ * Creates a new test PostgreSQL database with the Prisma schema applied
+ * @returns Object containing the Prisma client and database name
  */
 export async function createTestDatabase(): Promise<{
   prisma: PrismaClient
   dbPath: string
   cleanup: () => Promise<void>
 }> {
-  // Generate unique database file name
+  // Generate unique database name
   const dbId = randomBytes(16).toString('hex')
-  const dbPath = path.join(process.cwd(), `.test-db-${dbId}.db`)
+  const dbName = `test_db_${dbId}`
 
-  // Set environment variable for this test database
+  // Get base DATABASE_URL from environment
   const originalUrl = process.env.DATABASE_URL
-  process.env.DATABASE_URL = `file:${dbPath}`
+  if (!originalUrl) {
+    throw new Error('DATABASE_URL environment variable is required for tests')
+  }
+
+  // Create test database URL by replacing database name
+  const baseUrl = new URL(originalUrl)
+  baseUrl.pathname = `/${dbName}`
+  const testDatabaseUrl = baseUrl.toString()
+
+  process.env.DATABASE_URL = testDatabaseUrl
 
   try {
+    // Create the test database (PostgreSQL-specific command)
+    const createDbUrl = new URL(originalUrl)
+    createDbUrl.pathname = '/postgres' // Connect to postgres database to create new DB
+    execSync(
+      `psql "${createDbUrl.toString()}" -c "CREATE DATABASE ${dbName};"`,
+      { stdio: 'pipe' }
+    )
+
     // Push schema to the new database (faster than migrations for testing)
     execSync('pnpm prisma db push --skip-generate', {
       stdio: 'pipe',
       env: {
         ...process.env,
-        DATABASE_URL: `file:${dbPath}`,
+        DATABASE_URL: testDatabaseUrl,
       },
     })
 
-    // Create LibSQL adapter for this test database
-    const adapter = new PrismaLibSql({
-      url: `file:${dbPath}`
-    })
-
     // Create Prisma client for this database
-    const prisma = new PrismaClient({
-      adapter,
-    })
+    const prisma = new PrismaClient()
 
     await prisma.$connect()
 
     // Store reference for cleanup
-    testDatabases.set(dbId, { prisma, dbPath })
+    testDatabases.set(dbId, { prisma, dbName })
 
     // Cleanup function
     const cleanup = async () => {
       await prisma.$disconnect()
       testDatabases.delete(dbId)
 
-      // Remove database file
+      // Drop the test database
       try {
-        if (fs.existsSync(dbPath)) {
-          fs.unlinkSync(dbPath)
-        }
-        // Remove journal files if they exist
-        const journalPath = `${dbPath}-journal`
-        if (fs.existsSync(journalPath)) {
-          fs.unlinkSync(journalPath)
-        }
+        const createDbUrl = new URL(originalUrl)
+        createDbUrl.pathname = '/postgres'
+        execSync(
+          `psql "${createDbUrl.toString()}" -c "DROP DATABASE IF EXISTS ${dbName};"`,
+          { stdio: 'pipe' }
+        )
       } catch (error) {
-        console.error(`Failed to delete test database: ${error}`)
+        console.error(`Failed to drop test database: ${error}`)
       }
 
       // Restore original DATABASE_URL
@@ -83,7 +88,7 @@ export async function createTestDatabase(): Promise<{
       }
     }
 
-    return { prisma, dbPath, cleanup }
+    return { prisma, dbPath: dbName, cleanup }
   } catch (error) {
     // Restore original URL if setup fails
     if (originalUrl) {
@@ -239,18 +244,20 @@ export async function clearDatabase(prisma: PrismaClient) {
  * Call this in global teardown or afterAll
  */
 export async function cleanupAllTestDatabases() {
-  const promises = Array.from(testDatabases.values()).map(async ({ prisma, dbPath }) => {
+  const promises = Array.from(testDatabases.values()).map(async ({ prisma, dbName }) => {
     await prisma.$disconnect()
     try {
-      if (fs.existsSync(dbPath)) {
-        fs.unlinkSync(dbPath)
-      }
-      const journalPath = `${dbPath}-journal`
-      if (fs.existsSync(journalPath)) {
-        fs.unlinkSync(journalPath)
+      const originalUrl = process.env.DATABASE_URL
+      if (originalUrl) {
+        const createDbUrl = new URL(originalUrl)
+        createDbUrl.pathname = '/postgres'
+        execSync(
+          `psql "${createDbUrl.toString()}" -c "DROP DATABASE IF EXISTS ${dbName};"`,
+          { stdio: 'pipe' }
+        )
       }
     } catch (error) {
-      console.error(`Failed to delete test database: ${error}`)
+      console.error(`Failed to drop test database: ${error}`)
     }
   })
 
