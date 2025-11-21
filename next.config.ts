@@ -2,10 +2,6 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  // Configure Turbopack root for production builds
-  turbopack: {
-    root: process.cwd(),
-  },
   // Configure server external packages for Prisma
   // These packages contain native bindings and must not be bundled
   serverExternalPackages: [
