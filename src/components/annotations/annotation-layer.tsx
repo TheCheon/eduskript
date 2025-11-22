@@ -97,6 +97,9 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   const [storedHeadingOffsets, setStoredHeadingOffsets] = useState<Record<string, number>>({})
   const [snaps, setSnaps] = useState<Snap[]>([])
 
+  // Track last pointer event to debounce rapid mode switching (Chromium bug workaround)
+  const lastPointerEventRef = useRef<{ type: string; timestamp: number } | null>(null)
+
   // Canvas width matches paper width exactly
   // Paper is max-w-5xl (64rem = 1024px)
   const PAPER_WIDTH_REM = 64
@@ -525,6 +528,14 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
     const handleDocumentPointer = (e: PointerEvent) => {
       if (e.pointerType === 'pen') {
+        // Debounce: ignore rapid switches (within 500ms) between pen and mouse
+        const now = Date.now()
+        const lastEvent = lastPointerEventRef.current
+        if (lastEvent && lastEvent.type === 'mouse' && now - lastEvent.timestamp < 500) {
+          // Ignore this pen event - it's too soon after a mouse event (Chromium bug)
+          return
+        }
+        lastPointerEventRef.current = { type: 'pen', timestamp: now }
         handleStylusDetected()
       }
     }
@@ -544,6 +555,14 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
     const handleDocumentMouseMove = (e: PointerEvent) => {
       if (e.pointerType === 'mouse') {
+        // Debounce: ignore rapid switches (within 500ms) between mouse and pen
+        const now = Date.now()
+        const lastEvent = lastPointerEventRef.current
+        if (lastEvent && lastEvent.type === 'pen' && now - lastEvent.timestamp < 500) {
+          // Ignore this mouse event - it's too soon after a pen event (Chromium bug)
+          return
+        }
+        lastPointerEventRef.current = { type: 'mouse', timestamp: now }
         setStylusModeActive(false)
         setMode('view')
       }
