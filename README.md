@@ -11,13 +11,25 @@ Get started in under 2 minutes:
 git clone https://github.com/marcchehab/eduskript.git
 cd eduskript
 
-# Install dependencies
-pnpm install
-
 # Setup development environment (auto-configures PostgreSQL + Next.js with unique ports)
-pnpm setup
+# This installs dependencies, generates Prisma client, sets up database, etc.
+bash scripts/setup-dev.sh
 
 # Start the development server
+pnpm dev
+```
+
+### For New Worktrees
+
+```bash
+# Create a new worktree
+git worktree add ../eduskript-feature-name -b feature-name
+cd ../eduskript-feature-name
+
+# Setup (works even without node_modules)
+bash scripts/setup-dev.sh
+
+# Start dev server
 pnpm dev
 ```
 
@@ -34,7 +46,7 @@ The setup script will:
 
 ### ✅ Worktree-Safe Development Setup
 - **Automatic port detection** - No more port collision issues when running multiple worktrees
-- **One-command setup** - `pnpm setup` handles everything: PostgreSQL, migrations, seeding
+- **One-command setup** - `bash scripts/setup-dev.sh` handles everything: PostgreSQL, migrations, seeding
 - **Unique containers** - Each worktree gets its own PostgreSQL container and volume
 - **Developer-friendly** - Clear output, helpful error messages, idempotent script
 
