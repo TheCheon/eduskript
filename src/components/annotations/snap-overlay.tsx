@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useRef } from 'react'
-import html2canvas from 'html2canvas'
+import { toSvg, getFontEmbedCSS } from 'html-to-image'
 
 export interface Snap {
   id: string
@@ -89,22 +89,22 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
         return
       }
 
-      // Capture the entire paper element
-      const canvas = await html2canvas(paperElement, {
-        backgroundColor: null,
-        scale: 2, // Higher quality
-        logging: false,
-        useCORS: true,
-        allowTaint: true
-      })
+      // Hide the selection rectangle before capturing
+      const savedCurrentPos = currentPos
+      setCurrentPos(null)
+
+      // Wait a tick for React to update
+      await new Promise(resolve => setTimeout(resolve, 0))
 
       // Get the paper element's position relative to the viewport
       const paperRect = paperElement.getBoundingClientRect()
 
+      // Get natural (unzoomed) dimensions of the paper element
+      const naturalWidth = paperElement.offsetWidth
+      const naturalHeight = paperElement.offsetHeight
+
       // Calculate the selection relative to the paper element
-      // The overlay is positioned relative to the viewport, so we need to adjust
       const scrollTop = window.scrollY || document.documentElement.scrollTop
-      const scrollLeft = window.scrollX || document.documentElement.scrollLeft
 
       // Convert overlay coordinates to paper coordinates
       const overlayRect = overlayRef.current?.getBoundingClientRect()
@@ -113,48 +113,108 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
         return
       }
 
-      // For screenshot: convert to screen coordinates (multiply by zoom)
-      const selectionLeft = (left * zoom) + overlayRect.left - paperRect.left
-      const selectionTop = (top * zoom) + overlayRect.top - paperRect.top + scrollTop
-      const screenWidth = width * zoom
-      const screenHeight = height * zoom
-
-      // For snap positioning: use logical coordinates (no zoom)
-      // Snaps are inside the zoomed container, so positions are in logical space
-      // Position slightly to the bottom right of the selection (offset by 20px)
+      // Calculate selection position relative to paper in logical coordinates
       const logicalLeft = left + (overlayRect.left - paperRect.left) / zoom
       const logicalTop = top + (overlayRect.top - paperRect.top) / zoom
-      const snapLeft = logicalLeft + width + 20 // 20px to the right
-      const snapTop = logicalTop + height + 20 // 20px below
 
-      // Create a new canvas for the cropped region
-      const croppedCanvas = document.createElement('canvas')
-      const scale = canvas.width / paperRect.width
-      croppedCanvas.width = screenWidth * scale
-      croppedCanvas.height = screenHeight * scale
+      // For snap positioning: offset from selection
+      const snapLeft = logicalLeft + width + 20
+      const snapTop = logicalTop + height + 20
 
-      const ctx = croppedCanvas.getContext('2d')
-      if (!ctx) {
-        console.error('Could not get canvas context')
-        onCancel()
-        return
+      // Create a temporary wrapper to capture only the selected region
+      const wrapper = document.createElement('div')
+      wrapper.style.position = 'absolute'
+      wrapper.style.left = '0'
+      wrapper.style.top = '0'
+      wrapper.style.width = `${width}px`
+      wrapper.style.height = `${height}px`
+      wrapper.style.overflow = 'hidden'
+      wrapper.style.pointerEvents = 'none'
+
+      // Copy theme classes from html/body to preserve theme in capture
+      const htmlClasses = document.documentElement.className
+      const bodyClasses = document.body.className
+      wrapper.className = `${htmlClasses} ${bodyClasses}`
+
+      // Clone the paper element
+      const paperClone = paperElement.cloneNode(true) as HTMLElement
+      paperClone.style.position = 'absolute'
+      paperClone.style.left = `${-logicalLeft}px`
+      paperClone.style.top = `${-logicalTop}px`
+      // Preserve natural dimensions to prevent reflow
+      paperClone.style.width = `${naturalWidth}px`
+      paperClone.style.height = `${naturalHeight}px`
+      paperClone.style.minWidth = `${naturalWidth}px`
+      paperClone.style.minHeight = `${naturalHeight}px`
+
+      // Append paper clone to wrapper
+      wrapper.appendChild(paperClone)
+
+      // Find and clone the annotation canvas
+      const annotationCanvas = document.querySelector('.annotation-canvas') as HTMLCanvasElement
+      if (annotationCanvas) {
+        const canvasClone = document.createElement('canvas') as HTMLCanvasElement
+        const canvasParent = annotationCanvas.parentElement
+
+        // Copy canvas dimensions and class (for dark mode filter)
+        canvasClone.width = annotationCanvas.width
+        canvasClone.height = annotationCanvas.height
+        canvasClone.style.width = annotationCanvas.style.width
+        canvasClone.style.height = annotationCanvas.style.height
+        canvasClone.className = annotationCanvas.className
+
+        // Copy the canvas content
+        const cloneCtx = canvasClone.getContext('2d')
+        if (cloneCtx) {
+          cloneCtx.drawImage(annotationCanvas, 0, 0)
+        }
+
+        if (canvasParent) {
+          const canvasParentRect = canvasParent.getBoundingClientRect()
+
+          // Position canvas clone relative to the paper in logical coordinates
+          // canvasParentRect is in screen coords, so divide by zoom to get logical offset
+          const canvasOffsetLeft = (canvasParentRect.left - paperRect.left) / zoom
+          const canvasOffsetTop = (canvasParentRect.top - paperRect.top) / zoom
+
+          canvasClone.style.position = 'absolute'
+          canvasClone.style.left = `${canvasOffsetLeft - logicalLeft}px`
+          canvasClone.style.top = `${canvasOffsetTop - logicalTop}px`
+          canvasClone.style.zIndex = '10'
+
+          wrapper.appendChild(canvasClone)
+        }
       }
 
-      // Draw the cropped portion
-      ctx.drawImage(
-        canvas,
-        selectionLeft * scale,
-        selectionTop * scale,
-        screenWidth * scale,
-        screenHeight * scale,
-        0,
-        0,
-        croppedCanvas.width,
-        croppedCanvas.height
-      )
+      // Append wrapper to body
+      document.body.appendChild(wrapper)
 
-      // Convert to data URL
-      const imageUrl = croppedCanvas.toDataURL('image/png')
+      // Try to get font CSS, but fall back to skipFonts if it fails
+      let captureOptions: any = {
+        quality: 1.0,
+        pixelRatio: 2,
+        preferredFontFormat: 'woff2'
+      }
+
+      try {
+        const fontEmbedCSS = await getFontEmbedCSS(paperElement)
+        captureOptions.fontEmbedCSS = fontEmbedCSS
+      } catch (fontError) {
+        console.warn('Font embedding failed, using skipFonts:', fontError)
+        captureOptions.skipFonts = true
+      }
+
+      // Capture the wrapper (which shows only the selected region)
+      const svgDataUrl = await toSvg(wrapper, captureOptions)
+
+      // Clean up: remove the temporary wrapper
+      document.body.removeChild(wrapper)
+
+      // Restore the selection rectangle
+      setCurrentPos(savedCurrentPos)
+
+      // Use the cropped SVG
+      const imageUrl = svgDataUrl
 
       // Create snap with auto-generated name
       const snap: Snap = {

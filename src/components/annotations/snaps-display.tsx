@@ -236,7 +236,7 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
                   }}
                   onBlur={() => handleSaveEdit(snap.id)}
                   onMouseDown={(e) => e.stopPropagation()}
-                  className="snap-title flex-1 px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="snap-title px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   autoFocus
                 />
               ) : (
@@ -246,7 +246,7 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
                     handleStartEdit(snap)
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
-                  className="snap-title flex-1 text-sm font-medium text-foreground truncate cursor-text hover:text-primary transition-colors"
+                  className="snap-title text-sm font-medium text-foreground cursor-text hover:text-primary transition-colors"
                   title="Click to rename"
                 >
                   {snap.name}

@@ -1044,6 +1044,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         onPenColorChange={handlePenColorChange}
         penSizes={penSizes}
         onPenSizeChange={handlePenSizeChange}
+        zoom={zoom}
+        onResetZoom={() => setZoom(1.0)}
       />
 
       {/* Save state indicator - subtle, fixed to viewport, left of toolbar */}
