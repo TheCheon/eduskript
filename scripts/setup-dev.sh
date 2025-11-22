@@ -187,10 +187,11 @@ for i in {1..30}; do
     sleep 1
 done
 
-# Generate Prisma client
+# Generate Prisma client (needs DATABASE_URL even though we just generated .env.local)
 echo ""
 echo -e "${BLUE}→${NC} Generating Prisma client..."
-if pnpm db:generate; then
+# Export DATABASE_URL for this command since Prisma config needs it
+if DATABASE_URL="$DATABASE_URL" pnpm db:generate; then
     echo -e "${GREEN}✓${NC} Prisma client generated"
 else
     echo -e "${RED}✗ Error: Failed to generate Prisma client${NC}"
