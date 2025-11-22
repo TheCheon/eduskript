@@ -532,6 +532,17 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     setSnaps(prev => prev.filter(snap => snap.id !== id))
   }, [])
 
+  // Handle snap rename
+  const handleRenameSnap = useCallback((id: string, newName: string) => {
+    setSnaps(prev => prev.map(snap =>
+      snap.id === id ? { ...snap, name: newName } : snap
+    ))
+  }, [])
+
+  // Handle snap reorder
+  const handleReorderSnaps = useCallback((reorderedSnaps: Snap[]) => {
+    setSnaps(reorderedSnaps)
+  }, [])
 
   // Handle stylus detection
   const handleStylusDetected = useCallback(() => {
@@ -1085,6 +1096,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         <SnapOverlay
           onCapture={handleSnapCapture}
           onCancel={() => setMode('view')}
+          nextSnapNumber={snaps.length + 1}
+          zoom={zoom}
         />
       )}
 
@@ -1092,6 +1105,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       <SnapsDisplay
         snaps={snaps}
         onRemoveSnap={handleRemoveSnap}
+        onRenameSnap={handleRenameSnap}
+        onReorderSnaps={handleReorderSnaps}
       />
     </>
   )

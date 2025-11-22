@@ -5,8 +5,10 @@ import html2canvas from 'html2canvas'
 
 export interface Snap {
   id: string
+  name: string
   imageUrl: string
   top: number
+  left: number
   width: number
   height: number
 }
@@ -14,9 +16,11 @@ export interface Snap {
 interface SnapOverlayProps {
   onCapture: (snap: Snap) => void
   onCancel: () => void
+  nextSnapNumber: number
+  zoom: number
 }
 
-export function SnapOverlay({ onCapture, onCancel }: SnapOverlayProps) {
+export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapOverlayProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null)
   const [currentPos, setCurrentPos] = useState<{ x: number; y: number } | null>(null)
@@ -30,15 +34,16 @@ export function SnapOverlay({ onCapture, onCancel }: SnapOverlayProps) {
     if (!rect) return
 
     setIsDragging(true)
+    // Account for zoom transform - divide by zoom to get logical coordinates
     setStartPos({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
+      x: (e.clientX - rect.left) / zoom,
+      y: (e.clientY - rect.top) / zoom
     })
     setCurrentPos({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
+      x: (e.clientX - rect.left) / zoom,
+      y: (e.clientY - rect.top) / zoom
     })
-  }, [])
+  }, [zoom])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDragging || !startPos) return
@@ -46,11 +51,12 @@ export function SnapOverlay({ onCapture, onCancel }: SnapOverlayProps) {
     const rect = overlayRef.current?.getBoundingClientRect()
     if (!rect) return
 
+    // Account for zoom transform - divide by zoom to get logical coordinates
     setCurrentPos({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
+      x: (e.clientX - rect.left) / zoom,
+      y: (e.clientY - rect.top) / zoom
     })
-  }, [isDragging, startPos])
+  }, [isDragging, startPos, zoom])
 
   const handleMouseUp = useCallback(async (e: React.MouseEvent) => {
     if (!isDragging || !startPos || !currentPos) {
@@ -107,14 +113,25 @@ export function SnapOverlay({ onCapture, onCancel }: SnapOverlayProps) {
         return
       }
 
-      const selectionLeft = left + overlayRect.left - paperRect.left
-      const selectionTop = top + overlayRect.top - paperRect.top + scrollTop
+      // For screenshot: convert to screen coordinates (multiply by zoom)
+      const selectionLeft = (left * zoom) + overlayRect.left - paperRect.left
+      const selectionTop = (top * zoom) + overlayRect.top - paperRect.top + scrollTop
+      const screenWidth = width * zoom
+      const screenHeight = height * zoom
+
+      // For snap positioning: use logical coordinates (no zoom)
+      // Snaps are inside the zoomed container, so positions are in logical space
+      // Position slightly to the bottom right of the selection (offset by 20px)
+      const logicalLeft = left + (overlayRect.left - paperRect.left) / zoom
+      const logicalTop = top + (overlayRect.top - paperRect.top) / zoom
+      const snapLeft = logicalLeft + width + 20 // 20px to the right
+      const snapTop = logicalTop + height + 20 // 20px below
 
       // Create a new canvas for the cropped region
       const croppedCanvas = document.createElement('canvas')
       const scale = canvas.width / paperRect.width
-      croppedCanvas.width = width * scale
-      croppedCanvas.height = height * scale
+      croppedCanvas.width = screenWidth * scale
+      croppedCanvas.height = screenHeight * scale
 
       const ctx = croppedCanvas.getContext('2d')
       if (!ctx) {
@@ -128,8 +145,8 @@ export function SnapOverlay({ onCapture, onCancel }: SnapOverlayProps) {
         canvas,
         selectionLeft * scale,
         selectionTop * scale,
-        width * scale,
-        height * scale,
+        screenWidth * scale,
+        screenHeight * scale,
         0,
         0,
         croppedCanvas.width,
@@ -139,11 +156,13 @@ export function SnapOverlay({ onCapture, onCancel }: SnapOverlayProps) {
       // Convert to data URL
       const imageUrl = croppedCanvas.toDataURL('image/png')
 
-      // Create snap object
+      // Create snap with auto-generated name
       const snap: Snap = {
         id: Date.now().toString(),
+        name: `snap${nextSnapNumber}`,
         imageUrl,
-        top: selectionTop + paperRect.top, // Absolute position on page
+        top: snapTop,
+        left: snapLeft,
         width,
         height
       }
