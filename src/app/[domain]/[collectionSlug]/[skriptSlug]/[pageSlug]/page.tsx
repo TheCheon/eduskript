@@ -30,16 +30,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   try {
     const session = await getServerSession(authOptions)
     
-    // Find teacher by subdomain first
+    // Find teacher by username first
     const teacher = await prisma.user.findFirst({
-      where: { subdomain: domain },
-      select: { 
-        id: true, 
-        name: true, 
+      where: { username: domain },
+      select: {
+        id: true,
+        name: true,
         email: true,
-        title: true, 
-        bio: true, 
-        subdomain: true 
+        title: true,
+        bio: true,
+        username: true
       }
     })
 
@@ -186,23 +186,23 @@ export default async function PublicPage({ params }: PageProps) {
   const { domain, collectionSlug, skriptSlug, pageSlug } = await params
   const session = await getServerSession(authOptions)
   
-  // Check if we're on a subdomain by examining the Host header
+  // Check request headers
   const headersList = await headers()
   const host = headersList.get('host') || ''
   const hostname = host.split(':')[0]
   const isOnSubdomain = hostname !== 'localhost' && hostname.endsWith('.localhost')
 
   try {
-    // Find teacher by subdomain
+    // Find teacher by username
     const teacher = await prisma.user.findFirst({
-      where: { subdomain: domain },
+      where: { username: domain },
       select: {
         id: true,
         name: true,
         email: true,
         title: true,
         bio: true,
-        subdomain: true,
+        username: true,
         sidebarBehavior: true
       }
     })
@@ -355,8 +355,8 @@ export default async function PublicPage({ params }: PageProps) {
 
     // Prepare teacher data for the layout component
     const teacherForLayout = {
-      name: teacher.name || teacher.subdomain || 'Unknown',
-      subdomain: teacher.subdomain || domain,
+      name: teacher.name || teacher.username || 'Unknown',
+      username: teacher.username || domain,
       bio: teacher.bio || undefined,
       title: teacher.title || undefined
     }

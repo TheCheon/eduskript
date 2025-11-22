@@ -32,20 +32,20 @@ describe('lib/utils', () => {
 
   describe('getNavigationUrl', () => {
     describe('server-side (isClientSide = false)', () => {
-      it('should return full path with subdomain', () => {
+      it('should return full path with username', () => {
         const result = getNavigationUrl('testuser', '/collection/skript', false)
         expect(result).toBe('/testuser/collection/skript')
       })
 
       it('should handle paths without leading slash', () => {
         const result = getNavigationUrl('testuser', 'collection/skript', false)
-        // Function concatenates directly, so no slash between subdomain and path
+        // Function concatenates directly, so no slash between username and path
         expect(result).toBe('/testusercollection/skript')
       })
 
-      it('should handle empty subdomain', () => {
+      it('should handle empty username', () => {
         const result = getNavigationUrl('', '/collection/skript', false)
-        // Empty subdomain results in double slash
+        // Empty username results in double slash
         expect(result).toBe('//collection/skript')
       })
 
@@ -62,26 +62,26 @@ describe('lib/utils', () => {
         global.window = originalWindow
       })
 
-      it('should return relative path when on subdomain (localhost)', () => {
+      it('should return full path on localhost (no subdomain routing)', () => {
         global.window = {
           location: {
-            hostname: 'testuser.localhost',
+            hostname: 'localhost',
           },
         } as any
 
         const result = getNavigationUrl('testuser', '/collection/skript', true)
-        expect(result).toBe('/collection/skript')
+        expect(result).toBe('/testuser/collection/skript')
       })
 
-      it('should return relative path when on subdomain (eduskript.org)', () => {
+      it('should return full path on eduskript.org (no subdomain routing)', () => {
         global.window = {
           location: {
-            hostname: 'testuser.eduskript.org',
+            hostname: 'eduskript.org',
           },
         } as any
 
         const result = getNavigationUrl('testuser', '/collection/skript', true)
-        expect(result).toBe('/collection/skript')
+        expect(result).toBe('/testuser/collection/skript')
       })
 
       it('should return full path when on main domain (localhost)', () => {
@@ -136,12 +136,12 @@ describe('lib/utils', () => {
     it('should call getNavigationUrl with isClientSide = true', () => {
       global.window = {
         location: {
-          hostname: 'testuser.localhost',
+          hostname: 'localhost',
         },
       } as any
 
       const result = useNavigationUrl('testuser', '/collection/skript')
-      expect(result).toBe('/collection/skript')
+      expect(result).toBe('/testuser/collection/skript')
     })
 
     it('should work on main domain', () => {

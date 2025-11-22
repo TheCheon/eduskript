@@ -1,26 +1,35 @@
 **IMPORTANT: Do not mark items as complete in this roadmap unless explicitly instructed by the user.**
 
-*Last updated: 2025-11-18*
-*Current Status: Privacy-Preserving Class Management System - IMPLEMENTATION COMPLETE!*
+*Last updated: 2025-11-22*
+*Current Status: Simplified Architecture - Subdomain Routing Removed*
 
 > **Note**: Completed features have been moved to `COMPLETED_FEATURES.md`
 
 ---
 
-add tests for docker deployment so it's as unlikely to fail on remote as possible.
-make sure pushing to remote only works if tests pass.
-Consider carefully if there is a way to identify students not only without storing emails, but without the emails even leaving the teacher's computer. (then again, is that necessary? oauth sends around emails all the time)
+## Recent Updates (2025-11-22)
+
+### ✅ Simplified Routing Architecture
+- **Removed subdomain routing completely** - Now using path-based routing only (`eduskript.org/username/...`)
+- **Database migration** - `User.subdomain` renamed to `User.username`
+- **Removed custom domain support** - Cleaner architecture focused on core functionality
+- **56+ files updated** - Complete migration across all layers
+- **All tests passing** - 256 tests validated after migration
+
+### ✅ Enhanced Seed Data System
+- **User-focused seeding** - No longer creates dummy users, only content for current user
+- **Auto-refresh** - Content library updates automatically after seeding (no manual reload)
+- **Simplified content** - 1 collection (algebra), 2 skripts, 4 pages
+
+---
+
+- Consider carefully if there is a way to identify students not only without storing emails, but without the emails even leaving the teacher's computer. (then again, is that necessary? oauth sends around emails all the time)
+
+
 
 ## 📋 Current Implementation Status
 
 ### ✅ Phase 0: Microsoft Authentication & GDPR Privacy Infrastructure (COMPLETED)
-
-**Microsoft OAuth Integration:**
-- ✅ Added AzureADProvider to NextAuth configuration
-- ✅ Transferred Azure AD credentials from informatikgarten.ch
-- ✅ Updated environment configuration (.env, .env.example)
-- ✅ Configured OAuth scopes: `openid profile email offline_access`
-- ✅ Enabled PrismaAdapter for OAuth providers
 
 **Privacy-Preserving Student Data Model:**
 - ✅ Created pseudonym generation utilities (`src/lib/privacy/pseudonym.ts`)

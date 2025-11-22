@@ -181,21 +181,21 @@ export async function PATCH(
       }
     })
 
-    // Get user's subdomain for revalidation
+    // Get user's username for revalidation
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { subdomain: true }
+      select: { username: true }
     })
 
-    if (user?.subdomain) {
+    if (user?.username) {
       // Revalidate relevant paths for all collections this skript is in
       for (const cs of existingSkript.collectionSkripts) {
         if (cs.collection) {
-          revalidatePath(`/${user.subdomain}/${cs.collection.slug}/${updatedSkript.slug}`)
-          revalidatePath(`/${user.subdomain}/${cs.collection.slug}`)
+          revalidatePath(`/${user.username}/${cs.collection.slug}/${updatedSkript.slug}`)
+          revalidatePath(`/${user.username}/${cs.collection.slug}`)
         }
       }
-      revalidatePath(`/${user.subdomain}`)
+      revalidatePath(`/${user.username}`)
       revalidatePath('/dashboard')
     }
 
@@ -256,20 +256,20 @@ export async function DELETE(
       where: { id }
     })
 
-    // Get user's subdomain for revalidation
+    // Get user's username for revalidation
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { subdomain: true }
+      select: { username: true }
     })
 
-    if (user?.subdomain) {
+    if (user?.username) {
       // Revalidate relevant paths for all collections this skript was in
       for (const cs of existingSkript.collectionSkripts) {
         if (cs.collection) {
-          revalidatePath(`/${user.subdomain}/${cs.collection.slug}`)
+          revalidatePath(`/${user.username}/${cs.collection.slug}`)
         }
       }
-      revalidatePath(`/${user.subdomain}`)
+      revalidatePath(`/${user.username}`)
       revalidatePath('/dashboard')
     }
 

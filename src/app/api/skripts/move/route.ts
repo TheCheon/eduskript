@@ -266,29 +266,29 @@ export async function POST(request: NextRequest) {
       return updatedSkript
     })
 
-    // Get user's subdomain for revalidation
+    // Get user's username for revalidation
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { subdomain: true }
+      select: { username: true }
     })
 
-    if (user?.subdomain) {
+    if (user?.username) {
       // Revalidate relevant paths
-      revalidatePath(`/${user.subdomain}`)
+      revalidatePath(`/${user.username}`)
       revalidatePath('/dashboard')
-      
+
       // Revalidate old collection paths
       for (const cs of skript.collectionSkripts) {
         if (cs.collection) {
-          revalidatePath(`/${user.subdomain}/${cs.collection.slug}`)
+          revalidatePath(`/${user.username}/${cs.collection.slug}`)
         }
       }
-      
+
       // Revalidate new collection paths
       if (result) {
         for (const cs of result.collectionSkripts) {
           if (cs.collection) {
-            revalidatePath(`/${user.subdomain}/${cs.collection.slug}`)
+            revalidatePath(`/${user.username}/${cs.collection.slug}`)
           }
         }
       }

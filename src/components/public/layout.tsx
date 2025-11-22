@@ -11,7 +11,7 @@ import { useLayout } from '@/contexts/layout-context'
 
 interface Teacher {
   name: string
-  subdomain: string
+  username: string
   bio?: string
   title?: string
 }
@@ -71,8 +71,8 @@ export function PublicSiteLayout({
   }, [isSidebarCollapsed, setSidebarCollapsedInContext])
   
   // Storage keys for persistence
-  const EXPANDED_SCRIPTS_KEY = `expanded-collections-${teacher.subdomain}`
-  const EXPANDED_SKRIPTS_KEY = `expanded-skripts-${teacher.subdomain}`
+  const EXPANDED_SCRIPTS_KEY = `expanded-collections-${teacher.username}`
+  const EXPANDED_SKRIPTS_KEY = `expanded-skripts-${teacher.username}`
   
   // Initialize with persistent state or defaults
   const [expandedCollections, setExpandedCollections] = useState<string[]>([])
@@ -195,20 +195,8 @@ export function PublicSiteLayout({
   }
 
   const navigateToPage = (collectionSlug: string, skriptSlug: string, pageSlug: string) => {
-    // Check if we're on a subdomain by looking at window.location.hostname
-    const hostname = typeof window !== 'undefined' ? window.location.hostname : ''
-    const hostWithoutPort = hostname.split(':')[0]
-
-    // Check if we're on a subdomain
-    const parts = hostWithoutPort.split('.')
-    const hasSubdomain = (parts.length > 1 && parts[parts.length - 1] === 'localhost') ||  // subdomain.localhost
-                        (parts.length > 2 && parts[parts.length - 2] === 'eduskript')      // subdomain.eduskript.org
-
-    // If on subdomain, use relative URL (middleware will handle rewrite)
-    // If on main domain, use full path with subdomain
-    const url = hasSubdomain
-      ? `/${collectionSlug}/${skriptSlug}/${pageSlug}`
-      : `/${teacher.subdomain}/${collectionSlug}/${skriptSlug}/${pageSlug}`
+    // Always use path-based routing with username
+    const url = `/${teacher.username}/${collectionSlug}/${skriptSlug}/${pageSlug}`
 
     router.push(url)
     setIsSidebarOpen(false)
@@ -304,13 +292,7 @@ export function PublicSiteLayout({
                       {showHomeButton && (
                         <button
                           onClick={() => {
-                            const hostname = typeof window !== 'undefined' ? window.location.hostname : ''
-                            const hostWithoutPort = hostname.split(':')[0]
-                            const parts = hostWithoutPort.split('.')
-                            const hasSubdomain = (parts.length > 1 && parts[parts.length - 1] === 'localhost') ||
-                                                (parts.length > 2 && parts[parts.length - 2] === 'eduskript')
-
-                            const url = hasSubdomain ? '/' : `/${teacher.subdomain}`
+                            const url = `/${teacher.username}`
                             router.push(url)
                             setIsSidebarOpen(false)
                           }}
@@ -342,13 +324,7 @@ export function PublicSiteLayout({
                       <button
                         onClick={() => {
                           // Navigate to teacher's root page
-                          const hostname = typeof window !== 'undefined' ? window.location.hostname : ''
-                          const hostWithoutPort = hostname.split(':')[0]
-                          const parts = hostWithoutPort.split('.')
-                          const hasSubdomain = (parts.length > 1 && parts[parts.length - 1] === 'localhost') ||
-                                              (parts.length > 2 && parts[parts.length - 2] === 'eduskript')
-
-                          const url = hasSubdomain ? '/' : `/${teacher.subdomain}`
+                          const url = `/${teacher.username}`
                           router.push(url)
                           setIsSidebarOpen(false)
                         }}

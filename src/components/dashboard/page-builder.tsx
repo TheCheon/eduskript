@@ -38,6 +38,7 @@ interface PageBuilderProps {
     title: string
     description?: string
   } | null
+  onRefresh?: () => void
 }
 
 export function PageBuilder({
@@ -46,7 +47,8 @@ export function PageBuilder({
   onPreview,
   expandedCollections = [],
   onToggleCollection,
-  draggedItem
+  draggedItem,
+  onRefresh
 }: PageBuilderProps) {
   const { data: session } = useSession()
   const [seeding, setSeeding] = useState(false)
@@ -54,7 +56,7 @@ export function PageBuilder({
   const [seedSuccess, setSeedSuccess] = useState('')
 
   const handleSeedData = async () => {
-    if (!confirm('This will create example users, collections, and content. Continue?')) {
+    if (!confirm('This will create example collections and content. Continue?')) {
       return
     }
 
@@ -73,7 +75,10 @@ export function PageBuilder({
         throw new Error(data.error || 'Failed to seed data')
       }
 
-      setSeedSuccess(`Example data seeded! Created ${data.data.skripts} skripts with ${data.data.pages} pages. Refresh the page to see them.`)
+      setSeedSuccess(`Example data seeded! Created ${data.data.skripts} skripts with ${data.data.pages} pages.`)
+
+      // Trigger refresh of content library
+      onRefresh?.()
     } catch (err) {
       setSeedError(err instanceof Error ? err.message : 'An error occurred')
     } finally {

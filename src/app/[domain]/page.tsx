@@ -17,10 +17,10 @@ interface DomainIndexProps {
 // Generate metadata for SEO
 export async function generateMetadata({ params }: DomainIndexProps): Promise<Metadata> {
   const { domain } = await params
-  
+
   try {
     const teacher = await prisma.user.findFirst({
-      where: { subdomain: domain }
+      where: { username: domain }
     })
 
     if (!teacher) {
@@ -63,10 +63,10 @@ export default async function DomainIndex({ params }: DomainIndexProps) {
   const { domain } = await params
 
   try {
-    // Find teacher by subdomain (custom domains support will be added later)
+    // Find teacher by username
     const teacher = await prisma.user.findFirst({
       where: {
-        subdomain: domain
+        username: domain
       },
       include: {
         pageLayout: {
@@ -206,7 +206,7 @@ export default async function DomainIndex({ params }: DomainIndexProps) {
 
     const teacherData = {
       name: teacher.name || 'Teacher',
-      subdomain: teacher.subdomain || '',
+      username: teacher.username || '',
       bio: teacher.bio || undefined,
       title: teacher.title || undefined
     }

@@ -20,7 +20,7 @@ export async function GET(
         id: true,
         email: true,
         name: true,
-        subdomain: true,
+        username: true,
         title: true,
         isAdmin: true,
         requirePasswordReset: true,
@@ -58,7 +58,7 @@ export async function PATCH(
   const { id } = await params
 
   try {
-    const { email, name, subdomain, title, isAdmin, requirePasswordReset } = await request.json()
+    const { email, name, username, title, isAdmin, requirePasswordReset } = await request.json()
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -98,18 +98,18 @@ export async function PATCH(
       }
     }
 
-    // Check if subdomain is taken by another user
-    if (subdomain) {
-      const subdomainTaken = await prisma.user.findFirst({
+    // Check if username is taken by another user
+    if (username) {
+      const usernameTaken = await prisma.user.findFirst({
         where: {
-          subdomain,
+          username,
           id: { not: id },
         },
       })
 
-      if (subdomainTaken) {
+      if (usernameTaken) {
         return NextResponse.json(
-          { error: 'Subdomain already taken by another user' },
+          { error: 'Username already taken by another user' },
           { status: 409 }
         )
       }
@@ -121,7 +121,7 @@ export async function PATCH(
       data: {
         ...(email && { email }),
         ...(name && { name }),
-        ...(subdomain && { subdomain }),
+        ...(username && { username }),
         ...(title !== undefined && { title: title || null }),
         ...(isAdmin !== undefined && { isAdmin }),
         ...(requirePasswordReset !== undefined && { requirePasswordReset }),
@@ -130,7 +130,7 @@ export async function PATCH(
         id: true,
         email: true,
         name: true,
-        subdomain: true,
+        username: true,
         title: true,
         isAdmin: true,
         requirePasswordReset: true,

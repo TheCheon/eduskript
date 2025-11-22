@@ -8,7 +8,7 @@ declare module "next-auth" {
       name?: string | null
       email?: string | null
       image?: string | null
-      subdomain?: string | null
+      username?: string | null
       title?: string | null
       bio?: string | null
       isAdmin?: boolean
@@ -23,7 +23,7 @@ declare module "next-auth" {
     name?: string | null
     email?: string | null
     image?: string | null
-    subdomain?: string | null
+    username?: string | null
     title?: string | null
     bio?: string | null
     isAdmin?: boolean
@@ -39,7 +39,7 @@ declare module "next-auth/jwt" {
     name?: string | null
     email?: string | null
     image?: string | null
-    subdomain?: string | null
+    username?: string | null
     title?: string | null
     bio?: string | null
     isAdmin?: boolean

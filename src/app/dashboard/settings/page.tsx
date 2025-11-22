@@ -1,7 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { CustomDomains } from '@/components/dashboard/custom-domains'
 import { ProfileSettings } from '@/components/dashboard/profile-settings'
 import { PageSettings } from '@/components/dashboard/page-settings'
 
@@ -32,18 +31,6 @@ export default async function SettingsPage() {
         {!isStudent && (
           <>
             <PageSettings />
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Custom Domains</CardTitle>
-                <CardDescription>
-                  Connect your own domain to make your content accessible at your custom URL
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <CustomDomains />
-              </CardContent>
-            </Card>
           </>
         )}
       </div>

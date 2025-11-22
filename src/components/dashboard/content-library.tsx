@@ -30,9 +30,10 @@ interface SkriptWithAuthors extends Skript {
 
 interface ContentLibraryProps {
   onDataLoad?: (data: { collections: any[], skripts: any[] }) => void
+  refreshTrigger?: number
 }
 
-export function ContentLibrary({ onDataLoad }: ContentLibraryProps = {}) {
+export function ContentLibrary({ onDataLoad, refreshTrigger }: ContentLibraryProps = {}) {
   const { data: session } = useSession()
   const [collections, setCollections] = useState<CollectionWithAuthors[]>([])
   const [skripts, setSkripts] = useState<SkriptWithAuthors[]>([])
@@ -68,7 +69,7 @@ export function ContentLibrary({ onDataLoad }: ContentLibraryProps = {}) {
 
   useEffect(() => {
     fetchContent()
-  }, [fetchContent])
+  }, [fetchContent, refreshTrigger])
 
   // Filter content based on search term
   const filteredCollections = collections.filter(collection =>

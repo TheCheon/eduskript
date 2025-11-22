@@ -118,22 +118,6 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
   },
-  cookies: process.env.NODE_ENV === 'production' ? {
-    sessionToken: {
-      name: '__Secure-next-auth.session-token',
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: true,
-        // Set domain to allow cookies across subdomains in production
-        // Extract root domain from NEXTAUTH_URL (e.g., .eduskript.org or .koyeb.app)
-        domain: process.env.NEXTAUTH_URL
-          ? '.' + new URL(process.env.NEXTAUTH_URL).hostname.split('.').slice(-2).join('.')
-          : '.eduskript.org',
-      },
-    },
-  } : undefined, // In development, use default NextAuth cookies (no cross-subdomain support)
   callbacks: {
     async signIn({ user, account, profile }) {
       // No need to clean up cookies anymore since we use global variable
@@ -150,7 +134,7 @@ export const authOptions: NextAuthOptions = {
             name: true,
             email: true,
             image: true,
-            subdomain: true,
+            username: true,
             title: true,
             bio: true,
             isAdmin: true,
@@ -161,7 +145,7 @@ export const authOptions: NextAuthOptions = {
         })
 
         if (dbUser) {
-          token.subdomain = dbUser.subdomain
+          token.username = dbUser.username
           token.title = dbUser.title
           token.bio = dbUser.bio
           token.name = dbUser.name
@@ -213,7 +197,7 @@ export const authOptions: NextAuthOptions = {
             name: true,
             email: true,
             image: true,
-            subdomain: true,
+            username: true,
             title: true,
             bio: true,
             isAdmin: true,
@@ -224,7 +208,7 @@ export const authOptions: NextAuthOptions = {
         })
 
         if (dbUser) {
-          token.subdomain = dbUser.subdomain
+          token.username = dbUser.username
           token.title = dbUser.title
           token.bio = dbUser.bio
           token.name = dbUser.name
@@ -242,7 +226,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string
-        session.user.subdomain = token.subdomain as string
+        session.user.username = token.username as string
         session.user.title = token.title as string
         session.user.bio = token.bio as string
         session.user.name = token.name as string

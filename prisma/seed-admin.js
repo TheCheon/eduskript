@@ -32,7 +32,7 @@ async function main() {
     data: {
       email: 'eduadmin@eduskript.org',
       name: 'Edu Admin',
-      subdomain: 'eduadmin',
+      username: 'eduadmin',
       hashedPassword,
       emailVerified: new Date(),
       isAdmin: true,

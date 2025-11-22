@@ -2,6 +2,15 @@
 
 This file tracks features that have been fully implemented and deployed.
 
+**Microsoft OAuth Integration:**
+- ✅ Added AzureADProvider to NextAuth configuration
+- ✅ Transferred Azure AD credentials from informatikgarten.ch
+- ✅ Updated environment configuration (.env, .env.example)
+- ✅ Configured OAuth scopes: `openid profile email offline_access`
+- ✅ Enabled PrismaAdapter for OAuth providers
+
+
+
 *Last updated: 2025-01-15*
 
 ## 🔧 Recent Infrastructure Improvements (2025-01-15)

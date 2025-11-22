@@ -45,6 +45,7 @@ export function PageBuilderInterface() {
   const [loading, setLoading] = useState(true)
   const [expandedCollections, setExpandedCollections] = useState<string[]>([])
   const [libraryData, setLibraryData] = useState<{ collections: any[], skripts: any[] }>({ collections: [], skripts: [] })
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   // Load existing page layout on component mount
   useEffect(() => {
@@ -671,39 +672,22 @@ export function PageBuilderInterface() {
 
   const handlePreview = () => {
     // Open teacher's public page in a new tab
-    if (session?.user?.subdomain) {
+    if (session?.user?.username) {
       const protocol = window.location.protocol
       const host = window.location.host
 
-      // For localhost development, navigate to the subdomain route
-      if (host.includes('localhost')) {
-        const url = `${protocol}//${host}/${session.user.subdomain}`
-        window.open(url, '_blank')
-      } else {
-        // For production with actual subdomains
-        // Check if we're already on a subdomain or on the base domain
-        const hostParts = host.split('.')
-        let baseHost = host
-
-        // If we have more than 2 parts (e.g., "dashboard.eduskript.org" has 3 parts),
-        // remove the first part to get the base domain
-        // If we have exactly 2 parts (e.g., "eduskript.org"), keep it as is
-        if (hostParts.length > 2) {
-          baseHost = hostParts.slice(1).join('.')
-        }
-
-        const url = `${protocol}//${session.user.subdomain}.${baseHost}`
-        window.open(url, '_blank')
-      }
+      // For localhost development and production, use path-based routing
+      const url = `${protocol}//${host}/${session.user.username}`
+      window.open(url, '_blank')
     } else {
-      console.error('No subdomain found for current user')
+      console.error('No username found for current user')
     }
   }
 
   if (loading) {
     return (
-      <DragDropContext 
-        onDragStart={handleDragStart} 
+      <DragDropContext
+        onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
         <div className="flex gap-6 h-[calc(100vh-120px)]">
@@ -711,7 +695,10 @@ export function PageBuilderInterface() {
             <p className="text-muted-foreground">Loading page builder...</p>
           </div>
           <div className="w-80 flex-shrink-0">
-            <ContentLibrary onDataLoad={setLibraryData} />
+            <ContentLibrary
+              onDataLoad={setLibraryData}
+              refreshTrigger={refreshTrigger}
+            />
           </div>
         </div>
       </DragDropContext>
@@ -732,19 +719,23 @@ export function PageBuilderInterface() {
             onPreview={handlePreview}
             expandedCollections={expandedCollections}
             onToggleCollection={(collectionId) => {
-              setExpandedCollections(prev => 
+              setExpandedCollections(prev =>
                 prev.includes(collectionId)
                   ? prev.filter(id => id !== collectionId)
                   : [...prev, collectionId]
               )
             }}
             draggedItem={activeItem}
+            onRefresh={() => setRefreshTrigger(prev => prev + 1)}
           />
         </div>
 
         {/* Content Library - Right Side */}
         <div className="w-80 flex-shrink-0">
-          <ContentLibrary onDataLoad={setLibraryData} />
+          <ContentLibrary
+            onDataLoad={setLibraryData}
+            refreshTrigger={refreshTrigger}
+          />
         </div>
       </div>
     </DragDropContext>

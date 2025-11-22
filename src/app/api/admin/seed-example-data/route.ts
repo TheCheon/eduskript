@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-auth'
 import { prisma } from '@/lib/prisma'
-import bcrypt from 'bcryptjs'
 
 // POST /api/admin/seed-example-data - Seed example data for demonstration
 export async function POST(request: Request) {
@@ -9,6 +8,18 @@ export async function POST(request: Request) {
   if (error) return error
 
   try {
+    // Verify the admin user exists in the database
+    const adminUser = await prisma.user.findUnique({
+      where: { id: session!.user.id },
+    })
+
+    if (!adminUser) {
+      return NextResponse.json(
+        { error: 'Admin user not found in database. Please log out and log back in.' },
+        { status: 400 }
+      )
+    }
+
     // Check if admin already has content
     const existingCollections = await prisma.collection.findFirst({
       where: {
@@ -26,35 +37,6 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
-
-    // Create example users (teachers)
-    const teacherPassword = await bcrypt.hash('teacher123', 12)
-
-    const teacher1 = await prisma.user.create({
-      data: {
-        email: 'alice.johnson@example.com',
-        name: 'Alice Johnson',
-        subdomain: 'alicejohnson',
-        title: 'Mathematics Teacher',
-        hashedPassword: teacherPassword,
-        emailVerified: new Date(),
-        isAdmin: false,
-        requirePasswordReset: true,
-      },
-    })
-
-    const teacher2 = await prisma.user.create({
-      data: {
-        email: 'bob.smith@example.com',
-        name: 'Bob Smith',
-        subdomain: 'bobsmith',
-        title: 'Physics Teacher',
-        hashedPassword: teacherPassword,
-        emailVerified: new Date(),
-        isAdmin: false,
-        requirePasswordReset: true,
-      },
-    })
 
     // Create example collection for admin
     const mathCollection = await prisma.collection.create({
@@ -352,104 +334,15 @@ print(solve_quadratic(2, 5, -3))  # Output: (0.5, -3.0)
       },
     })
 
-    // Create a collection for teacher1
-    const physicsCollection = await prisma.collection.create({
-      data: {
-        title: 'Newton\'s Laws of Motion',
-        slug: 'newtons-laws',
-        description: 'Understanding the fundamental laws of classical mechanics',
-        isPublished: true,
-        authors: {
-          create: {
-            userId: teacher1.id,
-            permission: 'author',
-          },
-        },
-      },
-    })
-
-    const newtonsFirstLaw = await prisma.skript.create({
-      data: {
-        title: 'First Law: Inertia',
-        slug: 'first-law-inertia',
-        description: 'An object at rest stays at rest, an object in motion stays in motion',
-        isPublished: true,
-        authors: {
-          create: {
-            userId: teacher1.id,
-            permission: 'author',
-          },
-        },
-      },
-    })
-
-    await prisma.collectionSkript.create({
-      data: {
-        collectionId: physicsCollection.id,
-        skriptId: newtonsFirstLaw.id,
-        order: 0,
-      },
-    })
-
-    await prisma.page.create({
-      data: {
-        title: 'Understanding Inertia',
-        slug: 'understanding-inertia',
-        skriptId: newtonsFirstLaw.id,
-        order: 0,
-        isPublished: true,
-        content: `# Newton's First Law: The Law of Inertia
-
-> An object at rest stays at rest, and an object in motion stays in motion with the same speed and in the same direction unless acted upon by an unbalanced force.
-
-## What is Inertia?
-
-**Inertia** is the tendency of an object to resist changes in its state of motion. The more massive an object, the greater its inertia.
-
-## Real-World Examples
-
-1. **Seatbelts in cars**: When a car suddenly stops, passengers continue moving forward due to inertia
-2. **Tablecloth trick**: Quickly pulling a tablecloth can leave dishes in place
-3. **Spacecraft in space**: With no air resistance, spacecraft continue moving without propulsion
-
-## Key Concepts
-
-- Objects naturally resist changes to their motion
-- Force is required to change an object's velocity
-- Mass is a measure of inertia
-`,
-        authors: {
-          create: {
-            userId: teacher1.id,
-            permission: 'author',
-          },
-        },
-      },
-    })
-
-    // Create collaboration relationship between admin and teacher1
-    await prisma.collaboration.create({
-      data: {
-        requesterId: session!.user.id,
-        receiverId: teacher1.id,
-      },
-    })
-
     return NextResponse.json({
       success: true,
       message: 'Example data seeded successfully',
       data: {
-        users: [
-          { name: teacher1.name, email: teacher1.email, subdomain: teacher1.subdomain },
-          { name: teacher2.name, email: teacher2.email, subdomain: teacher2.subdomain },
-        ],
         collections: [
           { title: mathCollection.title, slug: mathCollection.slug },
-          { title: physicsCollection.title, slug: physicsCollection.slug },
         ],
-        skripts: 3,
-        pages: 5,
-        collaborations: 1,
+        skripts: 2,
+        pages: 4,
       },
     })
   } catch (error) {

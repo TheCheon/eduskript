@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: CollectionPreviewProps): Prom
   try {
     // Find the teacher and collection
     const teacher = await prisma.user.findUnique({
-      where: { subdomain: domain },
+      where: { username: domain },
       select: { id: true, name: true, title: true }
     })
 
@@ -75,7 +75,7 @@ interface Teacher {
   email: string | null
   title: string | null
   bio: string | null
-  subdomain: string | null
+  username: string | null
 }
 
 interface CollectionPage {
@@ -112,7 +112,7 @@ export default async function CollectionPreviewPage({ params }: CollectionPrevie
   const { domain, collectionSlug } = await params
   const session = await getServerSession(authOptions)
 
-  // Check if request came through subdomain by examining headers
+  // Check request headers
   const headersList = await headers()
   const hostname = headersList.get('host') || ''
   const hostWithoutPort = hostname.split(':')[0]
@@ -128,14 +128,14 @@ export default async function CollectionPreviewPage({ params }: CollectionPrevie
   try {
     // Find the teacher
     teacher = await prisma.user.findUnique({
-      where: { subdomain: domain },
-      select: { 
-        id: true, 
-        name: true, 
+      where: { username: domain },
+      select: {
+        id: true,
+        name: true,
         email: true,
-        title: true, 
-        bio: true, 
-        subdomain: true 
+        title: true,
+        bio: true,
+        username: true
       }
     })
 
@@ -256,8 +256,8 @@ export default async function CollectionPreviewPage({ params }: CollectionPrevie
 
   // Prepare teacher data for the layout component
   const teacherForLayout = {
-    name: teacher.name || teacher.subdomain || 'Unknown',
-    subdomain: teacher.subdomain || domain,
+    name: teacher.name || teacher.username || 'Unknown',
+    username: teacher.username || domain,
     bio: teacher.bio || undefined,
     title: teacher.title || undefined
   }

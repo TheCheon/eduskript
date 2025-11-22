@@ -19,7 +19,7 @@ async function main() {
       email: 'sarah@informatikgarten.ch',
       name: 'Dr. Sarah Johnson',
       title: 'Mathematics Teacher',
-      subdomain: 'sarah',
+      username: 'sarah',
       hashedPassword,
       emailVerified: new Date()
     }
@@ -36,7 +36,7 @@ async function main() {
       name: 'Prof. Michael Chen',
       title: 'Physics Professor',
       bio: 'Specializing in quantum mechanics and theoretical physics',
-      subdomain: 'michael',
+      username: 'michael',
       hashedPassword,
       emailVerified: new Date()
     }
@@ -53,7 +53,7 @@ async function main() {
       name: 'Dr. Emily Rodriguez',
       title: 'Computer Science Teacher',
       bio: 'Passionate about programming education and software engineering',
-      subdomain: 'emily',
+      username: 'emily',
       hashedPassword,
       emailVerified: new Date()
     }

@@ -11,36 +11,13 @@ interface BreadcrumbItem {
 
 interface BreadcrumbProps {
   items: BreadcrumbItem[]
-  subdomain: string
+  username: string
   children?: React.ReactNode
-  isOnSubdomain?: boolean
 }
 
-export function Breadcrumb({ items, subdomain, children, isOnSubdomain: initialIsOnSubdomain }: BreadcrumbProps) {
-  const [isOnSubdomain, setIsOnSubdomain] = useState(initialIsOnSubdomain || false)
-
-  useEffect(() => {
-    // Only update if not provided from server
-    if (initialIsOnSubdomain === undefined) {
-      const hostname = window.location.hostname
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIsOnSubdomain(hostname !== 'localhost' && hostname.endsWith('.localhost'))
-    }
-  }, [initialIsOnSubdomain])
-
-  // Adjust URLs based on whether we're on a subdomain
-  const adjustUrl = (url: string) => {
-    if (!isOnSubdomain) return url
-    
-    // If on subdomain, remove the subdomain prefix from URLs
-    const subdomainPrefix = `/${subdomain}`
-    if (url.startsWith(subdomainPrefix)) {
-      return url.substring(subdomainPrefix.length) || '/'
-    }
-    return url
-  }
-
-  const homeUrl = isOnSubdomain ? '/' : `/${subdomain}`
+export function Breadcrumb({ items, username, children }: BreadcrumbProps) {
+  // Always use path-based routing with username
+  const homeUrl = `/${username}`
 
   return (
       <nav className="flex items-center justify-between mb-6 text-sm text-muted-foreground">
@@ -57,7 +34,7 @@ export function Breadcrumb({ items, subdomain, children, isOnSubdomain: initialI
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
               {item.href ? (
                 <Link
-                  href={adjustUrl(item.href)}
+                  href={item.href}
                   className="hover:text-foreground transition-colors"
                 >
                   {item.title}

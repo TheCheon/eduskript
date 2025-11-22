@@ -123,26 +123,26 @@ export async function PATCH(
     // Revalidate the public page cache for all relevant paths
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { subdomain: true }
+      select: { username: true }
     })
 
-    if (user?.subdomain) {
+    if (user?.username) {
       // Get the collection slug from the first collectionSkript relation
       const collectionSlug = existingPage.skript.collectionSkripts[0]?.collection?.slug
 
       if (collectionSlug) {
         // Revalidate the specific page
-        revalidatePath(`/${user.subdomain}/${collectionSlug}/${existingPage.skript.slug}/${updatedPage.slug}`)
+        revalidatePath(`/${user.username}/${collectionSlug}/${existingPage.skript.slug}/${updatedPage.slug}`)
 
         // Revalidate the skript page (in case it lists pages)
-        revalidatePath(`/${user.subdomain}/${collectionSlug}/${existingPage.skript.slug}`)
+        revalidatePath(`/${user.username}/${collectionSlug}/${existingPage.skript.slug}`)
 
         // Revalidate the collection page (in case it lists skripts/pages)
-        revalidatePath(`/${user.subdomain}/${collectionSlug}`)
+        revalidatePath(`/${user.username}/${collectionSlug}`)
       }
 
       // Revalidate the home page (in case it lists collections)
-      revalidatePath(`/${user.subdomain}`)
+      revalidatePath(`/${user.username}`)
 
       // Revalidate dashboard pages
       revalidatePath('/dashboard')

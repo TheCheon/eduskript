@@ -14,7 +14,7 @@ export async function GET() {
         id: true,
         email: true,
         name: true,
-        subdomain: true,
+        username: true,
         title: true,
         isAdmin: true,
         requirePasswordReset: true,
@@ -52,12 +52,12 @@ export async function POST(request: Request) {
   if (error) return error
 
   try {
-    const { email, name, subdomain, title, password, isAdmin, requirePasswordReset } = await request.json()
+    const { email, name, username, title, password, isAdmin, requirePasswordReset } = await request.json()
 
     // Validate required fields
-    if (!email || !name || !subdomain || !password) {
+    if (!email || !name || !username || !password) {
       return NextResponse.json(
-        { error: 'Email, name, subdomain, and password are required' },
+        { error: 'Email, name, username, and password are required' },
         { status: 400 }
       )
     }
@@ -91,14 +91,14 @@ export async function POST(request: Request) {
       )
     }
 
-    // Check if subdomain already exists
-    const existingSubdomain = await prisma.user.findUnique({
-      where: { subdomain },
+    // Check if username already exists
+    const existingUsername = await prisma.user.findUnique({
+      where: { username },
     })
 
-    if (existingSubdomain) {
+    if (existingUsername) {
       return NextResponse.json(
-        { error: 'User with this subdomain already exists' },
+        { error: 'User with this username already exists' },
         { status: 409 }
       )
     }
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
       data: {
         email,
         name,
-        subdomain,
+        username,
         title: title || null,
         hashedPassword,
         emailVerified: new Date(), // Auto-verify admin-created users
@@ -122,7 +122,7 @@ export async function POST(request: Request) {
         id: true,
         email: true,
         name: true,
-        subdomain: true,
+        username: true,
         title: true,
         isAdmin: true,
         requirePasswordReset: true,

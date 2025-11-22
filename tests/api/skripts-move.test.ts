@@ -22,7 +22,7 @@ describe('Skripts Move API', () => {
       id: 'test-user-id',
       email: 'test@example.com',
       name: 'Test User',
-      subdomain: 'testuser',
+      username: 'testuser',
       title: 'Teacher',
       isAdmin: false,
       requirePasswordReset: false,

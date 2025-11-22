@@ -34,7 +34,6 @@ export async function GET(req: NextRequest) {
             // Exclude tokens for security
           }
         },
-        customDomains: true,
         collectionAuthors: {
           include: {
             collection: {
@@ -138,7 +137,7 @@ export async function GET(req: NextRequest) {
         email: userData.email,
         emailVerified: userData.emailVerified,
         image: userData.image,
-        subdomain: userData.subdomain,
+        username: userData.username,
         title: userData.title,
         bio: userData.bio,
         webpageDescription: userData.webpageDescription,
@@ -154,7 +153,6 @@ export async function GET(req: NextRequest) {
         sidebarBehavior: userData.sidebarBehavior,
       },
       accounts: userData.accounts,
-      customDomains: userData.customDomains,
       authoredCollections: userData.collectionAuthors.map(ca => ({
         collectionId: ca.collection.id,
         collectionTitle: ca.collection.title,

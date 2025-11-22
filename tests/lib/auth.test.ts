@@ -40,7 +40,7 @@ describe('Authentication utilities', () => {
         user: {
           id: 'user-id',
           email: 'test@example.com',
-          subdomain: 'testuser',
+          username: 'testuser',
         },
         expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       }

@@ -10,6 +10,7 @@ const eslintConfig = [
       'next-env.d.ts',
       'code-review/**',
       'oldstuff/**',
+      'coverage/**',
       '**/*.config.js',
       '**/*.config.mjs',
     ],

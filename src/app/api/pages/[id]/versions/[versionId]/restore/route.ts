@@ -93,19 +93,19 @@ export async function POST(
     // Revalidate the public page cache
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { subdomain: true }
+      select: { username: true }
     })
 
-    if (user?.subdomain) {
+    if (user?.username) {
       // Revalidate paths for all collections this skript belongs to
       for (const cs of page.skript.collectionSkripts) {
         if (cs.collection) {
-          revalidatePath(`/${user.subdomain}/${cs.collection.slug}/${page.skript.slug}/${page.slug}`)
-          revalidatePath(`/${user.subdomain}/${cs.collection.slug}/${page.skript.slug}`)
-          revalidatePath(`/${user.subdomain}/${cs.collection.slug}`)
+          revalidatePath(`/${user.username}/${cs.collection.slug}/${page.skript.slug}/${page.slug}`)
+          revalidatePath(`/${user.username}/${cs.collection.slug}/${page.skript.slug}`)
+          revalidatePath(`/${user.username}/${cs.collection.slug}`)
         }
       }
-      revalidatePath(`/${user.subdomain}`)
+      revalidatePath(`/${user.username}`)
       revalidatePath('/dashboard/collections')
     }
 

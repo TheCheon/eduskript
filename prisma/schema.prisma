@@ -64,7 +64,7 @@ model User {
   updatedAt   DateTime  @updatedAt
 
   // Webpage-specific fields
-  subdomain     String?   @unique
+  username      String?   @unique // Public username for URL paths (e.g., eduskript.org/username)
   webpageDescription String? // Description of their webpage
   bio           String?
   title         String?
@@ -90,7 +90,6 @@ model User {
   // Relations
   accounts      Account[]
   sessions      Session[]
-  customDomains CustomDomain[]
   pageVersions  PageVersion[]
   
   // Many-to-many relations for authoring
@@ -127,19 +126,6 @@ model User {
 
   @@unique([oauthProvider, oauthProviderId]) // Students identified by OAuth provider
   @@map("users")
-}
-
-model CustomDomain {
-  id        String   @id @default(cuid())
-  domain    String   @unique
-  userId    String
-  isActive  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@map("custom_domains")
 }
 
 model Collection {

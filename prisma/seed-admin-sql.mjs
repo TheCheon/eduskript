@@ -29,7 +29,7 @@ async function main() {
 
     // Insert admin user with bcrypt hash for 'letseducate'
     await client.query(`
-      INSERT INTO users (id, email, name, subdomain, "hashedPassword", "emailVerified", "isAdmin", "requirePasswordReset", "createdAt", "updatedAt")
+      INSERT INTO users (id, email, name, username, "hashedPassword", "emailVerified", "isAdmin", "requirePasswordReset", "createdAt", "updatedAt")
       VALUES (
         gen_random_uuid(),
         'eduadmin@eduskript.org',

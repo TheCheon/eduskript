@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: SkriptPreviewProps): Promise<
   try {
     // Find the teacher and collection
     const teacher = await prisma.user.findUnique({
-      where: { subdomain: domain },
+      where: { username: domain },
       select: { id: true, name: true, title: true }
     })
 
@@ -111,7 +111,7 @@ export default async function SkriptPreviewPage({ params }: SkriptPreviewProps) 
   const { domain, collectionSlug, skriptSlug } = await params
   const session = await getServerSession(authOptions)
 
-  // Check if request came through subdomain by examining headers
+  // Check request headers
   const headersList = await headers()
   const hostname = headersList.get('host') || ''
   const hostWithoutPort = hostname.split(':')[0]
@@ -122,14 +122,14 @@ export default async function SkriptPreviewPage({ params }: SkriptPreviewProps) 
   try {
     // Find the teacher
     const teacher = await prisma.user.findUnique({
-      where: { subdomain: domain },
-      select: { 
-        id: true, 
-        name: true, 
+      where: { username: domain },
+      select: {
+        id: true,
+        name: true,
         email: true,
-        title: true, 
-        bio: true, 
-        subdomain: true 
+        title: true,
+        bio: true,
+        username: true
       }
     })
 

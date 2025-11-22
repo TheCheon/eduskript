@@ -35,18 +35,18 @@ describe('Registration API', () => {
       })
     })
 
-    it('should validate subdomain format', () => {
-      const validSubdomains = ['testuser', 'user123', 'my-subdomain']
-      const invalidSubdomains = ['', 'user space', 'USER', '@user']
+    it('should validate username format', () => {
+      const validUsernames = ['testuser', 'user123', 'my-username']
+      const invalidUsernames = ['', 'user space', 'USER', '@user']
 
-      const subdomainRegex = /^[a-z0-9-]+$/
+      const usernameRegex = /^[a-z0-9-]+$/
 
-      validSubdomains.forEach(subdomain => {
-        expect(subdomainRegex.test(subdomain)).toBe(true)
+      validUsernames.forEach(username => {
+        expect(usernameRegex.test(username)).toBe(true)
       })
 
-      invalidSubdomains.forEach(subdomain => {
-        expect(subdomainRegex.test(subdomain)).toBe(false)
+      invalidUsernames.forEach(username => {
+        expect(usernameRegex.test(username)).toBe(false)
       })
     })
 

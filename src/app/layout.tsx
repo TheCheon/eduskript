@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from '@/components/providers'
-import { CustomDomainHandler } from '@/components/CustomDomainHandler'
 import { GitInfo } from '@/components/GitInfo'
 
 const inter = Inter({
@@ -37,10 +36,8 @@ export default function RootLayout({
       </head>
       <body className={`${inter.className} antialiased`} suppressHydrationWarning>
         <Providers>
-          <CustomDomainHandler>
-            {children}
-            <GitInfo />
-          </CustomDomainHandler>
+          {children}
+          <GitInfo />
         </Providers>
       </body>
     </html>

@@ -14,8 +14,8 @@ export function PageSettings() {
   const router = useRouter()
   const [sidebarBehavior, setSidebarBehavior] = useState<string>('contextual')
   const [loading, setLoading] = useState(false)
-  const [subdomainLoading, setSubdomainLoading] = useState(false)
-  const [subdomain, setSubdomain] = useState(session?.user?.subdomain || '')
+  const [usernameLoading, setUsernameLoading] = useState(false)
+  const [username, setUsername] = useState(session?.user?.username || '')
 
   // Load current preference on mount
   useEffect(() => {
@@ -33,7 +33,7 @@ export function PageSettings() {
     
     if (session?.user) {
       loadPreference()
-      setSubdomain(session.user.subdomain || '')
+      setUsername(session.user.username || '')
     }
   }, [session])
 
@@ -64,27 +64,27 @@ export function PageSettings() {
     }
   }
 
-  const handleSubdomainUpdate = async () => {
-    setSubdomainLoading(true)
+  const handleUsernameUpdate = async () => {
+    setUsernameLoading(true)
 
     try {
       const response = await fetch('/api/user/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subdomain }),
+        body: JSON.stringify({ username }),
       })
 
       if (response.ok) {
         await update() // Update session
         router.refresh() // Refresh page
-        console.log('Subdomain updated successfully')
+        console.log('Username updated successfully')
       } else {
-        console.error('Failed to update subdomain')
+        console.error('Failed to update username')
       }
     } catch (error) {
-      console.error('Failed to update subdomain:', error)
+      console.error('Failed to update username:', error)
     } finally {
-      setSubdomainLoading(false)
+      setUsernameLoading(false)
     }
   }
 
@@ -97,33 +97,33 @@ export function PageSettings() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Subdomain Section */}
+        {/* Username Section */}
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="subdomain" className="text-sm font-medium">Subdomain</Label>
+            <Label htmlFor="username" className="text-sm font-medium">Username</Label>
             <div className="flex items-center gap-2">
               <div className="flex items-center flex-1">
+                <span className="px-3 py-2 bg-muted border border-r-0 border-input rounded-l-md text-muted-foreground text-sm h-10 flex items-center">
+                  {typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'localhost:3000/' : 'eduskript.org/'}
+                </span>
                 <Input
-                  id="subdomain"
+                  id="username"
                   type="text"
-                  value={subdomain}
-                  onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                  className="rounded-r-none"
-                  placeholder="your-subdomain"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  className="rounded-l-none"
+                  placeholder="your-username"
                   pattern="^[a-z0-9-]+$"
                   required
                 />
-                <span className="px-3 py-2 bg-muted border border-l-0 border-input rounded-r-md text-muted-foreground text-sm h-10 flex items-center">
-                  .{typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'localhost:3000' : 'eduskript.org'}
-                </span>
               </div>
-              <Button 
-                onClick={handleSubdomainUpdate}
-                disabled={subdomainLoading || subdomain === session?.user?.subdomain}
+              <Button
+                onClick={handleUsernameUpdate}
+                disabled={usernameLoading || username === session?.user?.username}
                 size="sm"
                 className="flex items-center gap-2"
               >
-                {subdomainLoading ? (
+                {usernameLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Saving
@@ -137,7 +137,7 @@ export function PageSettings() {
               </Button>
             </div>
             <p className="text-sm text-muted-foreground">
-              This will be your public site URL. Only lowercase letters, numbers, and hyphens allowed.
+              This will be your public page URL. Only lowercase letters, numbers, and hyphens allowed.
             </p>
           </div>
         </div>

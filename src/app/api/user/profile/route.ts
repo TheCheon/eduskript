@@ -7,12 +7,12 @@ import { z } from 'zod'
 
 const updateProfileSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  subdomain: z.optional(
+  username: z.optional(
     z.string()
-      .min(3, 'Subdomain must be at least 3 characters')
-      .max(50, 'Subdomain must be less than 50 characters')
-      .regex(/^[a-z0-9-]+$/, 'Subdomain can only contain lowercase letters, numbers, and hyphens')
-      .refine(val => !val.startsWith('-') && !val.endsWith('-'), 'Subdomain cannot start or end with a hyphen')
+      .min(3, 'Username must be at least 3 characters')
+      .max(50, 'Username must be less than 50 characters')
+      .regex(/^[a-z0-9-]+$/, 'Username can only contain lowercase letters, numbers, and hyphens')
+      .refine(val => !val.startsWith('-') && !val.endsWith('-'), 'Username cannot start or end with a hyphen')
   ),
   webpageDescription: z.string().optional(), // New field for webpage description
   title: z.string().optional(),
@@ -31,14 +31,14 @@ export async function PATCH(request: NextRequest) {
     const validatedData = updateProfileSchema.parse(body)
 
     const result = await withDatabaseConnection(async () => {
-      // Check if subdomain is already taken by another user
-      if (validatedData.subdomain) {
+      // Check if username is already taken by another user
+      if (validatedData.username) {
         const existingUser = await prisma.user.findUnique({
-          where: { subdomain: validatedData.subdomain }
+          where: { username: validatedData.username }
         })
 
         if (existingUser && existingUser.id !== session.user.id) {
-          throw new Error('This subdomain is already taken')
+          throw new Error('This username is already taken')
         }
       }
 
@@ -47,7 +47,7 @@ export async function PATCH(request: NextRequest) {
         where: { id: session.user.id },
         data: {
           name: validatedData.name,
-          subdomain: validatedData.subdomain,
+          username: validatedData.username,
           webpageDescription: validatedData.webpageDescription || null,
           title: validatedData.title || null,
           bio: validatedData.bio || null
@@ -56,7 +56,7 @@ export async function PATCH(request: NextRequest) {
           id: true,
           name: true,
           email: true,
-          subdomain: true,
+          username: true,
           webpageDescription: true,
           title: true,
           bio: true
@@ -75,9 +75,9 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    if (error instanceof Error && error.message === 'This subdomain is already taken') {
+    if (error instanceof Error && error.message === 'This username is already taken') {
       return NextResponse.json(
-        { error: 'This subdomain is already taken' },
+        { error: 'This username is already taken' },
         { status: 400 }
       )
     }

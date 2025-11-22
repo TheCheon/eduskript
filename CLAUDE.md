@@ -42,26 +42,28 @@ Eduskript is a multi-tenant education platform where teachers create educational
 
 ### Technology Stack
 - **Framework**: Next.js 16 with App Router and TypeScript (ES2023, ES Modules)
-- **Database**: SQLite with Prisma ORM 7.x and LibSQL adapter
-- **Authentication**: NextAuth.js with JWT strategy, supporting credentials + OAuth (GitHub/Google)
+- **Database**: PostgreSQL with Prisma ORM 7.x and PostgreSQL adapter (local dev uses Docker PostgreSQL)
+- **Authentication**: NextAuth.js with JWT strategy, supporting credentials + OAuth (GitHub/Google/Azure AD)
 - **Styling**: TailwindCSS with Radix UI components
 - **Editor**: CodeMirror 6 with multiple language support
 - **Markdown**: Unified/Remark/Rehype pipeline with KaTeX math and syntax highlighting
 - **Quality Assurance**: Husky pre-push hooks with strict validation (type-check, lint, tests, Docker build)
 
 ### Database Schema Key Points
-- **Multi-tenant**: Each user has a subdomain (e.g., `teacher.eduskript.org`)
+- **Multi-tenant**: Each user has a unique username for URL paths (e.g., `eduskript.org/teacher`)
 - **Permission System**: Many-to-many relations between users and content (CollectionAuthor, SkriptAuthor, PageAuthor)
 - **Permissions**: `author` (can edit/manage) and `viewer` (read-only access)
 - **Versioning**: Page content versioning with rollback capabilities
 - **File Storage**: Hierarchical file system for each skript with deduplication via hash
 - **Collaboration**: Request-based partnership system between teachers
+- **Local Development**: PostgreSQL via Docker Compose (see `docker-compose.local.yml`)
 
 ### Routing Architecture
-- **Multi-tenant routing**: Proxy handles subdomain detection and URL rewriting (Next.js 16 convention)
-- **Dynamic routes**: `[domain]/[collectionSlug]/[skriptSlug]/[pageSlug]` for public content
+- **Path-based routing**: All public teacher pages use `eduskript.org/[username]/...` URL structure
+- **Dynamic routes**: `[domain]/[collectionSlug]/[skriptSlug]/[pageSlug]` for public content (where `[domain]` is the username)
 - **Dashboard**: Protected routes under `/dashboard` for content management
 - **API**: RESTful endpoints under `/api` with authentication middleware
+- **No subdomain routing**: Simplified architecture with all routes on the main domain (removed 2025-11-22)
 
 ### Permission Model
 **No-access-by-default**: Being a collaborator doesn't grant content access automatically. Content must be explicitly shared.
@@ -96,7 +98,7 @@ Eduskript is a multi-tenant education platform where teachers create educational
 
 **Configuration:**
 - `prisma/schema.prisma` - Database schema definition
-- `src/proxy.ts` - Handles subdomain routing and request proxying (Next.js 16 proxy convention)
+- `src/proxy.ts` - Simplified proxy (no subdomain routing)
 - `src/lib/auth.ts` - NextAuth configuration with multiple providers
 - `src/lib/permissions.ts` - Permission checking logic
 - `src/lib/prisma.ts` - Prisma client setup
@@ -108,7 +110,7 @@ Eduskript is a multi-tenant education platform where teachers create educational
 - `src/app/page.tsx` - Homepage
 - `src/app/dashboard/layout.tsx` - Dashboard layout
 - `src/app/dashboard/page.tsx` - Dashboard homepage
-- `src/app/[domain]/page.tsx` - Public user pages (subdomain routing)
+- `src/app/[domain]/page.tsx` - Public user pages (username-based routing)
 
 **Core Components:**
 - `src/components/dashboard/` - Dashboard UI components (editors, modals, settings)
@@ -144,11 +146,12 @@ Eduskript is a multi-tenant education platform where teachers create educational
 - **Version Control**: Automatic page versioning with restore capability
 
 ### Deployment Configuration
-- **Docker**: Clean multi-stage build with Prisma 7.x and LibSQL adapter
+- **Docker**: Clean multi-stage build with Prisma 7.x and PostgreSQL adapter
 - **Next.js**: Configured for standalone output with ES Modules
-- **Database**: SQLite with LibSQL client for optimal performance
+- **Database**: PostgreSQL with pg adapter for production, Docker PostgreSQL for local dev
 - **Prisma**: Version 7.x with driver adapters (no version conflicts!)
 - **Environment**: Node.js 22.x, pnpm package manager, TypeScript ES2023
+- **Local Development**: `docker-compose.local.yml` for PostgreSQL database
 
 ## Testing & Quality Assurance
 - **Test Framework**: Vitest 4.x with React Testing Library
@@ -167,7 +170,7 @@ Eduskript is a multi-tenant education platform where teachers create educational
 ### ✅ Page Builder & Dashboard Features:
 - **Advanced Page Builder** (`/dashboard/page-builder`) - Full drag-and-drop interface with permission-aware constraints
 - **Sidebar Navigation Control** - User-configurable contextual vs. full navigation modes
-- **Settings Organization** - Moved subdomain to "Page Settings", streamlined UX
+- **Settings Organization** - Username management in "Page Settings", streamlined UX
 - **Dashboard Flow** - Direct redirect to page-builder as primary dashboard view
 - **Permission-Aware UI** - Visual indicators (eye icons) for view-only content, drag constraints
 - **Home Button** - Smart navigation button for returning to root level in contextual mode
@@ -181,23 +184,63 @@ Eduskript is a multi-tenant education platform where teachers create educational
 - "Share with Collaborators" quick actions and workflows
 - Don't mark tasks as complete unless I say so
 
-## Recent Upgrades (2025-11-20)
+## Recent Upgrades
 
-### ✅ Prisma 7.x Migration
-The project has been successfully upgraded from Prisma 6.11.0 to Prisma 7.x with LibSQL adapter:
+### ✅ Subdomain Routing Removal (2025-11-22)
+Complete migration from subdomain-based to username-based path routing:
+
+**Changes Made:**
+- Removed all subdomain routing logic from `src/proxy.ts`
+- Database migration: Renamed `User.subdomain` → `User.username`
+- Removed `CustomDomain` model and all custom domain functionality
+- Updated all API routes to use `username` instead of `subdomain`
+- Updated public routes to query by username
+- Removed 7 files/directories related to custom domains
+- Updated 9 test files and all seed files
+- Fixed navigation URL utilities to always use path-based routing
+- Simplified authentication (removed cross-subdomain cookie logic)
+- All 256 tests passing after migration
+
+**Benefits:**
+- Simpler architecture without complex subdomain handling
+- Works reliably on all hosting platforms (especially Koyeb)
+- Easier to understand and maintain
+- Cleaner URL structure: `eduskript.org/username/...`
+- No DNS configuration needed for new users
+
+### ✅ Enhanced Seed Data (2025-11-22)
+Improved example data seeding for better user experience:
+
+**Changes Made:**
+- Removed dummy user creation (no more teacher1, teacher2 accounts)
+- Seed endpoint now only creates content for the current user
+- Auto-refresh feature: Content library updates automatically after seeding
+- Removed collaboration creation and physics collection
+- Simplified to 1 collection (algebra), 2 skripts, 4 pages
+- Updated confirm dialog text for clarity
+
+**Implementation:**
+- Added `refreshTrigger` prop to `ContentLibrary` component
+- Added `onRefresh` callback to `PageBuilder` component
+- Increment trigger after successful seeding triggers automatic data fetch
+- No manual page refresh needed
+
+### ✅ Prisma 7.x Migration (2025-11-20)
+The project has been successfully upgraded from Prisma 6.11.0 to Prisma 7.x with PostgreSQL adapter:
 
 **Changes Made:**
 - Upgraded `@prisma/client` and `prisma` to 7.0.0
-- Installed `@prisma/adapter-libsql` and `@libsql/client` for SQLite driver
+- Installed `@prisma/adapter-pg` and `pg` for PostgreSQL driver
 - Created `prisma.config.ts` for Prisma 7.x configuration
 - Updated `schema.prisma` generator to `prisma-client` with explicit output path
 - Migrated project to ES Modules (`"type": "module"` in package.json)
 - Updated TypeScript target from ES2017 to ES2023
-- Refactored all Prisma client instantiations (40+ files) to use LibSQL adapter:
-  - `src/lib/prisma.ts` - Main application client
+- Refactored all Prisma client instantiations (40+ files) to use PostgreSQL adapter:
+  - `src/lib/prisma.ts` - Main application client with `@prisma/adapter-pg`
   - `tests/helpers/test-db.ts` - Test database utilities
   - All utility scripts (*.mjs files)
   - Seed files (`prisma/seed.ts`, `prisma/seed-admin.js`)
+- Created `docker-compose.local.yml` for local PostgreSQL development
 
 **Docker Improvements:**
 - **Removed version hack**: No longer copying entire `.pnpm` store to force Prisma version
@@ -208,9 +251,10 @@ The project has been successfully upgraded from Prisma 6.11.0 to Prisma 7.x with
 **Benefits:**
 - Modern Prisma architecture with driver adapters
 - No more Prisma version conflicts in Docker
-- Better performance with LibSQL adapter
+- Better performance with PostgreSQL adapter
 - Clean, maintainable deployment setup
 - Future-proof for Prisma ecosystem
+- Production-ready PostgreSQL support
 
 ### ✅ Strict Pre-Push Workflow
 Implemented comprehensive quality gates to ensure code quality before pushing:

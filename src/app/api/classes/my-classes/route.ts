@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
             teacher: {
               select: {
                 name: true,
-                subdomain: true
+                username: true
               }
             },
             _count: {

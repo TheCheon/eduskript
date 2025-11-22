@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { name, email, password, subdomain } = await request.json()
+    const { name, email, password, username } = await request.json()
 
     // Validate input
     if (!name || !email || !password) {
@@ -66,16 +66,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if subdomain is taken (if provided)
-    if (subdomain) {
-      const normalizedSubdomain = generateSlug(subdomain)
-      const existingSubdomain = await prisma.user.findUnique({
-        where: { subdomain: normalizedSubdomain }
+    // Check if username is taken (if provided)
+    if (username) {
+      const normalizedUsername = generateSlug(username)
+      const existingUsername = await prisma.user.findUnique({
+        where: { username: normalizedUsername }
       })
 
-      if (existingSubdomain) {
+      if (existingUsername) {
         return NextResponse.json(
-          { error: 'This subdomain is already taken' },
+          { error: 'This username is already taken' },
           { status: 400 }
         )
       }
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
         name,
         email,
         hashedPassword,
-        subdomain: subdomain ? generateSlug(subdomain) : null,
+        username: username ? generateSlug(username) : null,
         emailVerified: null, // Explicitly set to null - will be updated when verified
       }
     })
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
         id: user.id,
         name: user.name,
         email: user.email,
-        subdomain: user.subdomain,
+        username: user.username,
         emailVerified: user.emailVerified,
       },
       requiresEmailVerification: true
