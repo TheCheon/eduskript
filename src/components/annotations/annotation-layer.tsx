@@ -692,6 +692,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
   // Helper function to apply pan transform using RAF (no re-renders)
   const applyPanTransform = useCallback((newPanX: number, newPanY: number) => {
+    performance.mark('apply-pan-transform-start')
+
     panXRef.current = newPanX
     panYRef.current = newPanY
 
@@ -702,15 +704,23 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
     // Apply transform in next frame
     rafIdRef.current = requestAnimationFrame(() => {
+      performance.mark('apply-pan-transform-raf')
+
       if (mainRef.current) {
         mainRef.current.style.transform = `scale(${zoom}) translate(${newPanX}px, ${newPanY}px)`
       }
       rafIdRef.current = null
+
+      performance.mark('apply-pan-transform-end')
+      performance.measure('Apply Pan Transform (RAF)', 'apply-pan-transform-raf', 'apply-pan-transform-end')
+      performance.measure('Apply Pan Transform (Total)', 'apply-pan-transform-start', 'apply-pan-transform-end')
     })
   }, [zoom])
 
   // Custom pinch-zoom and pan handling
   const handleTouchStart = useCallback((e: TouchEvent) => {
+    performance.mark('annotation-touch-start')
+
     // Track all touches
     for (let i = 0; i < e.touches.length; i++) {
       const touch = e.touches[i]
@@ -749,6 +759,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   }, [zoom, mode])
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
+    performance.mark('annotation-touch-move-start')
+
     // Update touch positions
     for (let i = 0; i < e.touches.length; i++) {
       const touch = e.touches[i]
@@ -817,6 +829,9 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       panYRef.current = newPanY
       setZoom(newZoom)
     }
+
+    performance.mark('annotation-touch-move-end')
+    performance.measure('Annotation Touch Move', 'annotation-touch-move-start', 'annotation-touch-move-end')
   }, [zoom, calculateScrollLimits, calculateHorizontalLimit, applyPanTransform])
 
   const handleTouchEnd = useCallback((e: TouchEvent) => {
@@ -840,6 +855,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
   // Handle trackpad/mousepad pinch zoom and pan
   const handleWheel = useCallback((e: WheelEvent) => {
+    performance.mark('annotation-wheel-start')
+
     // Trackpad pinch zoom comes through as wheel events with ctrlKey
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault()
@@ -889,6 +906,9 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
       applyPanTransform(newPanX, newPanY)
     }
+
+    performance.mark('annotation-wheel-end')
+    performance.measure('Annotation Wheel', 'annotation-wheel-start', 'annotation-wheel-end')
   }, [zoom, calculateScrollLimits, calculateHorizontalLimit, applyPanTransform])
 
   // Handle middle mouse button drag for desktop
@@ -908,6 +928,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (middleMouseDragRef.current) {
+      performance.mark('annotation-mouse-move-start')
+
       const deltaX = e.clientX - middleMouseDragRef.current.x
       const deltaY = e.clientY - middleMouseDragRef.current.y
       let newPanX = middleMouseDragRef.current.panX + deltaX / zoom
@@ -918,6 +940,9 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       newPanY = calculateScrollLimits(newPanY)
 
       applyPanTransform(newPanX, newPanY)
+
+      performance.mark('annotation-mouse-move-end')
+      performance.measure('Annotation Mouse Move', 'annotation-mouse-move-start', 'annotation-mouse-move-end')
     }
   }, [zoom, calculateScrollLimits, calculateHorizontalLimit, applyPanTransform])
 
