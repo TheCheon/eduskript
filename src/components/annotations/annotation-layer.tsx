@@ -1107,6 +1107,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         onRemoveSnap={handleRemoveSnap}
         onRenameSnap={handleRenameSnap}
         onReorderSnaps={handleReorderSnaps}
+        zoom={zoom}
       />
     </>
   )

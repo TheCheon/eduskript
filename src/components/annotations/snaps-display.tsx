@@ -11,9 +11,10 @@ interface SnapsDisplayProps {
   onRemoveSnap: (id: string) => void
   onRenameSnap: (id: string, newName: string) => void
   onReorderSnaps: (snaps: Snap[]) => void
+  zoom: number
 }
 
-export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps }: SnapsDisplayProps) {
+export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps, zoom }: SnapsDisplayProps) {
   const [editingSnapId, setEditingSnapId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [expandedSnapId, setExpandedSnapId] = useState<string | null>(null)
@@ -55,10 +56,10 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
   }
 
   const handleDragMove = useCallback((e: MouseEvent) => {
-    const offsetX = e.clientX - dragStart.current.x
-    const offsetY = e.clientY - dragStart.current.y
+    const offsetX = (e.clientX - dragStart.current.x) / zoom
+    const offsetY = (e.clientY - dragStart.current.y) / zoom
     setDragOffset({ x: offsetX, y: offsetY })
-  }, [])
+  }, [zoom])
 
   const handleDragEnd = useCallback(() => {
     setDragOffset(currentOffset => {
@@ -107,10 +108,10 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
   }
 
   const handleResizeMove = useCallback((e: MouseEvent) => {
-    const deltaX = e.clientX - resizeStart.current.x
-    const deltaY = e.clientY - resizeStart.current.y
+    const deltaX = (e.clientX - resizeStart.current.x) / zoom
+    const deltaY = (e.clientY - resizeStart.current.y) / zoom
     setResizeDelta({ width: deltaX, height: deltaY })
-  }, [])
+  }, [zoom])
 
   const handleResizeEnd = useCallback(() => {
     setResizeDelta(currentDelta => {
