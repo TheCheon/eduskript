@@ -1,14 +1,24 @@
 'use client'
 
-import { CodeEditor } from '@/components/public/code-editor'
+import { Suspense } from 'react'
+import dynamic from 'next/dynamic'
+
+// Dynamically import CodeEditor with no SSR to avoid sql.js issues
+const CodeEditor = dynamic(
+  () => import('@/components/public/code-editor').then(mod => ({ default: mod.CodeEditor })),
+  { ssr: false, loading: () => <div className="flex items-center justify-center h-full">Loading SQL Editor...</div> }
+)
 
 export default function SqlTestPage() {
-  const defaultSqlQuery = `-- Query the Netflix database
-SELECT title, release_year, type
+  const defaultSqlQuery = `-- Find the longest movies in the Netflix database
+SELECT
+  title,
+  runtime,
+  strftime('%Y', release_date) as year
 FROM movie
-WHERE release_year > 2020
-ORDER BY release_year DESC
-LIMIT 10;`
+WHERE runtime > 120
+ORDER BY runtime DESC
+LIMIT 15;`
 
   return (
     <div className="min-h-screen p-4">
@@ -24,7 +34,7 @@ LIMIT 10;`
             language="sql"
             initialCode={defaultSqlQuery}
             sqlDatabase="/sql/netflixdb.sqlite"
-            showCanvas={false}
+            showCanvas={true}
           />
         </div>
 
@@ -38,9 +48,9 @@ LIMIT 10;`
               </code>
             </div>
             <div className="p-4 border rounded">
-              <h3 className="font-medium mb-2">Count movies by year</h3>
+              <h3 className="font-medium mb-2">Movies by release year</h3>
               <code className="text-sm bg-muted p-2 block rounded">
-                SELECT release_year, COUNT(*) as count FROM movie GROUP BY release_year ORDER BY release_year DESC LIMIT 10;
+                SELECT strftime('%Y', release_date) as year, COUNT(*) as count FROM movie WHERE release_date IS NOT NULL GROUP BY year ORDER BY year DESC LIMIT 10;
               </code>
             </div>
           </div>

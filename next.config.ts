@@ -6,19 +6,38 @@ const nextConfig: NextConfig = {
   // These packages contain native bindings and must not be bundled
   serverExternalPackages: [
     '@prisma/client',
+    'sql.js', // SQL.js uses Node.js 'fs' module which should not be bundled for server
   ],
   // Allow local network access for development
   allowedDevOrigins: ['192.168.1.112'],
+  // Empty turbopack config to silence warnings about webpack config in Next.js 16
+  turbopack: {},
   webpack(config, { isServer }) {
-    // disabling fs and path to avoid the tears
-    if (!isServer) {
+    // sql.js shouldn't be bundled on the server
+    if (isServer) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'sql.js': false,
+      };
+    } else {
+      // Client-side: disable Node.js modules that sql.js tries to use
       config.resolve.fallback = {
+        ...config.resolve.fallback,
         fs: false,
         path: false,
+        crypto: false,
       };
     }
+
+    // Prevent webpack from trying to parse sql.js internals
+    config.module = config.module || {};
+    config.module.noParse = config.module.noParse || [];
+    if (Array.isArray(config.module.noParse)) {
+      config.module.noParse.push(/sql\.js/);
+    }
+
     return config;
-  }
+  },
 }
 
 export default nextConfig

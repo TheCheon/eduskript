@@ -184,6 +184,8 @@ function CodeEditorComponent({ children, ...props }: React.HTMLAttributes<HTMLEl
   const code = (props['dataCode'] as string) || (props['data-code'] as string) || ''
   const providedId = (props['dataId'] as string) || (props['data-id'] as string)
   const showCanvas = (props['dataShowCanvas'] as string) || (props['data-show-canvas'] as string)
+  const sqlDatabase = (props['dataSqlDatabase'] as string) || (props['data-sql-database'] as string)
+  const schemaImage = (props['dataSchemaImage'] as string) || (props['data-schema-image'] as string)
 
   // Auto-assign ID if not provided (counting from 0 for each page)
   const id = providedId || `${editorCounter++}`
@@ -196,9 +198,11 @@ function CodeEditorComponent({ children, ...props }: React.HTMLAttributes<HTMLEl
         key={`${id}-${resolvedTheme}`}
         id={id}
         pageId={markdownContext?.pageId}
-        language={language as 'python' | 'javascript'}
+        language={language as 'python' | 'javascript' | 'sql'}
         initialCode={decodedCode}
         showCanvas={showCanvas !== 'false'}
+        sqlDatabase={sqlDatabase}
+        schemaImage={schemaImage}
       />
     </div>
   )

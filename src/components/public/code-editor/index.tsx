@@ -26,7 +26,6 @@ import {
   SkulptConfig,
   SqlResultSet
 } from './types'
-import { executeSqlQuery, loadDatabase, AVAILABLE_DATABASES, getCurrentDatabasePath } from '@/lib/sql-executor'
 
 interface CodeEditorProps {
   id?: string
@@ -102,14 +101,17 @@ export function CodeEditor({
   const [renamingIndex, setRenamingIndex] = useState<number | null>(null)
   const [renameValue, setRenameValue] = useState('')
 
-  // Calculate visibility based on width and detect graphics modules (turtle or matplotlib)
+  // Calculate visibility based on width and detect graphics modules (turtle or matplotlib) or SQL schema
   const currentCode = files[activeFileIndex]?.content || initialCode
   const hasTurtleModule = language === 'python' && /import\s+turtle|from\s+turtle/.test(currentCode)
   const hasMatplotlib = language === 'python' && /import\s+matplotlib|from\s+matplotlib/.test(currentCode)
-  const hasGraphics = hasTurtleModule || hasMatplotlib
+  // SQL schema: explicit prop OR auto-detected from database path
+  const hasSqlSchema = language === 'sql' && (schemaImage || (sqlDatabase && sqlDatabase.replace(/\.(sqlite|db)$/i, '.svg')))
+  const hasGraphics = hasTurtleModule || hasMatplotlib || hasSqlSchema
   const showEditor = containerRef.current ? (editorWidth / 100) * containerRef.current.offsetWidth >= MIN_VISIBLE_WIDTH : true
   const showGraphics = containerRef.current ? ((100 - editorWidth) / 100) * containerRef.current.offsetWidth >= MIN_VISIBLE_WIDTH : true
   const [canvasVisible, setCanvasVisible] = useState(false) // Start hidden, show only when graphics detected
+
 
   // Font size state
   const [fontSize, setFontSize] = useState<number>(defaultData.fontSize ?? 14)
@@ -257,11 +259,62 @@ export function CodeEditor({
   // Load SQL database when in SQL mode
   useEffect(() => {
     if (language === 'sql' && sqlDatabase && mounted) {
-      loadDatabase(sqlDatabase).catch((error) => {
-        addOutput(`Failed to load database: ${error.message}`, OutputLevel.ERROR)
+      // Dynamic import to avoid SSR issues
+      import('@/lib/sql-executor.client').then(({ loadDatabase }) => {
+        loadDatabase(sqlDatabase).catch((error) => {
+          addOutput(`Failed to load database: ${error.message}`, OutputLevel.ERROR)
+        })
       })
     }
   }, [language, sqlDatabase, mounted])
+
+  // Auto-detect and display schema image in graphics pane for SQL mode
+  useEffect(() => {
+    if (language === 'sql' && mounted && canvasRef.current) {
+      // Determine schema image path: explicit prop or auto-detect from database path
+      let schemaImagePath = schemaImage
+
+      if (!schemaImagePath && sqlDatabase) {
+        // Auto-detect: replace .sqlite/.db extension with .svg
+        schemaImagePath = sqlDatabase.replace(/\.(sqlite|db)$/i, '.svg')
+      }
+
+      if (!schemaImagePath) return
+
+      // Check if schema image exists
+      const img = new Image()
+      img.onload = () => {
+        const canvas = canvasRef.current
+        if (!canvas) return
+
+        canvas.innerHTML = '' // Clear any existing content
+
+        // Create and append the schema image
+        const schemaImg = document.createElement('img')
+        schemaImg.src = schemaImagePath!
+        schemaImg.alt = 'Database Schema'
+        schemaImg.style.width = '100%'
+        schemaImg.style.height = 'auto'
+        schemaImg.style.display = 'block'
+        schemaImg.style.pointerEvents = 'none' // Prevent image from capturing drag events
+        schemaImg.draggable = false // Disable browser's default image drag
+        schemaImg.className = 'sql-schema-image'
+
+        canvas.appendChild(schemaImg)
+
+        // Make the graphics pane visible and ensure proper split
+        setCanvasVisible(true)
+        setEditorWidth(50) // Set 50/50 split to show both editor and schema
+      }
+
+      img.onerror = () => {
+        // Schema image doesn't exist, hide graphics pane
+        setCanvasVisible(false)
+      }
+
+      img.src = schemaImagePath
+    }
+  }, [language, schemaImage, sqlDatabase, mounted])
 
   // Lazy load Pyodide on first run
   const ensurePyodideLoaded = async () => {
@@ -698,6 +751,8 @@ export function CodeEditor({
     setOutput([]) // Clear previous output
 
     try {
+      // Dynamic import to avoid SSR issues
+      const { executeSqlQuery } = await import('@/lib/sql-executor.client')
       const result = await executeSqlQuery(query)
 
       if (result.success && result.results) {
@@ -1299,7 +1354,7 @@ plots
               </div>
               <div
                 ref={canvasRef}
-                className="absolute"
+                className="absolute inset-0"
                 style={{
                   transform: `translate(${canvasTransform.x}px, ${canvasTransform.y}px) scale(${canvasTransform.scale})`,
                   transformOrigin: '0 0',
