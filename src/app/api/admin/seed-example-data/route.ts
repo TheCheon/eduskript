@@ -39,11 +39,11 @@ export async function POST(request: Request) {
     }
 
     // Create example collection for admin
-    const mathCollection = await prisma.collection.create({
+    const tutorialCollection = await prisma.collection.create({
       data: {
-        title: 'Introduction to Algebra',
-        slug: 'intro-to-algebra',
-        description: 'A comprehensive introduction to algebraic concepts',
+        title: 'Eduskript Tutorial',
+        slug: 'eduskript-tutorial',
+        description: 'Learn how to use all of Eduskript\'s features',
         isPublished: true,
         authors: {
           create: {
@@ -55,11 +55,11 @@ export async function POST(request: Request) {
     })
 
     // Create example skripts
-    const linearEquationsSkript = await prisma.skript.create({
+    const markdownSkript = await prisma.skript.create({
       data: {
-        title: 'Linear Equations',
-        slug: 'linear-equations',
-        description: 'Understanding and solving linear equations',
+        title: 'Markdown Basics',
+        slug: 'markdown-basics',
+        description: 'Learn Markdown formatting and text styling',
         isPublished: true,
         authors: {
           create: {
@@ -70,11 +70,26 @@ export async function POST(request: Request) {
       },
     })
 
-    const quadraticSkript = await prisma.skript.create({
+    const mathSkript = await prisma.skript.create({
       data: {
-        title: 'Quadratic Equations',
-        slug: 'quadratic-equations',
-        description: 'Mastering quadratic equations and their graphs',
+        title: 'Math & LaTeX',
+        slug: 'math-latex',
+        description: 'Write beautiful mathematical equations with LaTeX',
+        isPublished: true,
+        authors: {
+          create: {
+            userId: session!.user.id,
+            permission: 'author',
+          },
+        },
+      },
+    })
+
+    const codeSkript = await prisma.skript.create({
+      data: {
+        title: 'Interactive Code',
+        slug: 'interactive-code',
+        description: 'Run Python and JavaScript directly in your pages',
         isPublished: true,
         authors: {
           create: {
@@ -89,54 +104,92 @@ export async function POST(request: Request) {
     await prisma.collectionSkript.createMany({
       data: [
         {
-          collectionId: mathCollection.id,
-          skriptId: linearEquationsSkript.id,
+          collectionId: tutorialCollection.id,
+          skriptId: markdownSkript.id,
           order: 0,
         },
         {
-          collectionId: mathCollection.id,
-          skriptId: quadraticSkript.id,
+          collectionId: tutorialCollection.id,
+          skriptId: mathSkript.id,
           order: 1,
+        },
+        {
+          collectionId: tutorialCollection.id,
+          skriptId: codeSkript.id,
+          order: 2,
         },
       ],
     })
 
-    // Create example pages for Linear Equations skript
-    const introPage = await prisma.page.create({
+    // Create example pages for Markdown Basics skript
+    const headingsPage = await prisma.page.create({
       data: {
-        title: 'What are Linear Equations?',
-        slug: 'what-are-linear-equations',
-        skriptId: linearEquationsSkript.id,
+        title: 'Headings & Text Formatting',
+        slug: 'headings-text',
+        skriptId: markdownSkript.id,
         order: 0,
         isPublished: true,
-        content: `# What are Linear Equations?
+        content: `# Welcome to Eduskript!
 
-A **linear equation** is an algebraic equation in which each term is either a constant or the product of a constant and a single variable.
+Eduskript uses **Markdown** for formatting educational content. Let's learn the basics!
 
-## Standard Form
+## Text Formatting
 
-The standard form of a linear equation in one variable is:
+You can make text **bold** using double asterisks or __underscores__.
 
-\`\`\`
-ax + b = 0
-\`\`\`
+You can make text *italic* using single asterisks or _underscores_.
 
-Where:
-- \`a\` and \`b\` are constants
-- \`x\` is the variable
-- \`a ≠ 0\`
+You can even combine them for ***bold and italic*** text!
 
-## Examples
+For code or technical terms, use \`backticks\` to create inline code.
 
-1. \`2x + 5 = 11\`
-2. \`-3x + 7 = 1\`
-3. \`x - 4 = 0\`
+## Headings
 
-## Key Properties
+Headings create structure in your content. Use 1-6 hash symbols:
 
-- Linear equations graph as straight lines
-- They have exactly one solution (when \`a ≠ 0\`)
-- The solution represents the x-intercept of the line
+# Heading 1 (Page Title)
+## Heading 2 (Major Section)
+### Heading 3 (Subsection)
+#### Heading 4
+##### Heading 5
+###### Heading 6
+
+## Lists
+
+### Unordered Lists
+
+Use asterisks, plus, or minus for bullet points:
+
+* First item
+* Second item
+  * Nested item (indent with 2 spaces)
+  * Another nested item
+* Third item
+
+### Ordered Lists
+
+Use numbers followed by periods:
+
+1. First step
+2. Second step
+   1. Sub-step A
+   2. Sub-step B
+3. Third step
+
+## Blockquotes
+
+Use \`>\` for blockquotes:
+
+> "Education is the most powerful weapon which you can use to change the world."
+> — Nelson Mandela
+
+## Horizontal Rules
+
+Create a horizontal line with three or more hyphens, asterisks, or underscores:
+
+---
+
+That's it for basic formatting! Next, we'll explore lists and tables.
 `,
         authors: {
           create: {
@@ -147,61 +200,85 @@ Where:
       },
     })
 
-    const solvingPage = await prisma.page.create({
+    const tablesLinksPage = await prisma.page.create({
       data: {
-        title: 'Solving Linear Equations',
-        slug: 'solving-linear-equations',
-        skriptId: linearEquationsSkript.id,
+        title: 'Tables, Links & Code',
+        slug: 'tables-links-code',
+        skriptId: markdownSkript.id,
         order: 1,
         isPublished: true,
-        content: `# Solving Linear Equations
+        content: `# Tables, Links & Code Blocks
 
-To solve a linear equation, we need to isolate the variable on one side of the equation.
+## Tables
 
-## Step-by-Step Method
+Create tables using pipes \`|\` and hyphens \`-\`:
 
-### Step 1: Simplify both sides
-Remove parentheses and combine like terms.
+| Feature | Markdown | HTML | Eduskript |
+|---------|----------|------|-----------|
+| Easy to write | ✓ | ✗ | ✓ |
+| Math support | ✗ | ✗ | ✓ |
+| Interactive code | ✗ | ✗ | ✓ |
+| Syntax highlighting | ✗ | ✗ | ✓ |
 
-### Step 2: Move variable terms to one side
-Use addition or subtraction to get all variable terms on one side.
+You can align columns using colons:
 
-### Step 3: Move constant terms to the other side
-Use addition or subtraction to get all constants on the other side.
+| Left aligned | Center aligned | Right aligned |
+|:-------------|:--------------:|--------------:|
+| Left | Center | Right |
+| Text | Text | Text |
 
-### Step 4: Divide by the coefficient
-Divide both sides by the coefficient of the variable.
+## Links
 
-## Example Problem
+Create links using \`[text](url)\`:
 
-Solve: \`3x + 7 = 22\`
+- External link: [Eduskript GitHub](https://github.com/marcchehab/eduskript)
+- Email link: [Contact](mailto:example@eduskript.org)
 
-**Solution:**
-1. Subtract 7 from both sides: \`3x = 15\`
-2. Divide both sides by 3: \`x = 5\`
+## Code Blocks
 
-**Check:** \`3(5) + 7 = 15 + 7 = 22\` ✓
+Use triple backticks for code blocks with syntax highlighting:
 
-## Practice Problems
+\`\`\`python
+def fibonacci(n):
+    """Calculate the nth Fibonacci number."""
+    if n <= 1:
+        return n
+    return fibonacci(n-1) + fibonacci(n-2)
 
-Try solving these on your own:
-
-1. \`2x + 8 = 20\`
-2. \`5x - 3 = 17\`
-3. \`-4x + 12 = 0\`
+print(fibonacci(10))  # Output: 55
+\`\`\`
 
 \`\`\`javascript
-// You can also use code to solve equations
-function solveLinearEquation(a, b) {
-  // Solve ax + b = 0
-  if (a === 0) {
-    return "No solution (a cannot be 0)";
-  }
-  return -b / a;
-}
+// JavaScript example
+const factorial = (n) => {
+  if (n <= 1) return 1;
+  return n * factorial(n - 1);
+};
 
-console.log(solveLinearEquation(3, -15)); // Output: 5
+console.log(factorial(5));  // Output: 120
 \`\`\`
+
+\`\`\`css
+/* CSS example */
+.highlight {
+  background-color: #ffeb3b;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+\`\`\`
+
+## Inline Code
+
+Use single backticks for inline code: \`const x = 42;\` or \`print("Hello")\`
+
+## Task Lists
+
+Create interactive checkboxes:
+
+- [x] Learn Markdown basics
+- [x] Master text formatting
+- [ ] Learn LaTeX math (next chapter!)
+- [ ] Try interactive code editors
 `,
         authors: {
           create: {
@@ -212,47 +289,51 @@ console.log(solveLinearEquation(3, -15)); // Output: 5
       },
     })
 
-    // Create example pages for Quadratic Equations skript
-    const quadraticIntroPage = await prisma.page.create({
+    // Create example pages for Math & LaTeX skript
+    const inlineMathPage = await prisma.page.create({
       data: {
-        title: 'Introduction to Quadratics',
-        slug: 'intro-to-quadratics',
-        skriptId: quadraticSkript.id,
+        title: 'Inline Math with LaTeX',
+        slug: 'inline-math',
+        skriptId: mathSkript.id,
         order: 0,
         isPublished: true,
-        content: `# Introduction to Quadratic Equations
+        content: `# Writing Math with LaTeX
 
-A **quadratic equation** is a polynomial equation of degree 2.
+Eduskript supports beautiful mathematical typesetting using **LaTeX** with the KaTeX renderer.
 
-## Standard Form
+## Inline Math
 
-$$ax^2 + bx + c = 0$$
+Use single dollar signs \`$\` for inline math: The quadratic formula is $x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$.
 
-Where:
-- $a$, $b$, and $c$ are constants
-- $x$ is the variable
-- $a \\neq 0$
+Here are more examples:
 
-## Key Characteristics
+- The Pythagorean theorem: $a^2 + b^2 = c^2$
+- Einstein's equation: $E = mc^2$
+- Euler's identity: $e^{i\\pi} + 1 = 0$
+- Area of a circle: $A = \\pi r^2$
+- Derivative: $\\frac{d}{dx}(x^2) = 2x$
 
-- **Parabolic graph**: All quadratic equations graph as parabolas
-- **Two solutions**: Can have 0, 1, or 2 real solutions
-- **Vertex**: The turning point of the parabola
-- **Axis of symmetry**: Vertical line through the vertex
+## Greek Letters
 
-## The Graph of a Quadratic
+Use backslash followed by the letter name:
 
-The graph of $y = ax^2 + bx + c$ is a parabola that:
-- Opens **upward** if $a > 0$
-- Opens **downward** if $a < 0$
+- Alpha: $\\alpha$, Beta: $\\beta$, Gamma: $\\gamma$, Delta: $\\delta$
+- Pi: $\\pi$, Sigma: $\\sigma$, Omega: $\\omega$, Theta: $\\theta$
+- Capital letters: $\\Gamma$, $\\Delta$, $\\Sigma$, $\\Omega$
 
-The vertex is at $x = -\\frac{b}{2a}$
+## Subscripts and Superscripts
 
-## Examples
+- Superscripts: $x^2$, $x^{10}$, $x^{2n+1}$
+- Subscripts: $x_1$, $x_{i+1}$, $a_0$
+- Both: $x_i^2$, $\\sum_{i=1}^{n} x_i$
 
-1. $x^2 - 5x + 6 = 0$
-2. $2x^2 + 3x - 2 = 0$
-3. $-x^2 + 4x - 4 = 0$
+## Common Symbols
+
+- Fractions: $\\frac{1}{2}$, $\\frac{a+b}{c+d}$
+- Square roots: $\\sqrt{2}$, $\\sqrt{x^2 + y^2}$
+- Nth roots: $\\sqrt[3]{8}$, $\\sqrt[n]{x}$
+- Inequalities: $x \\leq y$, $a \\geq b$, $x \\neq 0$
+- Set notation: $x \\in \\mathbb{R}$, $A \\cup B$, $A \\cap B$, $A \\subseteq B$
 `,
         authors: {
           create: {
@@ -263,67 +344,339 @@ The vertex is at $x = -\\frac{b}{2a}$
       },
     })
 
-    const quadraticFormulaPage = await prisma.page.create({
+    const displayMathPage = await prisma.page.create({
       data: {
-        title: 'The Quadratic Formula',
-        slug: 'quadratic-formula',
-        skriptId: quadraticSkript.id,
+        title: 'Display Math & Equations',
+        slug: 'display-math',
+        skriptId: mathSkript.id,
         order: 1,
         isPublished: true,
-        content: `# The Quadratic Formula
+        content: `# Display Math & Complex Equations
 
-The quadratic formula is a powerful tool for solving any quadratic equation.
+For larger equations that should stand on their own line, use **double dollar signs** \`$$\`.
 
-## The Formula
+## Display Math
 
-For the equation $ax^2 + bx + c = 0$, the solutions are:
+The quadratic formula in display mode:
 
 $$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$
 
-## The Discriminant
+The solutions to a cubic equation:
 
-The expression under the square root, $b^2 - 4ac$, is called the **discriminant**.
+$$x^3 + px + q = 0$$
 
-- If $b^2 - 4ac > 0$: Two distinct real solutions
-- If $b^2 - 4ac = 0$: One repeated real solution
-- If $b^2 - 4ac < 0$: No real solutions (two complex solutions)
+## Summations and Products
 
-## Example
+Sum notation:
 
-Solve $2x^2 + 5x - 3 = 0$
+$$\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}$$
 
-Here, $a = 2$, $b = 5$, $c = -3$
+Product notation:
 
-$$x = \\frac{-5 \\pm \\sqrt{5^2 - 4(2)(-3)}}{2(2)}$$
+$$\\prod_{i=1}^{n} i = n!$$
 
-$$x = \\frac{-5 \\pm \\sqrt{25 + 24}}{4}$$
+## Integrals and Derivatives
 
-$$x = \\frac{-5 \\pm \\sqrt{49}}{4} = \\frac{-5 \\pm 7}{4}$$
+Definite integral:
 
-Solutions:
-- $x = \\frac{-5 + 7}{4} = \\frac{2}{4} = 0.5$
-- $x = \\frac{-5 - 7}{4} = \\frac{-12}{4} = -3$
+$$\\int_{a}^{b} f(x) \\, dx$$
 
-## Python Implementation
+Partial derivatives:
 
-\`\`\`python
+$$\\frac{\\partial f}{\\partial x}, \\quad \\frac{\\partial^2 f}{\\partial x^2}$$
+
+## Limits
+
+$$\\lim_{x \\to \\infty} \\frac{1}{x} = 0$$
+
+$$\\lim_{h \\to 0} \\frac{f(x+h) - f(x)}{h} = f'(x)$$
+
+## Matrices
+
+Write matrices using the \`pmatrix\` environment:
+
+$$\\begin{pmatrix}
+a & b \\\\
+c & d
+\\end{pmatrix}$$
+
+Identity matrix:
+
+$$I = \\begin{pmatrix}
+1 & 0 & 0 \\\\
+0 & 1 & 0 \\\\
+0 & 0 & 1
+\\end{pmatrix}$$
+
+## Systems of Equations
+
+$$\\begin{cases}
+x + y = 5 \\\\
+2x - y = 1
+\\end{cases}$$
+
+## Aligned Equations
+
+Use the \`aligned\` environment for step-by-step solutions:
+
+$$\\begin{aligned}
+(x+1)^2 &= x^2 + 2x + 1 \\\\
+&= x^2 + 2x + 1
+\\end{aligned}$$
+
+## Famous Formulas
+
+**Euler's Formula:**
+
+$$e^{i\\theta} = \\cos\\theta + i\\sin\\theta$$
+
+**Taylor Series:**
+
+$$f(x) = \\sum_{n=0}^{\\infty} \\frac{f^{(n)}(a)}{n!}(x-a)^n$$
+
+**Normal Distribution:**
+
+$$f(x) = \\frac{1}{\\sigma\\sqrt{2\\pi}} e^{-\\frac{1}{2}\\left(\\frac{x-\\mu}{\\sigma}\\right)^2}$$
+`,
+        authors: {
+          create: {
+            userId: session!.user.id,
+            permission: 'author',
+          },
+        },
+      },
+    })
+
+    // Create example pages for Interactive Code skript
+    const pythonEditorPage = await prisma.page.create({
+      data: {
+        title: 'Interactive Python Editor',
+        slug: 'python-editor',
+        skriptId: codeSkript.id,
+        order: 0,
+        isPublished: true,
+        content: `# Interactive Python Editor
+
+One of Eduskript's most powerful features is the ability to **run Python code directly in your browser**!
+
+## How to Create an Interactive Editor
+
+Add the \`editor\` keyword after your code block language:
+
+\\\`\\\`\\\`python editor
+# Write your Python code here
+print("Hello, World!")
+\\\`\\\`\\\`
+
+## Try It Out!
+
+Click the **Run** button to execute this code:
+
+\`\`\`python editor
+# Basic Python example
+def greet(name):
+    return f"Hello, {name}! Welcome to Eduskript!"
+
+print(greet("Student"))
+print("Python version: 3.x (Skulpt)")
+
+# Try some calculations
+result = 2 + 2
+print(f"2 + 2 = {result}")
+\`\`\`
+
+## Math Examples
+
+Python is great for mathematical computations:
+
+\`\`\`python editor
 import math
 
-def solve_quadratic(a, b, c):
-    discriminant = b**2 - 4*a*c
+# Calculate circle properties
+radius = 5
+area = math.pi * radius**2
+circumference = 2 * math.pi * radius
 
-    if discriminant > 0:
-        x1 = (-b + math.sqrt(discriminant)) / (2*a)
-        x2 = (-b - math.sqrt(discriminant)) / (2*a)
-        return (x1, x2)
-    elif discriminant == 0:
-        x = -b / (2*a)
-        return (x,)
-    else:
-        return "No real solutions"
+print(f"Circle with radius {radius}:")
+print(f"  Area: {area:.2f}")
+print(f"  Circumference: {circumference:.2f}")
 
-print(solve_quadratic(2, 5, -3))  # Output: (0.5, -3.0)
+# Fibonacci sequence
+def fibonacci(n):
+    if n <= 1:
+        return n
+    return fibonacci(n-1) + fibonacci(n-2)
+
+print(f"\\nFibonacci numbers:")
+for i in range(10):
+    print(f"F({i}) = {fibonacci(i)}")
 \`\`\`
+
+## Working with Lists
+
+\`\`\`python editor
+# List operations
+numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+# Filter even numbers
+evens = [n for n in numbers if n % 2 == 0]
+print(f"Even numbers: {evens}")
+
+# Calculate sum and average
+total = sum(numbers)
+average = total / len(numbers)
+print(f"\\nSum: {total}")
+print(f"Average: {average}")
+
+# Find squares
+squares = [n**2 for n in numbers]
+print(f"\\nSquares: {squares}")
+\`\`\`
+
+## Student Exercises
+
+Try modifying the code above to:
+
+1. Calculate the volume of a sphere: $V = \\frac{4}{3}\\pi r^3$
+2. Generate the first 20 Fibonacci numbers
+3. Filter odd numbers from the list
+4. Calculate factorial of a number
+
+**Tip:** Your code is automatically saved as you type! Try refreshing the page - your changes will still be there.
+`,
+        authors: {
+          create: {
+            userId: session!.user.id,
+            permission: 'author',
+          },
+        },
+      },
+    })
+
+    const javascriptEditorPage = await prisma.page.create({
+      data: {
+        title: 'Interactive JavaScript Editor',
+        slug: 'javascript-editor',
+        skriptId: codeSkript.id,
+        order: 1,
+        isPublished: true,
+        content: `# Interactive JavaScript Editor
+
+You can also run **JavaScript code** directly in your pages!
+
+## Creating a JavaScript Editor
+
+Use \`javascript editor\` to create an interactive JavaScript environment:
+
+\\\`\\\`\\\`javascript editor
+console.log("Hello from JavaScript!");
+\\\`\\\`\\\`
+
+## Try It Out!
+
+\`\`\`javascript editor
+// Basic JavaScript example
+function greet(name) {
+  return \`Hello, \${name}! Welcome to Eduskript!\`;
+}
+
+console.log(greet("Student"));
+console.log("JavaScript is running in your browser!");
+
+// Quick calculations
+const result = 2 + 2;
+console.log(\`2 + 2 = \${result}\`);
+\`\`\`
+
+## Working with Arrays
+
+JavaScript has powerful array methods:
+
+\`\`\`javascript editor
+// Array operations
+const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+// Filter even numbers
+const evens = numbers.filter(n => n % 2 === 0);
+console.log("Even numbers:", evens);
+
+// Map to squares
+const squares = numbers.map(n => n ** 2);
+console.log("Squares:", squares);
+
+// Reduce to sum
+const sum = numbers.reduce((acc, n) => acc + n, 0);
+console.log("Sum:", sum);
+console.log("Average:", sum / numbers.length);
+\`\`\`
+
+## Object-Oriented Programming
+
+\`\`\`javascript editor
+// Define a class
+class Circle {
+  constructor(radius) {
+    this.radius = radius;
+  }
+
+  area() {
+    return Math.PI * this.radius ** 2;
+  }
+
+  circumference() {
+    return 2 * Math.PI * this.radius;
+  }
+}
+
+// Create instances
+const circle1 = new Circle(5);
+const circle2 = new Circle(10);
+
+console.log(\`Circle 1 (r=5):\`);
+console.log(\`  Area: \${circle1.area().toFixed(2)}\`);
+console.log(\`  Circumference: \${circle1.circumference().toFixed(2)}\`);
+
+console.log(\`\\nCircle 2 (r=10):\`);
+console.log(\`  Area: \${circle2.area().toFixed(2)}\`);
+console.log(\`  Circumference: \${circle2.circumference().toFixed(2)}\`);
+\`\`\`
+
+## Modern JavaScript Features
+
+\`\`\`javascript editor
+// Arrow functions
+const double = x => x * 2;
+const triple = x => x * 3;
+
+console.log("Doubling 5:", double(5));
+console.log("Tripling 5:", triple(5));
+
+// Destructuring
+const person = { name: "Alice", age: 25, city: "Paris" };
+const { name, age } = person;
+console.log(\`\${name} is \${age} years old\`);
+
+// Spread operator
+const arr1 = [1, 2, 3];
+const arr2 = [4, 5, 6];
+const combined = [...arr1, ...arr2];
+console.log("Combined:", combined);
+
+// Template literals
+const greeting = \`Hello, \${name}!\`;
+console.log(greeting);
+\`\`\`
+
+## Challenge Exercises
+
+Try these challenges:
+
+1. Create a \`Rectangle\` class with width, height, area, and perimeter methods
+2. Write a function to calculate factorial using recursion
+3. Sort an array of numbers in descending order
+4. Create a function that finds the largest number in an array
+
+**Pro Tip:** Both Python and JavaScript editors support the **full screen mode** - click the expand icon for more space!
 `,
         authors: {
           create: {
@@ -339,10 +692,10 @@ print(solve_quadratic(2, 5, -3))  # Output: (0.5, -3.0)
       message: 'Example data seeded successfully',
       data: {
         collections: [
-          { title: mathCollection.title, slug: mathCollection.slug },
+          { title: tutorialCollection.title, slug: tutorialCollection.slug },
         ],
-        skripts: 2,
-        pages: 4,
+        skripts: 3,
+        pages: 6,
       },
     })
   } catch (error) {
