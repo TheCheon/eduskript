@@ -378,7 +378,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       const pressure = e.pressure || 0.5 // Default to 0.5 for mouse
 
       currentPathRef.current = [{ x, y, pressure }]
-    }, [mode, stylusModeActive, onStylusDetected, onNonStylusInput, width, height])
+    }, [mode, stylusModeActive, onStylusDetected, onNonStylusInput, width, height, updateEraserCursor])
 
     const draw = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
       // Don't draw if multiple touch/mouse pointers are active (pinch gesture)
@@ -530,7 +530,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
 
         onUpdate(data)
       }
-    }, [mode, strokeColor, strokeWidth, onUpdate, headingPositions, redrawCanvas])
+    }, [mode, strokeColor, strokeWidth, onUpdate, headingPositions, redrawCanvas, updateEraserCursor])
 
     const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
       // Clean up when pointer is cancelled
