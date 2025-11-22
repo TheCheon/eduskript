@@ -97,8 +97,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   const [storedHeadingOffsets, setStoredHeadingOffsets] = useState<Record<string, number>>({})
   const [snaps, setSnaps] = useState<Snap[]>([])
 
-  // Track last pointer event to debounce rapid mode switching (Chromium bug workaround)
-  const lastPointerEventRef = useRef<{ type: string; timestamp: number } | null>(null)
+  // Pen priority: pen always wins, ignore other inputs for 200ms after last pen event
+  const lastPenEventTimeRef = useRef<number>(0)
 
   // Canvas width matches paper width exactly
   // Paper is max-w-5xl (64rem = 1024px)
@@ -528,14 +528,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
     const handleDocumentPointer = (e: PointerEvent) => {
       if (e.pointerType === 'pen') {
-        // Debounce: ignore rapid switches (within 500ms) between pen and mouse
-        const now = Date.now()
-        const lastEvent = lastPointerEventRef.current
-        if (lastEvent && lastEvent.type === 'mouse' && now - lastEvent.timestamp < 500) {
-          // Ignore this pen event - it's too soon after a mouse event (Chromium bug)
-          return
-        }
-        lastPointerEventRef.current = { type: 'pen', timestamp: now }
+        lastPenEventTimeRef.current = Date.now()
         handleStylusDetected()
       }
     }
@@ -549,22 +542,47 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
   }, [stylusModeActive, handleStylusDetected])
 
+  // Keep updating pen timestamp while drawing (stylus mode active)
+  useEffect(() => {
+    if (!stylusModeActive) return // Only listen when stylus mode IS active
+
+    const handlePenEvents = (e: PointerEvent) => {
+      if (e.pointerType === 'pen') {
+        lastPenEventTimeRef.current = Date.now()
+      }
+    }
+
+    // Listen for pen events to keep timestamp fresh during drawing
+    document.addEventListener('pointermove', handlePenEvents)
+    document.addEventListener('pointerdown', handlePenEvents)
+    return () => {
+      document.removeEventListener('pointermove', handlePenEvents)
+      document.removeEventListener('pointerdown', handlePenEvents)
+    }
+  }, [stylusModeActive])
+
   // Document-level mouse detection when stylus mode is active
   useEffect(() => {
     if (!stylusModeActive) return // Only listen when stylus mode IS active
 
+    let hasSwitched = false
+
     const handleDocumentMouseMove = (e: PointerEvent) => {
       if (e.pointerType === 'mouse') {
-        // Debounce: ignore rapid switches (within 500ms) between mouse and pen
         const now = Date.now()
-        const lastEvent = lastPointerEventRef.current
-        if (lastEvent && lastEvent.type === 'pen' && now - lastEvent.timestamp < 500) {
-          // Ignore this mouse event - it's too soon after a pen event (Chromium bug)
+        const timeSinceLastPen = now - lastPenEventTimeRef.current
+
+        // Pen has priority - ignore mouse events for 200ms after last pen event
+        if (timeSinceLastPen < 200) {
           return
         }
-        lastPointerEventRef.current = { type: 'mouse', timestamp: now }
-        setStylusModeActive(false)
-        setMode('view')
+
+        // Pen cooldown expired - allow mouse to switch mode (only once)
+        if (!hasSwitched) {
+          hasSwitched = true
+          setStylusModeActive(false)
+          setMode('view')
+        }
       }
     }
 
@@ -791,7 +809,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
       // Calculate zoom factor
       const zoomFactor = currentDistance / initialPinchDistanceRef.current
-      const newZoom = Math.max(0.5, Math.min(3.0, initialZoomRef.current * zoomFactor))
+      const newZoom = Math.max(0.5, Math.min(2.5, initialZoomRef.current * zoomFactor))
 
       // Zoom around the initial pinch center point, accounting for transform-origin: top center of main
       // We need to get the main element's center as the origin
@@ -864,7 +882,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
       // Calculate zoom delta (negative deltaY means zoom in)
       const delta = -e.deltaY * 0.01
-      const newZoom = Math.max(0.5, Math.min(3.0, zoomRef.current * (1 + delta)))
+      const newZoom = Math.max(0.5, Math.min(2.5, zoomRef.current * (1 + delta)))
 
       // Get natural (untransformed) position of main element
       const currentTransform = mainRef.current.style.transform
