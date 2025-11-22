@@ -10,7 +10,6 @@ import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useTheme } from 'next-themes'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 interface FileItem {
   id: string
@@ -321,7 +320,7 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
                       className="flex items-center space-x-2 flex-1 cursor-pointer min-w-0"
                       draggable
                       onDragStart={(e) => handleFileDragStart(e, file)}
-                      onClick={() => onFileSelect?.(file)}
+                      onClick={() => onFileSelect?.(file, 'embed')}
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-1">

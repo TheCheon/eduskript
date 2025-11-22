@@ -43,8 +43,8 @@ export function getSignInType(options: {
     return role
   }
 
-  // 2. Check session role (for expired sessions that still have data)
-  if (session?.user?.role === 'teacher') {
+  // 2. Check session accountType (for expired sessions that still have data)
+  if (session?.user?.accountType === 'teacher') {
     return 'teacher'
   }
 

@@ -44,13 +44,13 @@ LIMIT 15;`
             <div className="p-4 border rounded">
               <h3 className="font-medium mb-2">List tables</h3>
               <code className="text-sm bg-muted p-2 block rounded">
-                SELECT name FROM sqlite_master WHERE type='table';
+                SELECT name FROM sqlite_master WHERE type=&apos;table&apos;;
               </code>
             </div>
             <div className="p-4 border rounded">
               <h3 className="font-medium mb-2">Movies by release year</h3>
               <code className="text-sm bg-muted p-2 block rounded">
-                SELECT strftime('%Y', release_date) as year, COUNT(*) as count FROM movie WHERE release_date IS NOT NULL GROUP BY year ORDER BY year DESC LIMIT 10;
+                SELECT strftime(&apos;%Y&apos;, release_date) as year, COUNT(*) as count FROM movie WHERE release_date IS NOT NULL GROUP BY year ORDER BY year DESC LIMIT 10;
               </code>
             </div>
           </div>

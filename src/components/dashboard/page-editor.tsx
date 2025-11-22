@@ -14,7 +14,7 @@ import { CollapsibleDrawer } from '@/components/ui/collapsible-drawer'
 import { PublishToggle } from '@/components/dashboard/publish-toggle'
 import { VersionHistory } from '@/components/dashboard/version-history'
 import { ExcalidrawEditor } from '@/components/dashboard/excalidraw-editor'
-import { ArrowLeft, Save, History, Files, Eye, Image, Link2, FileCode } from 'lucide-react'
+import { ArrowLeft, Save, History, Files, Eye, Image as ImageIcon, Link2, FileCode } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 interface PageVersion {
@@ -97,7 +97,8 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
     excalidrawData?: {
       elements: readonly unknown[]
       appState?: unknown
-    }
+    } | null
+    skriptId?: string
   } | null>(null)
 
   // Fetch file list from API
@@ -675,7 +676,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
                       refreshFileList()
                     }}
                   >
-                    <Image className="w-3.5 h-3.5" />
+                    <ImageIcon className="w-3.5 h-3.5" />
                     Embed Image
                   </button>
                   <button
