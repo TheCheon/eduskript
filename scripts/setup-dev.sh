@@ -34,6 +34,18 @@ fi
 
 echo ""
 
+# Check if node_modules exists, if not run pnpm install
+if [ ! -d "node_modules" ]; then
+    echo -e "${BLUE}→${NC} Installing dependencies (first time setup)..."
+    if pnpm install; then
+        echo -e "${GREEN}✓${NC} Dependencies installed"
+    else
+        echo -e "${RED}✗ Error: Failed to install dependencies${NC}"
+        exit 1
+    fi
+    echo ""
+fi
+
 # Function to check if port is available
 is_port_available() {
     local port=$1
@@ -174,6 +186,17 @@ for i in {1..30}; do
     fi
     sleep 1
 done
+
+# Generate Prisma client (needs DATABASE_URL even though we just generated .env.local)
+echo ""
+echo -e "${BLUE}→${NC} Generating Prisma client..."
+# Export DATABASE_URL for this command since Prisma config needs it
+if DATABASE_URL="$DATABASE_URL" pnpm db:generate; then
+    echo -e "${GREEN}✓${NC} Prisma client generated"
+else
+    echo -e "${RED}✗ Error: Failed to generate Prisma client${NC}"
+    exit 1
+fi
 
 # Run database migrations
 echo ""
