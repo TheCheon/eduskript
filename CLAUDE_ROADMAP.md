@@ -10,7 +10,7 @@
 ## 🎯 Priority List
 
 **Core LMS Features:**
-- **Allow toggle on classes 
+- **Add toggle to classes for teachers to not allow anonymous students**
 - **Student Progress Tracking** - Gradebook interface, view progress, grade submissions
 - **Interactive Quizzes** - In-lesson quizzes with progress tracking
 - **Video Hosting** - Swiss-compliant video upload and embedding
