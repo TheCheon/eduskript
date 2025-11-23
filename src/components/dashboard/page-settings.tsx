@@ -71,7 +71,10 @@ export function PageSettings() {
       const response = await fetch('/api/user/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username }),
+        body: JSON.stringify({
+          username,
+          name: session?.user?.name || 'User' // Include name as it's required by the API
+        }),
       })
 
       if (response.ok) {
@@ -79,10 +82,13 @@ export function PageSettings() {
         router.refresh() // Refresh page
         console.log('Username updated successfully')
       } else {
-        console.error('Failed to update username')
+        const data = await response.json()
+        console.error('Failed to update username:', data.error || 'Unknown error')
+        alert(`Failed to update username: ${data.error || 'Unknown error'}`)
       }
     } catch (error) {
       console.error('Failed to update username:', error)
+      alert('Failed to update username. Please try again.')
     } finally {
       setUsernameLoading(false)
     }
