@@ -465,7 +465,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
           }
         }
       })
-    }, [mode, strokeColor, strokeWidth, width, height, isPointNearStroke, scheduleEraserRedraw, updateEraserCursorPosition])
+    }, [mode, strokeColor, strokeWidth, width, height, isPointNearStroke, scheduleEraserRedraw, updateEraserCursorPosition, updateEraserCursor])
 
     const stopDrawing = useCallback((e?: React.PointerEvent<HTMLCanvasElement>) => {
       // Remove pointer from tracking

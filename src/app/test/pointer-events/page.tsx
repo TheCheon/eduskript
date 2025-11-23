@@ -291,7 +291,7 @@ export default function PointerEventsTest() {
           <ol className="list-decimal list-inside space-y-1 text-sm">
             <li>Draw on the canvas with your mouse</li>
             <li>Draw on the canvas with your pen</li>
-            <li>Click "Copy to Clipboard" to copy all events</li>
+            <li>Click &ldquo;Copy to Clipboard&rdquo; to copy all events</li>
             <li>Paste the data to analyze differences between pen and mouse</li>
           </ol>
         </div>
