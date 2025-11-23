@@ -212,7 +212,13 @@ export default async function DomainIndex({ params }: DomainIndexProps) {
     }
 
     return (
-      <PublicSiteLayout teacher={teacherData} siteStructure={collections} rootSkripts={rootSkripts}>
+      <PublicSiteLayout
+        teacher={teacherData}
+        siteStructure={collections}
+        rootSkripts={rootSkripts}
+        sidebarBehavior={teacher.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
+        typographyPreference={teacher.typographyPreference as 'modern' | 'classic' || 'modern'}
+      >
         <div className="max-w-4xl mx-auto">
           <div className="text-center py-12">
             <h1 className="text-4xl font-bold text-foreground mb-4">

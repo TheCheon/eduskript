@@ -216,24 +216,24 @@ body {
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 0 0% 96%; /* #f5f5f5 */
+    --foreground: 0 0% 15%; /* #262626 */
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 0 0% 15%; /* #262626 */
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 0 0% 15%; /* #262626 */
     --primary: 221.2 83.2% 53.3%;
     --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 84% 4.9%;
+    --secondary-foreground: 0 0% 15%; /* #262626 */
     --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted-foreground: 0 0% 35%; /* Slightly lighter than main text */
     --accent: 210 40% 96%;
-    --accent-foreground: 222.2 84% 4.9%;
+    --accent-foreground: 0 0% 15%; /* #262626 */
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --border: 0 0% 88%; /* Lighter border for light mode */
+    --input: 0 0% 88%;
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.5rem;
 
@@ -242,29 +242,33 @@ body {
     --success-foreground: 355.7 100% 97.3%;
     --warning: 35.5 91.7% 32.9%;
     --warning-foreground: 0 0% 100%;
-    --icon-muted: 215.4 16.3% 46.9%;
+    --icon-muted: 0 0% 45%;
     --turtle-color: hsl(221.2 83.2% 53.3%);
+
+    /* Prose-specific colors */
+    --prose-text: 0 0% 15%; /* #262626 */
+    --prose-headings: 0 0% 15%; /* #262626 */
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --background: 0 0% 5%; /* Almost black for main background */
+    --foreground: 0 0% 90%; /* #e6e6e6 */
+    --card: 0 0% 7.5%; /* Nice dark gray for paper/sidebar */
+    --card-foreground: 0 0% 90%; /* #e6e6e6 */
+    --popover: 0 0% 7.5%; /* Same as card */
+    --popover-foreground: 0 0% 90%; /* #e6e6e6 */
     --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 84% 4.9%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --primary-foreground: 0 0% 7.5%; /* Dark background for primary buttons */
+    --secondary: 0 0% 12%; /* Slightly lighter than card */
+    --secondary-foreground: 0 0% 90%; /* #e6e6e6 */
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 60%; /* Subdued text */
+    --accent: 0 0% 12%;
+    --accent-foreground: 0 0% 90%; /* #e6e6e6 */
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 0 0% 20%; /* Subtle borders */
+    --input: 0 0% 20%;
     --ring: 224.3 76.3% 94.1%;
 
     /* Custom theme variables for dark mode */
@@ -272,8 +276,12 @@ body {
     --success-foreground: 144.9 80.4% 10%;
     --warning: 35.5 84.7% 55.9%;
     --warning-foreground: 20.9 83.2% 11.8%;
-    --icon-muted: 215 20.2% 65.1%;
+    --icon-muted: 0 0% 60%;
     --turtle-color: hsl(217.2 91.2% 59.8%);
+
+    /* Prose-specific colors for dark mode */
+    --prose-text: 0 0% 90%; /* #e6e6e6 */
+    --prose-headings: 0 0% 100%; /* white */
   }
 }
 
@@ -289,7 +297,8 @@ body {
 
 /* Custom prose styles that respect our theme */
 .prose-theme {
-  @apply text-foreground max-w-none;
+  @apply max-w-none;
+  color: hsl(var(--prose-text));
 }
 
 .prose-theme h1,
@@ -298,11 +307,16 @@ body {
 .prose-theme h4,
 .prose-theme h5,
 .prose-theme h6 {
-  @apply text-foreground font-semibold leading-tight mt-0 mb-2;
+  @apply font-semibold leading-tight mt-0 mb-2;
+  color: hsl(var(--prose-headings));
 }
 
 .prose-theme h1 {
-  @apply text-4xl mb-6;
+  position: relative;
+  text-align: center;
+  font-size: calc(var(--user-font-scale, 1.1875) * 5rem);
+  margin: 3rem 0 2.5rem 0;
+  z-index: 0;
 }
 
 .prose-theme h2 {
@@ -317,14 +331,17 @@ body {
   @apply mb-2;
 }
 
-/* Heading links should look like headings, not links */
+/* Override ALL anchor styles in headings */
 .prose-theme h1 a,
 .prose-theme h2 a,
 .prose-theme h3 a,
 .prose-theme h4 a,
 .prose-theme h5 a,
 .prose-theme h6 a {
-  @apply text-foreground no-underline font-semibold;
+  text-decoration: none !important;
+  color: inherit !important;
+  border: none !important;
+  background: none !important;
 }
 
 .prose-theme h1 a:hover,
@@ -333,7 +350,49 @@ body {
 .prose-theme h4 a:hover,
 .prose-theme h5 a:hover,
 .prose-theme h6 a:hover {
-  @apply text-foreground opacity-80;
+  text-decoration: none !important;
+  color: inherit !important;
+}
+
+/* Heading link specifics */
+.prose-theme a.heading-link {
+  position: relative;
+  cursor: pointer;
+}
+
+/* Ensure h1 uses heading color */
+.prose-theme h1,
+.prose-theme h1 * {
+  color: hsl(var(--prose-headings)) !important;
+}
+
+/* Add # suffix on hover for all headings except h1 (which has rainbow effect) */
+.prose-theme h2 a::after,
+.prose-theme h3 a::after,
+.prose-theme h4 a::after,
+.prose-theme h5 a::after,
+.prose-theme h6 a::after {
+  content: ' #';
+  opacity: 0;
+  color: hsl(var(--muted-foreground));
+  transition: opacity 0.2s ease;
+  margin-left: 0.5rem;
+  font-weight: normal;
+  font-size: 0.9em;
+}
+
+.prose-theme h2:hover a::after,
+.prose-theme h3:hover a::after,
+.prose-theme h4:hover a::after,
+.prose-theme h5:hover a::after,
+.prose-theme h6:hover a::after {
+  opacity: 0.6;
+}
+
+/* Visual feedback on click */
+.prose-theme .heading-link:active {
+  opacity: 0.8;
+  transform: scale(0.98);
 }
 
 .prose-theme p {
@@ -548,31 +607,6 @@ body {
 .slider-vertical::-moz-range-thumb:hover {
   background: hsl(var(--primary));
   transform: scale(1.1);
-}
-
-/* Vertical shadow overlay for entire annotation area */
-.annotation-vertical-shadows {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 100%;
-  pointer-events: none;
-  z-index: 15;
-  /* Two gradients positioned at canvas edges (72rem centered) */
-  background:
-    linear-gradient(to left, #0000000f 0%, #0000 100%), linear-gradient(to right, #0000000f 0%, #0000 100%);
-  background-position: calc(49.8% - 36rem) 0, calc(49.2% + 36rem) 0;
-  background-size: 16px 100%, 16px 100%;
-  background-repeat: no-repeat;
-}
-
-.dark .annotation-vertical-shadows {
-  background:
-    linear-gradient(to left, #ffffff1a 0%, #0000 100%), linear-gradient(to right, #ffffff1a 0%, #0000 100%);
-  background-position: calc(49.8% - 36rem) 0, calc(49.2% + 36rem) 0;
-  background-size: 16px 100%, 16px 100%;
-  background-repeat: no-repeat;
 }
 
 /* Hide matplotlib interactive dialogs (we use Agg backend for static plots) */
@@ -841,4 +875,148 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
 }
 .prose-theme blockquote.callout-discuss .callout-title {
   background-color: var(--callout-discuss-accent) !important;
+}
+/* ===== Typography Styles ===== */
+/* Modern typography (Roboto Slab + Barlow Condensed) */
+[data-typography="modern"] .prose-theme,
+[data-typography="modern"] .prose-theme p,
+[data-typography="modern"] .prose-theme li,
+[data-typography="modern"] .prose-theme td,
+[data-typography="modern"] .prose-theme blockquote {
+  font-family: var(--font-modern-body), serif;
+  font-weight: 300;
+}
+
+[data-typography="modern"] .prose-theme h1,
+[data-typography="modern"] .prose-theme h2,
+[data-typography="modern"] .prose-theme h3,
+[data-typography="modern"] .prose-theme h4,
+[data-typography="modern"] .prose-theme h5,
+[data-typography="modern"] .prose-theme h6 {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+}
+
+/* Classic typography (EB Garamond + Barlow Condensed) */
+[data-typography="classic"] .prose-theme,
+[data-typography="classic"] .prose-theme p,
+[data-typography="classic"] .prose-theme li,
+[data-typography="classic"] .prose-theme td,
+[data-typography="classic"] .prose-theme blockquote {
+  font-family: var(--font-classic-body), serif;
+  font-weight: 400;
+}
+
+[data-typography="classic"] .prose-theme h1,
+[data-typography="classic"] .prose-theme h2,
+[data-typography="classic"] .prose-theme h3,
+[data-typography="classic"] .prose-theme h4,
+[data-typography="classic"] .prose-theme h5,
+[data-typography="classic"] .prose-theme h6 {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+}
+
+/* User-controlled font size */
+:root {
+  --user-font-size: 19px; /* Default ~14pt */
+  --user-font-scale: 1.1875; /* 19/16 */
+}
+
+.prose-theme {
+  font-size: var(--user-font-size, 19px);
+}
+
+.prose-theme p,
+.prose-theme li,
+.prose-theme td,
+.prose-theme blockquote {
+  font-size: var(--user-font-size, 19px);
+  line-height: 1.7;
+}
+
+/* Scale headings proportionally */
+.prose-theme h1 {
+  font-size: calc(var(--user-font-scale, 1.1875) * 2.25rem);
+}
+
+.prose-theme h2 {
+  font-size: calc(var(--user-font-scale, 1.1875) * 1.875rem);
+}
+
+.prose-theme h3 {
+  font-size: calc(var(--user-font-scale, 1.1875) * 1.5rem);
+}
+
+.prose-theme h4 {
+  font-size: calc(var(--user-font-scale, 1.1875) * 1.25rem);
+}
+
+.prose-theme h5 {
+  font-size: calc(var(--user-font-scale, 1.1875) * 1.125rem);
+}
+
+.prose-theme h6 {
+  font-size: calc(var(--user-font-scale, 1.1875) * 1rem);
+}
+
+/* Code blocks should also scale */
+.prose-theme code {
+  font-size: calc(var(--user-font-size, 19px) * 0.85);
+}
+
+.prose-theme pre code {
+  font-size: calc(var(--user-font-size, 19px) * 0.85);
+}
+
+/* ColorTitle - Fancy rainbow gradient for h1 headings */
+.prose-theme h1 {
+  position: relative;
+  text-align: center;
+  font-size: calc(var(--user-font-scale, 1.1875) * 6rem);
+  margin: 3rem 0 2.5rem 0;
+  color: hsl(var(--prose-headings)) !important;
+}
+
+/* Rainbow gradient shadow effect - apply to h1 with color-title class */
+.prose-theme h1.color-title::before {
+  content: attr(data-heading-text);
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 100%;
+  text-align: center;
+  z-index: -1;
+  background-image: linear-gradient(to right,
+    #ff0000,
+    #ff8000,
+    #ffff00,
+    #80ff00,
+    #00ff00,
+    #00ff80,
+    #00ffff,
+    #0080ff,
+    #0000ff,
+    #8000ff,
+    #ff00ff,
+    #ff0000);
+  background-size: 300% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: rainbow-text-flow 180s linear infinite;
+  font-weight: bold;
+  font-size: inherit;
+  line-height: inherit;
+  pointer-events: none;
+}
+
+@keyframes rainbow-text-flow {
+  0% {
+    background-position: 0% center;
+  }
+  100% {
+    background-position: 300% center;
+  }
 }

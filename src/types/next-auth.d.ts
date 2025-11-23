@@ -15,6 +15,7 @@ declare module "next-auth" {
       requirePasswordReset?: boolean
       accountType?: string
       studentPseudonym?: string | null
+      typographyPreference?: string | null
     }
   }
 
@@ -30,6 +31,7 @@ declare module "next-auth" {
     requirePasswordReset?: boolean
     accountType?: string
     studentPseudonym?: string | null
+    typographyPreference?: string | null
   }
 }
 
@@ -46,5 +48,6 @@ declare module "next-auth/jwt" {
     requirePasswordReset?: boolean
     accountType?: string
     studentPseudonym?: string | null
+    typographyPreference?: string | null
   }
 }

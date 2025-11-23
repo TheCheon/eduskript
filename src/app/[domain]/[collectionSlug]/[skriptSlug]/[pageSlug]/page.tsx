@@ -195,16 +195,7 @@ export default async function PublicPage({ params }: PageProps) {
   try {
     // Find teacher by username
     const teacher = await prisma.user.findFirst({
-      where: { username: domain },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        title: true,
-        bio: true,
-        username: true,
-        sidebarBehavior: true
-      }
+      where: { username: domain }
     })
 
     if (!teacher) {
@@ -370,6 +361,7 @@ export default async function PublicPage({ params }: PageProps) {
         currentPath={currentPath}
         fullSiteStructure={fullSiteStructure}
         sidebarBehavior={teacher.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
+        typographyPreference={teacher.typographyPreference as 'modern' | 'classic' || 'modern'}
       >
         <div id="paper" className="max-w-5xl mx-auto py-24 px-4 sm:px-8 md:px-12 lg:px-24 bg-card dark:bg-slate-900/80 paper-shadow border border-border dark:border-white/10">
           {/* Preview mode indicator for unpublished content */}

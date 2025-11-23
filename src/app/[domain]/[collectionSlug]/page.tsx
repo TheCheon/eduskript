@@ -76,6 +76,8 @@ interface Teacher {
   title: string | null
   bio: string | null
   username: string | null
+  sidebarBehavior?: string | null
+  typographyPreference?: string | null
 }
 
 interface CollectionPage {
@@ -128,15 +130,7 @@ export default async function CollectionPreviewPage({ params }: CollectionPrevie
   try {
     // Find the teacher
     teacher = await prisma.user.findUnique({
-      where: { username: domain },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        title: true,
-        bio: true,
-        username: true
-      }
+      where: { username: domain }
     })
 
     if (!teacher) {
@@ -264,10 +258,12 @@ export default async function CollectionPreviewPage({ params }: CollectionPrevie
 
     // If no pages are available, show collection overview
     return (
-      <PublicSiteLayout 
-        teacher={teacherForLayout} 
+      <PublicSiteLayout
+        teacher={teacherForLayout}
         siteStructure={siteStructure}
         currentPath={`/${collectionSlug}`}
+        sidebarBehavior={teacher.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
+        typographyPreference={teacher.typographyPreference as 'modern' | 'classic' || 'modern'}
       >
         <div className="max-w-4xl mx-auto p-6">
           <div className="mb-6">

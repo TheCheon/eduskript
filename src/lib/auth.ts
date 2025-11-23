@@ -141,6 +141,7 @@ export const authOptions: NextAuthOptions = {
             requirePasswordReset: true,
             accountType: true,
             studentPseudonym: true,
+            typographyPreference: true,
           }
         })
 
@@ -155,6 +156,7 @@ export const authOptions: NextAuthOptions = {
           token.requirePasswordReset = dbUser.requirePasswordReset
           token.accountType = dbUser.accountType
           token.studentPseudonym = dbUser.studentPseudonym
+          token.typographyPreference = dbUser.typographyPreference
 
           // If this is an OAuth login and the user doesn't have a pseudonym yet,
           // generate one if it's a student account
@@ -204,6 +206,7 @@ export const authOptions: NextAuthOptions = {
             requirePasswordReset: true,
             accountType: true,
             studentPseudonym: true,
+            typographyPreference: true,
           }
         })
 
@@ -218,6 +221,7 @@ export const authOptions: NextAuthOptions = {
           token.requirePasswordReset = dbUser.requirePasswordReset
           token.accountType = dbUser.accountType
           token.studentPseudonym = dbUser.studentPseudonym
+          token.typographyPreference = dbUser.typographyPreference
         }
       }
 
@@ -236,6 +240,7 @@ export const authOptions: NextAuthOptions = {
         session.user.requirePasswordReset = token.requirePasswordReset as boolean
         session.user.accountType = token.accountType as string
         session.user.studentPseudonym = token.studentPseudonym as string | null
+        session.user.typographyPreference = token.typographyPreference as string | null
       }
       return session
     },

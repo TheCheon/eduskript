@@ -22,6 +22,7 @@ import { remarkCodeEditor } from '@/lib/remark-plugins/code-editor'
 import { remarkCallouts } from '@/lib/remark-plugins/callouts'
 import { rehypeCodemirrorHighlight } from '@/lib/rehype-plugins/codemirror-highlight'
 import { rehypeSourceLine } from '@/lib/rehype-plugins/source-line'
+import { rehypeColorTitle } from '@/lib/rehype-plugins/color-title'
 import rehypeSlug from 'rehype-slug'
 import { useTheme } from 'next-themes'
 import {
@@ -403,6 +404,8 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
           .use(remarkRehype, { allowDangerousHtml: true }) // Need allowDangerousHtml for custom elements
           // Add IDs to headings
           .use(rehypeSlug)
+          // Add rainbow gradient to h1 headings
+          .use(rehypeColorTitle)
           // Add KaTeX math rendering
           .use(rehypeKatex)
           // Add source line markers BEFORE transformations happen
@@ -439,6 +442,51 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
         scrollContainer.scrollTop = scrollPositionRef.current
         hasRestoredScroll.current = true
       }
+    }
+  }, [renderedContent])
+
+  // Add click-to-copy functionality for heading links
+  useEffect(() => {
+    if (!renderedContent) return
+
+    const handleHeadingClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      const headingLink = target.closest('a.heading-link')
+
+      if (headingLink && headingLink instanceof HTMLAnchorElement) {
+        e.preventDefault()
+
+        // Get the full URL for the heading
+        const headingId = headingLink.getAttribute('href')
+        if (headingId) {
+          const fullUrl = `${window.location.origin}${window.location.pathname}${headingId}`
+
+          // Copy to clipboard
+          navigator.clipboard.writeText(fullUrl).then(() => {
+            // Show temporary feedback
+            const originalContent = headingLink.innerHTML
+            const tempSpan = document.createElement('span')
+            tempSpan.style.fontSize = '0.8em'
+            tempSpan.style.marginLeft = '0.5rem'
+            tempSpan.style.color = 'hsl(142.1, 76.2%, 36.3%)'
+            tempSpan.textContent = ' ✓ Copied!'
+            headingLink.appendChild(tempSpan)
+
+            setTimeout(() => {
+              tempSpan.remove()
+            }, 2000)
+          }).catch((err) => {
+            console.error('Failed to copy link:', err)
+          })
+        }
+      }
+    }
+
+    // Add event listener to the container
+    document.addEventListener('click', handleHeadingClick)
+
+    return () => {
+      document.removeEventListener('click', handleHeadingClick)
     }
   }, [renderedContent])
 

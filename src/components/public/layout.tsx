@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { ReadingProgress } from './reading-progress'
 import { PublicThemeToggle } from './theme-toggle'
 import { AuthButton } from './auth-button'
+import { FontSizeControls } from './font-size-controls'
 import { useLayout } from '@/contexts/layout-context'
 
 interface Teacher {
@@ -49,6 +50,7 @@ interface PublicSiteLayoutProps {
   currentPath?: string
   fullSiteStructure?: SiteStructure[] // Full site structure when sidebarBehavior is "full"
   sidebarBehavior?: 'contextual' | 'full'
+  typographyPreference?: 'modern' | 'classic'
 }
 
 export function PublicSiteLayout({
@@ -58,7 +60,8 @@ export function PublicSiteLayout({
   children,
   currentPath,
   fullSiteStructure,
-  sidebarBehavior = 'contextual'
+  sidebarBehavior = 'contextual',
+  typographyPreference = 'modern'
 }: PublicSiteLayoutProps) {
   const router = useRouter()
   const { setSidebarCollapsed: setSidebarCollapsedInContext } = useLayout()
@@ -203,11 +206,12 @@ export function PublicSiteLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background overflow-visible">
+    <div className="min-h-screen bg-background overflow-visible" data-typography={typographyPreference}>
       <ReadingProgress />
 
       {/* Top-right controls - only visible on mobile when sidebar is closed */}
       <div className="lg:hidden fixed top-4 right-4 z-50 flex items-center gap-2">
+        <FontSizeControls />
         <PublicThemeToggle />
         <AuthButton />
       </div>
@@ -244,6 +248,7 @@ export function PublicSiteLayout({
                 </Button>
                 <AuthButton />
                 <PublicThemeToggle />
+                <FontSizeControls />
               </div>
             ) : (
               /* Expanded sidebar header */
@@ -253,8 +258,6 @@ export function PublicSiteLayout({
                     {teacher.name}
                   </h1>
                   <div className="flex items-center gap-2">
-                    <PublicThemeToggle />
-                    <AuthButton />
                     <Button
                       variant="ghost"
                       size="sm"
@@ -264,6 +267,11 @@ export function PublicSiteLayout({
                       <ChevronLeft className="w-5 h-5" />
                     </Button>
                   </div>
+                </div>
+                <div className="flex items-center gap-2 mt-3">
+                  <FontSizeControls />
+                  <PublicThemeToggle />
+                  <AuthButton />
                 </div>
                 {teacher.title && (
                   <p className="text-sm text-muted-foreground mt-1">

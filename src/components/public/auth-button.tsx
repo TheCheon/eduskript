@@ -4,7 +4,6 @@ import { signIn, useSession } from 'next-auth/react'
 import Image from 'next/image'
 import { useRouter, usePathname } from 'next/navigation'
 import { LogIn, UserCheck } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { getAccountTypeFromWindow } from '@/lib/domain-utils'
 
 export function AuthButton() {
@@ -23,15 +22,13 @@ export function AuthButton() {
   if (!session) {
     // Not logged in - show login button
     return (
-      <Button
-        variant="ghost"
-        size="icon"
+      <button
         onClick={handleSignIn}
         title="Login"
-        className="rounded-full"
+        className="p-2 rounded-md border border-border bg-card hover:bg-muted transition-colors"
       >
-        <LogIn className="h-5 w-5" />
-      </Button>
+        <LogIn className="h-4 w-4" />
+      </button>
     )
   }
 
@@ -44,12 +41,10 @@ export function AuthButton() {
     : session.user?.name || 'User'
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
+    <button
       onClick={() => router.push('/dashboard')}
       title={`Go to dashboard (${userName})`}
-      className="rounded-full overflow-hidden p-0"
+      className="p-2 rounded-md border border-border bg-card hover:bg-muted transition-colors overflow-hidden"
     >
       {session.user?.image && !isStudent ? (
         // Show profile picture for teachers (Microsoft provides it, not stored on server)
@@ -57,16 +52,14 @@ export function AuthButton() {
         <Image
           src={session.user.image}
           alt={userName}
-          width={40}
-          height={40}
-          className="rounded-full opacity-90 hover:opacity-100 transition-opacity"
+          width={16}
+          height={16}
+          className="rounded-sm opacity-90 hover:opacity-100 transition-opacity"
         />
       ) : (
         // Show icon for students or teachers without images
-        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center hover:bg-primary/20 transition-colors">
-          <UserCheck className="h-5 w-5 text-primary" />
-        </div>
+        <UserCheck className="h-4 w-4 text-primary" />
       )}
-    </Button>
+    </button>
   )
 }

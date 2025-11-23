@@ -6,10 +6,11 @@ import type { JSX } from 'react'
 interface HeadingProps {
   level: 1 | 2 | 3 | 4 | 5 | 6
   id?: string
+  className?: string
   children?: ReactNode
 }
 
-export function Heading({ level, id, children }: HeadingProps) {
+export function Heading({ level, id, className: propClassName, children }: HeadingProps) {
   const Tag = `h${level}` as keyof JSX.IntrinsicElements
 
   // Generate ID from children text if not provided
@@ -18,7 +19,7 @@ export function Heading({ level, id, children }: HeadingProps) {
   // Generate section ID for annotation system (h1-h2 only)
   const sectionId = level <= 2 ? `${Tag}-${headingId}` : undefined
 
-  const className = {
+  const baseClassName = {
     1: 'text-4xl font-bold mb-4',
     2: 'text-3xl font-bold mb-3',
     3: 'text-2xl font-semibold mb-2.5',
@@ -27,10 +28,15 @@ export function Heading({ level, id, children }: HeadingProps) {
     6: 'text-base font-semibold mt-2 mb-1',
   }[level]
 
+  // Merge the prop className (which includes color-title from rehype plugin) with base classes
+  const combinedClassName = propClassName
+    ? `${baseClassName} group heading-link scroll-mt-20 ${propClassName}`
+    : `${baseClassName} group heading-link scroll-mt-20`
+
   return (
     <Tag
       id={headingId}
-      className={`${className} group heading-link scroll-mt-20`}
+      className={combinedClassName}
       data-section-id={sectionId}
       data-heading-text={childrenToString(children)}
     >

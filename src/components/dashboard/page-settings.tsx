@@ -13,26 +13,37 @@ export function PageSettings() {
   const { data: session, update } = useSession()
   const router = useRouter()
   const [sidebarBehavior, setSidebarBehavior] = useState<string>('contextual')
+  const [typographyPreference, setTypographyPreference] = useState<string>('modern')
   const [loading, setLoading] = useState(false)
+  const [typographyLoading, setTypographyLoading] = useState(false)
   const [usernameLoading, setUsernameLoading] = useState(false)
   const [username, setUsername] = useState(session?.user?.username || '')
 
   // Load current preference on mount
   useEffect(() => {
-    const loadPreference = async () => {
+    const loadPreferences = async () => {
       try {
-        const response = await fetch('/api/user/sidebar-preference')
-        if (response.ok) {
-          const data = await response.json()
+        const [sidebarResponse, typographyResponse] = await Promise.all([
+          fetch('/api/user/sidebar-preference'),
+          fetch('/api/user/typography-preference')
+        ])
+
+        if (sidebarResponse.ok) {
+          const data = await sidebarResponse.json()
           setSidebarBehavior(data.sidebarBehavior || 'contextual')
         }
+
+        if (typographyResponse.ok) {
+          const data = await typographyResponse.json()
+          setTypographyPreference(data.typographyPreference || 'modern')
+        }
       } catch (error) {
-        console.error('Error loading sidebar preference:', error)
+        console.error('Error loading preferences:', error)
       }
     }
-    
+
     if (session?.user) {
-      loadPreference()
+      loadPreferences()
       setUsername(session.user.username || '')
     }
   }, [session])
@@ -61,6 +72,35 @@ export function PageSettings() {
       console.error('Failed to update preference:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleTypographyChange = async (value: string) => {
+    setTypographyPreference(value)
+    setTypographyLoading(true)
+
+    try {
+      const response = await fetch('/api/user/typography-preference', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ typographyPreference: value }),
+      })
+
+      if (response.ok) {
+        console.log('Typography preference updated successfully')
+        // Update session to reflect new preference
+        await update()
+        // Refresh to apply new fonts
+        router.refresh()
+      } else {
+        console.error('Failed to update typography preference')
+        const data = await response.json()
+        setTypographyPreference(data.typographyPreference || 'modern')
+      }
+    } catch (error) {
+      console.error('Failed to update typography preference:', error)
+    } finally {
+      setTypographyLoading(false)
     }
   }
 
@@ -201,6 +241,102 @@ export function PageSettings() {
           {loading && (
             <div className="text-sm text-muted-foreground">
               Updating preference...
+            </div>
+          )}
+        </div>
+
+        {/* Typography Section */}
+        <div className="space-y-4 border-t pt-6">
+          <div>
+            <Label className="text-sm font-medium">Typography Style</Label>
+            <p className="text-sm text-muted-foreground mt-1">
+              Choose the font style for your public pages
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {/* Modern Option */}
+            <div className="flex items-start space-x-3">
+              <input
+                type="radio"
+                id="modern"
+                name="typographyPreference"
+                value="modern"
+                checked={typographyPreference === 'modern'}
+                onChange={(e) => handleTypographyChange(e.target.value)}
+                disabled={typographyLoading}
+                className="mt-1"
+              />
+              <div className="space-y-2 flex-1">
+                <Label htmlFor="modern" className="font-normal cursor-pointer">
+                  Modern (Roboto Slab)
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Clean and contemporary style, great for technical content
+                </p>
+                {/* Modern Preview */}
+                <div className="border rounded-md p-4 bg-background" style={{
+                  fontFamily: 'var(--font-modern-body)',
+                  fontWeight: 300
+                }}>
+                  <h3 style={{
+                    fontFamily: 'var(--font-heading)',
+                    fontWeight: 700,
+                    fontSize: '1.25rem',
+                    marginBottom: '0.5rem'
+                  }}>
+                    Sample Heading
+                  </h3>
+                  <p style={{ fontSize: '0.95rem', lineHeight: '1.6' }}>
+                    The quick brown fox jumps over the lazy dog. This is how your content will look with the modern typography style.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Classic Option */}
+            <div className="flex items-start space-x-3">
+              <input
+                type="radio"
+                id="classic"
+                name="typographyPreference"
+                value="classic"
+                checked={typographyPreference === 'classic'}
+                onChange={(e) => handleTypographyChange(e.target.value)}
+                disabled={typographyLoading}
+                className="mt-1"
+              />
+              <div className="space-y-2 flex-1">
+                <Label htmlFor="classic" className="font-normal cursor-pointer">
+                  Classic (EB Garamond)
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Elegant and traditional style, ideal for humanities and literature
+                </p>
+                {/* Classic Preview */}
+                <div className="border rounded-md p-4 bg-background" style={{
+                  fontFamily: 'var(--font-classic-body)',
+                  fontWeight: 400
+                }}>
+                  <h3 style={{
+                    fontFamily: 'var(--font-heading)',
+                    fontWeight: 700,
+                    fontSize: '1.25rem',
+                    marginBottom: '0.5rem'
+                  }}>
+                    Sample Heading
+                  </h3>
+                  <p style={{ fontSize: '0.95rem', lineHeight: '1.6' }}>
+                    The quick brown fox jumps over the lazy dog. This is how your content will look with the classic typography style.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {typographyLoading && (
+            <div className="text-sm text-muted-foreground">
+              Updating typography...
             </div>
           )}
         </div>
