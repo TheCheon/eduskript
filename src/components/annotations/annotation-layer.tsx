@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { AlertTriangle } from 'lucide-react'
 import { SimpleCanvas, type SimpleCanvasHandle, type DrawMode } from './simple-canvas'
 import { AnnotationToolbar, type AnnotationMode } from './annotation-toolbar'
@@ -101,29 +102,21 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   const lastPenEventTimeRef = useRef<number>(0)
 
   // Canvas width matches paper width exactly including padding
-  // Paper is max-w-7xl (80rem = 1280px)
-  const PAPER_WIDTH_REM = 80
+  // Paper element for portal (canvas renders directly into #paper)
+  const [paperElement, setPaperElement] = useState<HTMLElement | null>(null)
+  const [paperWidth, setPaperWidth] = useState(1280) // Fixed paper width
 
-  // Track full paper dimensions (including padding)
-  const [paperWidth, setPaperWidth] = useState(PAPER_WIDTH_REM * 16) // Default to max width
-  const [paperPaddingLeft, setPaperPaddingLeft] = useState(0)
-  const [paperPaddingTop, setPaperPaddingTop] = useState(0)
-
-  // Measure full paper dimensions when it mounts and when viewport changes
+  // Get paper element for portal and measure its width
   useEffect(() => {
-    const paperElement = document.getElementById('paper')
-    if (paperElement) {
-      const rect = paperElement.getBoundingClientRect()
-      const style = window.getComputedStyle(paperElement)
-      const paddingLeft = parseFloat(style.paddingLeft) || 0
-      const paddingTop = parseFloat(style.paddingTop) || 0
+    const paper = document.getElementById('paper')
+    if (paper) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPaperElement(paper)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPaperWidth(paper.getBoundingClientRect().width)
 
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPaperWidth(rect.width)
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPaperPaddingLeft(paddingLeft)
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPaperPaddingTop(paddingTop)
+      // Ensure paper has position:relative for absolute canvas positioning
+      paper.style.position = 'relative'
     }
   }, [viewportWidth])
 
@@ -294,14 +287,12 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         })
       }
 
-      // Calculate actual offset using getBoundingClientRect
+      // Calculate actual offset using getBoundingClientRect (for debug logging)
       const contentRect = contentRef.current.getBoundingClientRect()
       const actualOffsetTop = contentRect.top - paperRect.top
       const actualOffsetLeft = contentRect.left - paperRect.left
 
       setPaperWidth(paperRect.width)
-      setPaperPaddingLeft(paddingLeft)
-      setPaperPaddingTop(paddingTop)
 
       console.log('\n=== Canvas offset summary ===', {
         paddingTopParsed: paddingTop,
@@ -311,7 +302,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         calculatedTotal: paddingTop + articleMarginTop + previewBannerHeight,
         actualOffsetTop,
         actualOffsetLeft,
-        difference: actualOffsetTop - paddingTop,
         paperWidth: paperRect.width
       })
     }
@@ -705,22 +695,24 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     return Math.max(minPanY, Math.min(maxPanY, newPanY))
   }, [viewportHeight])
 
-  // Calculate horizontal pan limits - measures on-demand for accuracy
+  // Calculate horizontal pan limits based on .prose-theme positioning
+  // The centering/alignment is based on prose-theme (text content), not paper (canvas)
   const calculateHorizontalLimit = useCallback((newPanX: number, newZoom?: number) => {
     if (!mainRef.current) return newPanX
 
     const currentZoom = newZoom ?? zoomRef.current
 
-    const paperElement = document.getElementById('paper')
-    if (!paperElement) return newPanX
+    // Use .prose-theme for positioning logic (not #paper)
+    const proseElement = document.querySelector('.prose-theme') as HTMLElement
+    if (!proseElement) return newPanX
 
     // Remove transform to get natural position
     const currentTransform = mainRef.current.style.transform
     mainRef.current.style.transform = 'none'
 
-    // Measure both main and paper elements
+    // Measure both main and prose elements
     const mainRect = mainRef.current.getBoundingClientRect()
-    const paperRect = paperElement.getBoundingClientRect()
+    const proseRect = proseElement.getBoundingClientRect()
 
     mainRef.current.style.transform = currentTransform
 
@@ -728,10 +720,10 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     const originX = (mainRect.left + mainRect.right) / 2
     const leftBoundary = sidebarWidth
 
-    const naturalLeft = paperRect.left
-    const naturalRight = paperRect.right
+    const naturalLeft = proseRect.left
+    const naturalRight = proseRect.right
 
-    // Calculate where the paper edges WILL BE after zoom transformation
+    // Calculate where the prose-theme edges WILL BE after zoom transformation
     // With transform-origin at center (originX), edges transform as:
     // transformedPos = originX + (naturalPos - originX) * zoom
     const transformedLeft = originX + (naturalLeft - originX) * currentZoom
@@ -740,7 +732,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
     const availableWidth = viewportWidth - leftBoundary
 
-    // If paper fits in viewport, center it and lock panning
+    // If prose-theme fits in viewport, center it and lock panning
     if (transformedWidth <= availableWidth) {
       const transformedCenter = (transformedLeft + transformedRight) / 2
       const desiredCenter = leftBoundary + availableWidth / 2
@@ -750,19 +742,16 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       return centerPanX
     }
 
-    // Paper is wider than viewport - allow panning to see entire paper + buffers
-    const leftBuffer = 32
-    const rightBuffer = 32
+    // Prose-theme is wider than viewport - allow panning to see all content
+    // Content can slide UNDER the sidebar when panning to see right side
 
-    // Left constraint: Paper left edge should be visible with a small buffer from sidebar
-    const leftTarget = leftBoundary + leftBuffer
-    // We want: transformedLeft + panX * zoom = leftTarget
-    const maxPanX = (leftTarget - transformedLeft) / currentZoom
+    // Max pan (content shifted right): prose-theme LEFT edge at sidebar
+    // This is the "home" position - left edge visible
+    const maxPanX = (leftBoundary - transformedLeft) / currentZoom
 
-    // Right constraint: Paper right edge should be visible with a small buffer from viewport edge
-    const rightTarget = viewportWidth - rightBuffer
-    // We want: transformedRight + panX * zoom = rightTarget
-    const minPanX = (rightTarget - transformedRight) / currentZoom
+    // Min pan (content shifted left): prose-theme RIGHT edge at viewport right
+    // This allows content to slide under sidebar to see right side
+    const minPanX = (viewportWidth - transformedRight) / currentZoom
 
     return Math.max(minPanX, Math.min(maxPanX, newPanX))
   }, [viewportWidth, sidebarWidth])
@@ -1047,17 +1036,37 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
   // Find and store reference to parent <main> element and initialize transform
   useEffect(() => {
-    if (contentRef.current) {
-      mainRef.current = contentRef.current.closest('main')
-      if (mainRef.current) {
-        // Set transform properties once
-        mainRef.current.style.transformOrigin = 'top center'
-        mainRef.current.style.transition = 'none'
-        // Apply initial transform
-        mainRef.current.style.transform = `scale(${zoomRef.current}) translate(${panXRef.current}px, ${panYRef.current}px)`
-      }
-    }
+    if (!contentRef.current) return
+
+    mainRef.current = contentRef.current.closest('main')
+    if (!mainRef.current) return
+
+    // Set transform properties once
+    mainRef.current.style.transformOrigin = 'top center'
+    mainRef.current.style.transition = 'none'
+    mainRef.current.style.transform = `scale(${zoomRef.current}) translate(${panXRef.current}px, ${panYRef.current}px)`
   }, [])
+
+  // Reposition on resize - reuses calculateHorizontalLimit for consistency
+  useEffect(() => {
+    const handleResize = () => {
+      // Small delay to let React/CSS update first
+      setTimeout(() => {
+        const newPanX = calculateHorizontalLimit(panXRef.current)
+        if (mainRef.current) {
+          panXRef.current = newPanX
+          mainRef.current.style.transform = `scale(${zoomRef.current}) translate(${newPanX}px, ${panYRef.current}px)`
+        }
+      }, 50)
+    }
+
+    // Initial position after mount
+    handleResize()
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [calculateHorizontalLimit])
+
 
   // Set up event listeners on document to capture ALL events (sidebar, main, etc.)
   useEffect(() => {
@@ -1131,41 +1140,44 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         </div>
       )}
 
-      {/* Wrapper for content and canvas overlay */}
+      {/* Content wrapper */}
       <div ref={contentRef} style={{ position: 'relative' }}>
         {children}
-
-        {/* Single canvas overlay for entire paper (including padding) */}
-        {pageHeight > 0 && (
-          <div
-            style={{
-              position: 'absolute',
-              top: `-${paperPaddingTop}px`,
-              left: `-${paperPaddingLeft}px`,
-              width: `${paperWidth}px`,
-              height: pageHeight,
-              pointerEvents: mode === 'view' && !stylusModeActive ? 'none' : 'auto',
-              zIndex: 10
-            }}
-          >
-            <SimpleCanvas
-              ref={canvasRef}
-              width={paperWidth}
-              height={pageHeight}
-              mode={mode === 'view' ? 'view' : (mode as DrawMode)}
-              onUpdate={handleCanvasUpdate}
-              initialData={canvasData}
-              strokeColor={penColors[activePen]}
-              strokeWidth={penSizes[activePen]}
-              stylusModeActive={stylusModeActive}
-              onStylusDetected={handleStylusDetected}
-              onNonStylusInput={handleNonStylusInput}
-              zoom={zoom}
-              headingPositions={headingPositions}
-            />
-          </div>
-        )}
       </div>
+
+      {/* Canvas portaled directly into #paper - always matches paper bounds */}
+      {paperElement && pageHeight > 0 && createPortal(
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: `${paperWidth}px`,
+            height: pageHeight,
+            pointerEvents: mode === 'view' && !stylusModeActive ? 'none' : 'auto',
+            zIndex: 10
+          }}
+        >
+          <SimpleCanvas
+            ref={canvasRef}
+            width={paperWidth}
+            height={pageHeight}
+            mode={mode === 'view' ? 'view' : (mode as DrawMode)}
+            onUpdate={handleCanvasUpdate}
+            initialData={canvasData}
+            strokeColor={penColors[activePen]}
+            strokeWidth={penSizes[activePen]}
+            stylusModeActive={stylusModeActive}
+            onStylusDetected={handleStylusDetected}
+            onNonStylusInput={handleNonStylusInput}
+            zoom={zoom}
+            headingPositions={headingPositions}
+          />
+        </div>,
+        paperElement
+      )}
 
       {/* Toolbar */}
       <AnnotationToolbar

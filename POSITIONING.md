@@ -6,6 +6,183 @@ This document explains how positioning and coordinate transformations work in th
 
 The annotation layer uses CSS transforms for zoom and pan, which creates multiple coordinate spaces that need careful handling. Understanding these coordinate spaces is crucial for implementing features that interact with the page.
 
+We've taken over pointer events to prevent default pinch zoom, treating the article like a canvas that users can move around and zoom into, while keeping the toolbar floating fixed.
+
+---
+
+## Element Hierarchy & Desired Behavior
+
+### Current DOM Structure
+
+```
+<div> (root layout, min-h-screen)
+├── Sidebar (fixed, left, w-80 or w-16 collapsed)
+└── <div> (main content wrapper, lg:ml-80 or lg:ml-16)
+    └── <main> (has CSS transform for zoom/pan)
+        └── #paper (the "canvas" boundary)
+            ├── Preview Banner (optional)
+            └── <article class="prose-theme">
+                └── <AnnotatableContent> (markdown + canvas overlay)
+```
+
+### The Three Key Elements
+
+#### 1. `#paper` - The Canvas Boundary (FIXED WIDTH)
+
+**Purpose:** Defines the physical drawing area - the "paper" users can annotate on.
+
+**Current styles:**
+```css
+max-w-7xl mx-auto py-24 px-8 sm:px-16 md:px-24 lg:px-56 bg-card paper-shadow border
+```
+
+**Desired behavior:**
+- **Fixed width** (e.g., 1280px max-w-7xl) that does NOT change with viewport
+- Represents the canvas limits that annotations are drawn on
+- When viewport narrows below paper width:
+  - Paper stays fixed width (doesn't shrink)
+  - User can pan horizontally to see the full paper
+- The left edge of `#paper` should be the reference point for canvas alignment
+
+#### 2. `.prose-theme` (article) - The Text Content Area (RESPONSIVE)
+
+**Purpose:** Contains the actual text content that should reflow for readability.
+
+**Desired behavior:**
+- **Responsive width** that adapts to available space
+- On large screens: `px-24` horizontal padding
+- On smaller screens: progressively smaller padding
+- **Left edge sticks to the right side of the sidebar** (left side of viewing area)
+- **Right edge sticks to the right side of the viewport**
+- When viewport width decreases below `#paper`'s inner width:
+  - `.prose-theme` shrinks to fit viewport (text reflows)
+  - `#paper` does NOT shrink (stays fixed width for canvas consistency)
+
+#### 3. Annotation Canvas Overlay
+
+**Purpose:** Covers the entire `#paper` area for drawing annotations.
+
+**Current behavior:**
+```typescript
+// Canvas positioned relative to paper element
+style={{
+  position: 'absolute',
+  top: `-${paperPaddingTop}px`,
+  left: `-${paperPaddingLeft}px`,
+  width: `${paperWidth}px`,
+  height: pageHeight,
+}}
+```
+
+**Key requirement:**
+- Canvas left edge must ALWAYS align with `#paper` left edge
+- Canvas must cover full paper width regardless of viewport size
+- When text reflows (`.prose-theme` shrinks), annotations stay aligned with paper coordinates
+
+### Key Dimensions
+
+```
+PAPER_WIDTH = 1280px (fixed, w-[1280px])
+PAPER_PADDING = 96px each side (p-24 = 6rem = 96px)
+PROSE_MAX_WIDTH = PAPER_WIDTH - (PAPER_PADDING * 2) = 1088px
+
+viewing_area = viewport_width - sidebar_width
+prose_width = min(PROSE_MAX_WIDTH, viewing_area - PAPER_PADDING)
+```
+
+### Visual Representation
+
+```
+Wide viewport (viewing_area > PROSE_MAX_WIDTH):
+┌─────────────────────────────────────────────────────────────────────┐
+│Sidebar│              #paper (fixed 1280px)                          │
+│ w-80  │ ┌───────────────────────────────────────────────────────┐   │
+│       │ │ padding │ .prose-theme (1088px max) │ padding         │   │
+│       │ │  96px   │ [text content here]       │  96px           │   │
+│       │ └───────────────────────────────────────────────────────┘   │
+│       │ ←────────────── Canvas (1280px) ──────────────────────────→ │
+└─────────────────────────────────────────────────────────────────────┘
+
+Medium viewport (viewing_area < PROSE_MAX_WIDTH):
+┌───────────────────────────────────────────────────────┐
+│Sidebar│              #paper (still 1280px)            │→ extends past viewport
+│ w-80  │ ┌────────────────────────────────────────     │
+│       │ │ padding │ .prose-theme (shrunk)     │       │
+│       │ │  96px   │ ←─────────────────────────│───────│─ right edge moved left
+│       │ │         │ [text reflows narrower]   │       │
+│       │ └────────────────────────────────────────     │
+│       │ ←─────── Canvas still 1280px ─────────────────│→
+└───────────────────────────────────────────────────────┘
+         (user pans via <main> transform to see full paper)
+
+Key behavior when shrinking:
+- .prose-theme LEFT edge stays fixed at paper padding (96px from paper left)
+- .prose-theme RIGHT edge moves LEFT (width decreases)
+- Text reflows to narrower width
+- #paper and canvas stay fixed width
+- Annotations remain aligned because paper coordinates don't change
+```
+
+### Alignment Rules
+
+1. **`.prose-theme` is LEFT-ALIGNED within `#paper`** (not centered)
+2. **Left edge fixed:** Always at `paper_left + PAPER_PADDING`
+3. **Right edge responsive:** Moves left when viewport shrinks
+4. **Canvas alignment:** Canvas left edge = Paper left edge (always)
+
+### Implementation
+
+**`#paper` (page.tsx):**
+```tsx
+<div id="paper" className="w-[1280px] p-24 bg-card ...">
+```
+- Fixed width: 1280px
+- Fixed padding: 96px (p-24 = 6rem) all sides
+
+**`.prose-theme` width (globals.css):**
+```css
+#paper .prose-theme {
+  --paper-padding: 96px;      /* p-24 = 6rem */
+  --prose-max-width: 1088px;  /* 1280 - 96*2 */
+
+  max-width: var(--prose-max-width);
+  width: calc(100vw - var(--sidebar-width, 0px) - var(--paper-padding));
+
+  @apply px-24;  /* 96px padding on large screens */
+}
+
+/* Responsive padding for text readability */
+@media (max-width: 1280px) { @apply px-16; }  /* 64px */
+@media (max-width: 1024px) { @apply px-8; }   /* 32px */
+@media (max-width: 768px)  { @apply px-4; }   /* 16px */
+```
+
+**CSS variable for sidebar (layout.tsx):**
+```tsx
+const { sidebarWidth } = useLayout()  // 0 on mobile, 64/320 on desktop
+
+<div style={{ '--sidebar-width': `${sidebarWidth}px` }}>
+```
+
+**Horizontal positioning logic (annotation-layer.tsx):**
+```typescript
+// calculateHorizontalLimit uses .prose-theme (not #paper) for positioning:
+// 1. prose-theme fits in viewport → center it
+// 2. prose-theme wider than viewport → left-align to sidebar edge
+const proseElement = document.querySelector('.prose-theme')
+// ... centering/panning based on proseRect ...
+```
+
+**Result:**
+- Canvas coordinates remain stable (paper is fixed 1280px)
+- Text reflows responsively (prose-theme width adapts)
+- Viewport centering/panning is based on `.prose-theme`, not `#paper`
+- When prose-theme fits: centered in viewing area
+- When prose-theme doesn't fit: left-aligned to sidebar
+- Annotations drawn on paper stay aligned regardless of viewport
+
+---
+
 ## The Main Transform
 
 The `<main>` element (containing the page content) has a CSS transform applied:

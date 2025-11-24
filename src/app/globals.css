@@ -301,6 +301,53 @@ body {
   color: hsl(var(--prose-text));
 }
 
+/*
+ * Responsive width for prose content INSIDE #paper
+ *
+ * Key dimensions:
+ * - Paper width: 1280px (fixed)
+ * - Paper padding: 224px each side (px-56)
+ * - Prose max width: 832px (1280 - 224*2)
+ *
+ * Behavior:
+ * - Left edge stays fixed at paper padding (224px from paper left)
+ * - Right edge moves left when viewport shrinks
+ * - Text reflows to narrower width while annotations stay aligned
+ *
+ * On desktop (>=1024px): viewing_area = 100vw - sidebar_width
+ * On mobile (<1024px): viewing_area = 100vw (sidebar overlays, --sidebar-width = 0)
+ */
+#paper .prose-theme {
+  --paper-padding: 96px;  /* p-24 = 6rem = 96px */
+  --prose-max-width: 1088px;  /* 1280 - 96*2 */
+
+  max-width: var(--prose-max-width);
+  /* Width shrinks when viewport - sidebar - padding < max-width */
+  width: calc(100vw - var(--sidebar-width, 0px) - var(--paper-padding));
+
+  /* Responsive horizontal padding for text readability */
+  @apply px-24; /* 96px on large screens */
+}
+
+/* Responsive padding adjustments for smaller screens */
+@media (max-width: 1280px) {
+  #paper .prose-theme {
+    @apply px-16; /* 64px */
+  }
+}
+
+@media (max-width: 1024px) {
+  #paper .prose-theme {
+    @apply px-8; /* 32px */
+  }
+}
+
+@media (max-width: 768px) {
+  #paper .prose-theme {
+    @apply px-4; /* 16px */
+  }
+}
+
 /* Remove top margin from first content element to align canvas properly */
 article.prose-theme {
   margin-top: 0 !important;

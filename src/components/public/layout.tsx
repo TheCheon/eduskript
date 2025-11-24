@@ -64,7 +64,7 @@ export function PublicSiteLayout({
   typographyPreference = 'modern'
 }: PublicSiteLayoutProps) {
   const router = useRouter()
-  const { setSidebarCollapsed: setSidebarCollapsedInContext } = useLayout()
+  const { setSidebarCollapsed: setSidebarCollapsedInContext, sidebarWidth } = useLayout()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
 
@@ -206,7 +206,11 @@ export function PublicSiteLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background overflow-visible" data-typography={typographyPreference}>
+    <div
+      className="min-h-screen bg-background overflow-visible"
+      data-typography={typographyPreference}
+      style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}
+    >
       <ReadingProgress />
 
       {/* Top-right controls - only visible on mobile when sidebar is closed */}
