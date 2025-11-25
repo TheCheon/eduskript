@@ -764,12 +764,13 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
   cursor: pointer;
   display: grid;
   grid-template-rows: min-content 1fr;
-  transition: all 0.3s ease-in-out;
+  transition: grid-template-rows 0.3s ease-in-out;
 }
 
 .prose-theme blockquote.callout-foldable .callout-content {
   overflow: hidden;
   padding: 10px;
+  min-height: 0;
   transition: all 0.3s ease-in-out;
 }
 
@@ -784,26 +785,6 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
 .prose-theme blockquote.callout-foldable.callout-folded .callout-content {
   overflow: hidden;
   padding: 0px 10px;
-}
-
-.prose-theme blockquote.callout-foldable .callout-title > span:last-child:after {
-  content: "";
-  display: inline-block;
-  height: 10px;
-  width: 10px;
-  border-style: solid;
-  border-width: 0 3px 3px 0;
-  border-color: hsl(var(--foreground));
-  position: absolute;
-  top: 50%;
-  right: 1em;
-  transform: translateY(-50%) rotate(45deg);
-  transform-origin: center;
-  transition: all 0.3s ease-in-out;
-}
-
-.prose-theme blockquote.callout-foldable.callout-folded .callout-title span:last-child:after {
-  transform: translateY(-50%) rotate(-45deg);
 }
 
 .prose-theme blockquote.callout {

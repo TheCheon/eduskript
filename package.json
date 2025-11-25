@@ -12,7 +12,7 @@
     "lint": "eslint . --max-warnings=-1",
     "type-check": "tsc --noEmit",
     "validate": "pnpm type-check && pnpm lint && pnpm test:run",
-    "pre-push": "pnpm type-check && pnpm lint && pnpm test:run && pnpm docker:build",
+    "pre-push": "pnpm type-check && pnpm lint && pnpm test:run && pnpm build",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",

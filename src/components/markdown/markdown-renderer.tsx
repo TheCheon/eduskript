@@ -39,6 +39,7 @@ import {
   Sparkles,
   MessageCircle,
   ListTodo,
+  ChevronRight,
 } from 'lucide-react'
 
 // Context for passing content, callback, and markdown context down to components
@@ -164,8 +165,35 @@ function DivComponent({ className, children, ...props }: React.HTMLAttributes<HT
     const handleLanguageChange = (newLanguage: string) => {
       if (!onContentChange) return
 
+      // Get source line to target the specific code block
+      const sourceLineStart = divProps['data-source-line-start'] as number | undefined
+
+      if (sourceLineStart) {
+        // Split content into lines and find the specific code block
+        const lines = content.split('\n')
+        // sourceLineStart is 1-indexed, arrays are 0-indexed
+        const targetLineIndex = sourceLineStart - 1
+
+        if (targetLineIndex >= 0 && targetLineIndex < lines.length) {
+          const targetLine = lines[targetLineIndex]
+          // Check if this line is the code fence we're looking for
+          if (targetLine.match(new RegExp(`^\`\`\`${language}\\b`))) {
+            lines[targetLineIndex] = targetLine.replace(
+              new RegExp(`^\`\`\`${language}\\b`),
+              `\`\`\`${newLanguage}`
+            )
+            const newContent = lines.join('\n')
+            if (newContent !== content) {
+              onContentChange(newContent)
+            }
+            return
+          }
+        }
+      }
+
+      // Fallback: only replace the first occurrence (not all)
       const newContent = content.replace(
-        new RegExp(`\`\`\`${language}\\b`, 'g'),
+        new RegExp(`\`\`\`${language}\\b`),
         `\`\`\`${newLanguage}`
       )
 
@@ -202,6 +230,7 @@ function CodeEditorComponent({ children, ...props }: React.HTMLAttributes<HTMLEl
   const showCanvas = (props['dataShowCanvas'] as string) || (props['data-show-canvas'] as string)
   const db = (props['dataDb'] as string) || (props['data-db'] as string) // Database filename from markdown
   const schemaImage = (props['dataSchemaImage'] as string) || (props['data-schema-image'] as string)
+  const single = (props['dataSingle'] as string) || (props['data-single'] as string)
 
   // Auto-assign ID if not provided (counting from 0 for each page)
   const id = providedId || `${editorCounter++}`
@@ -250,6 +279,7 @@ function CodeEditorComponent({ children, ...props }: React.HTMLAttributes<HTMLEl
         showCanvas={showCanvas !== 'false'}
         db={dbUrl}
         schemaImage={schemaImageUrl}
+        singleFile={single === 'true'}
       />
     </div>
   )
@@ -291,8 +321,11 @@ const calloutIcons: Record<string, React.ComponentType<{ className?: string }>> 
 
 // Blockquote component with callout support
 function BlockquoteComponent({ children, className, ...props }: React.HTMLAttributes<HTMLQuoteElement>) {
+  // Check if initially folded (from markdown syntax like [!info]-)
+  const initiallyFolded = className?.includes('callout-folded')
+
   // Always call hooks first, before any conditional returns
-  const [isOpen, setIsOpen] = useState(!className?.includes('callout-folded'))
+  const [isOpen, setIsOpen] = useState(!initiallyFolded)
 
   // Check if this is a callout blockquote
   const isCallout = className?.includes('callout')
@@ -309,6 +342,9 @@ function BlockquoteComponent({ children, className, ...props }: React.HTMLAttrib
   // Check if it's foldable
   const isFoldable = className?.includes('callout-foldable')
 
+  // Strip callout-folded from base className - we control it via React state
+  const baseClassName = className?.replace(/\s*callout-folded\s*/g, ' ').trim()
+
   const handleToggle = (e: React.MouseEvent) => {
     if (!isFoldable) return
 
@@ -321,7 +357,7 @@ function BlockquoteComponent({ children, className, ...props }: React.HTMLAttrib
 
   return (
     <blockquote
-      className={`${className} ${!isOpen && isFoldable ? 'callout-folded' : ''}`}
+      className={`${baseClassName} ${!isOpen && isFoldable ? 'callout-folded' : ''}`}
       onClick={handleToggle}
       {...props}
     >
@@ -332,9 +368,14 @@ function BlockquoteComponent({ children, className, ...props }: React.HTMLAttrib
           if (childProps.className?.includes('callout-title')) {
             return React.cloneElement(child, {
               children: (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full">
                   {Icon && <Icon className="w-5 h-5 flex-shrink-0" />}
-                  {childProps.children}
+                  <span className="flex-1">{childProps.children}</span>
+                  {isFoldable && (
+                    <ChevronRight
+                      className={`w-5 h-5 flex-shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-90' : ''}`}
+                    />
+                  )}
                 </div>
               )
             } as Partial<typeof childProps>)

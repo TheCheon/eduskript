@@ -12,6 +12,11 @@ import type { Node } from 'unist'
  * ```javascript editor
  * console.log("Hello, World!")
  * ```
+ *
+ * ```python editor single
+ * # Single-file mode: hides file tabs for simple examples
+ * print("Hello!")
+ * ```
  */
 export function remarkCodeEditor() {
   return (tree: Node) => {
@@ -32,6 +37,12 @@ export function remarkCodeEditor() {
 
         metaParts.forEach((part: string) => {
           if (part === 'editor') return // Skip the "editor" keyword itself
+
+          // Handle boolean flags (e.g., "single")
+          if (part === 'single') {
+            attributes['single'] = 'true'
+            return
+          }
 
           const [key, value] = part.split('=')
           if (key && value) {

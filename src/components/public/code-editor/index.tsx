@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, memo } from 'react'
 import { useTheme } from 'next-themes'
 import { EditorView, keymap } from '@codemirror/view'
 import { EditorState, Annotation } from '@codemirror/state'
@@ -35,19 +35,21 @@ interface CodeEditorProps {
   showCanvas?: boolean
   db?: string // Path to SQL database for SQL language
   schemaImage?: string // Optional schema image for SQL
+  singleFile?: boolean // Hide file tabs for simple single-file examples
 }
 
 // Custom annotation to mark programmatic changes (defined once outside component)
 const programmaticChange = Annotation.define<boolean>()
 
-export function CodeEditor({
+export const CodeEditor = memo(function CodeEditor({
   id = 'code-editor',
   pageId,
   language = 'python',
   initialCode = '# Write your code here\nprint("Hello, World!")',
   showCanvas = true,
   db = '/sql/netflixdb.sqlite',
-  schemaImage
+  schemaImage,
+  singleFile = false
 }: CodeEditorProps) {
   const { resolvedTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
@@ -98,11 +100,50 @@ export function CodeEditor({
     editorWidth: 50,
   }
 
-  // Resizable panel state
+  // Resizable panel state (horizontal splitter between editor and graphics)
   const [editorWidth, setEditorWidth] = useState<number>(defaultData.editorWidth ?? 50)
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const MIN_VISIBLE_WIDTH = 100 // pixels
+
+  // Resizable output panel state (vertical splitter between main content and output)
+  const [outputPanelHeight, setOutputPanelHeight] = useState(160) // default height in pixels
+  const [isDraggingHorizontalSplitter, setIsDraggingHorizontalSplitter] = useState(false)
+  const MIN_OUTPUT_HEIGHT = 0 // allow collapsing completely
+  const MAX_OUTPUT_HEIGHT = 400 // maximum output panel height
+
+  // Run button success flash state
+  const [showSuccessFlash, setShowSuccessFlash] = useState(false)
+
+  // Python kernel state
+  const [activeKernel, setActiveKernel] = useState<'skulpt' | 'pyodide' | null>(null)
+  const [kernelLoading, setKernelLoading] = useState(false)
+  const [showKernelMenu, setShowKernelMenu] = useState(false)
+  const kernelMenuRef = useRef<HTMLDivElement>(null)
+
+  // Close kernel menu when clicking outside
+  useEffect(() => {
+    if (!showKernelMenu) return
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (kernelMenuRef.current && !kernelMenuRef.current.contains(e.target as Node)) {
+        setShowKernelMenu(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showKernelMenu])
+
+  // Manual resize handle state (bottom-right corner)
+  const [manualHeight, setManualHeight] = useState<number | null>(null) // null = use auto-height
+  const [isDraggingResize, setIsDraggingResize] = useState(false)
+
+  // Auto-height constants
+  const LINE_HEIGHT = 20 // approximate line height in pixels
+  const MIN_EDITOR_HEIGHT = 200 // minimum height for the editor component
+  const MAX_EDITOR_HEIGHT = 600 // maximum height before scrolling
+  const OUTPUT_PANEL_HEIGHT = 160 // approximate output panel height (min-h-32 + tabs)
 
   // Multi-file support
   const [files, setFiles] = useState<PythonFile[]>(defaultData.files)
@@ -121,6 +162,13 @@ export function CodeEditor({
   const showGraphics = containerRef.current ? ((100 - editorWidth) / 100) * containerRef.current.offsetWidth >= MIN_VISIBLE_WIDTH : true
   const [canvasVisible, setCanvasVisible] = useState(false) // Start hidden, show only when graphics detected
 
+  // Calculate auto-height based on number of lines in the code
+  const lineCount = currentCode.split('\n').length
+  const fileTabsHeight = singleFile ? 0 : 36 // height of file tabs row
+  const calculatedEditorHeight = Math.max(
+    MIN_EDITOR_HEIGHT,
+    Math.min(MAX_EDITOR_HEIGHT, lineCount * LINE_HEIGHT + fileTabsHeight + OUTPUT_PANEL_HEIGHT + 60) // 60px for controls
+  )
 
   // Font size state
   const [fontSize, setFontSize] = useState<number>(defaultData.fontSize ?? 14)
@@ -284,6 +332,72 @@ export function CodeEditor({
     }
   }, [isDraggingSplitter])
 
+  // Handle horizontal splitter dragging (between main content and output panel)
+  const handleHorizontalSplitterMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsDraggingHorizontalSplitter(true)
+  }
+
+  useEffect(() => {
+    if (!isDraggingHorizontalSplitter) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!wrapperRef.current) return
+
+      const wrapperRect = wrapperRef.current.getBoundingClientRect()
+      // Calculate distance from bottom of wrapper
+      const newOutputHeight = wrapperRect.bottom - e.clientY
+
+      // Clamp between min and max
+      setOutputPanelHeight(Math.max(MIN_OUTPUT_HEIGHT, Math.min(MAX_OUTPUT_HEIGHT, newOutputHeight)))
+    }
+
+    const handleMouseUp = () => {
+      setIsDraggingHorizontalSplitter(false)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isDraggingHorizontalSplitter])
+
+  // Handle resize handle dragging (bottom-right corner)
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsDraggingResize(true)
+  }
+
+  useEffect(() => {
+    if (!isDraggingResize) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!wrapperRef.current) return
+
+      const wrapperRect = wrapperRef.current.getBoundingClientRect()
+      // Calculate new height based on mouse position relative to wrapper top
+      const newHeight = e.clientY - wrapperRect.top
+
+      // Clamp between min and a reasonable max
+      setManualHeight(Math.max(MIN_EDITOR_HEIGHT, Math.min(800, newHeight)))
+    }
+
+    const handleMouseUp = () => {
+      setIsDraggingResize(false)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isDraggingResize])
+
   // Wait for theme to hydrate
   useEffect(() => {
     setMounted(true)
@@ -345,11 +459,12 @@ export function CodeEditor({
   const ensurePyodideLoaded = async () => {
     // Return existing promise if already loading/loaded
     if ((window as any).__pyodidePromise) {
+      setActiveKernel('pyodide')
       return (window as any).__pyodidePromise
     }
 
     // Start loading
-    addOutput('Loading Python runtime (Pyodide)...', OutputLevel.OUTPUT)
+    setKernelLoading(true)
 
     try {
       // Load Pyodide script if not already present
@@ -373,11 +488,13 @@ export function CodeEditor({
 
       const pyodide = await (window as any).__pyodidePromise
       console.log('[Pyodide] Loaded successfully', pyodide.version)
-      addOutput('✓ Python runtime ready\n', OutputLevel.OUTPUT)
+      setActiveKernel('pyodide')
+      setKernelLoading(false)
       return pyodide
     } catch (error) {
       console.error('[Pyodide] Failed to load:', error)
-      addOutput('Failed to load Python runtime (Pyodide)', OutputLevel.ERROR)
+      setKernelLoading(false)
+      addOutput('Failed to load Python runtime', OutputLevel.ERROR)
       throw error
     }
   }
@@ -386,6 +503,7 @@ export function CodeEditor({
   const ensureSkulptLoaded = async () => {
     // Check if already loaded
     if (window.Sk) {
+      setActiveKernel('skulpt')
       return
     }
 
@@ -425,16 +543,18 @@ export function CodeEditor({
       return scriptPromises[src]
     }
 
-    addOutput('Loading Python runtime (Skulpt)...', OutputLevel.OUTPUT)
+    setKernelLoading(true)
 
     try {
       await loadScript('/js/skulpt.min.js')
       await loadScript('/js/skulpt-stdlib.js')
       console.log('[Skulpt] Loaded successfully')
-      addOutput('✓ Python runtime ready\n', OutputLevel.OUTPUT)
+      setActiveKernel('skulpt')
+      setKernelLoading(false)
     } catch (error) {
       console.error('[Skulpt] Failed to load:', error)
-      addOutput('Failed to load Python runtime (Skulpt)', OutputLevel.ERROR)
+      setKernelLoading(false)
+      addOutput('Failed to load Python runtime', OutputLevel.ERROR)
       throw error
     }
   }
@@ -915,7 +1035,9 @@ export function CodeEditor({
 
       promise.then(
         () => {
-          addOutput('✓ Program completed successfully', OutputLevel.OUTPUT)
+          // Show success flash on Run button
+          setShowSuccessFlash(true)
+          setTimeout(() => setShowSuccessFlash(false), 1500)
           setRunState(RunState.STOPPED)
         },
         (err: SkulptError) => {
@@ -978,12 +1100,10 @@ export function CodeEditor({
       // Remove duplicates
       const uniquePackages = [...new Set(packagesToLoad)]
 
-      // Load packages if needed
+      // Load packages if needed (silently)
       if (uniquePackages.length > 0) {
-        addOutput(`Loading packages: ${uniquePackages.join(', ')}...`, OutputLevel.OUTPUT)
         try {
           await pyodide.loadPackage(uniquePackages)
-          addOutput('✓ Packages loaded successfully\n', OutputLevel.OUTPUT)
         } catch (err) {
           addOutput(`Warning: Failed to load some packages: ${err}\n`, OutputLevel.WARNING)
         }
@@ -1030,7 +1150,6 @@ plt.show = lambda: None
           // Write file to Pyodide's filesystem
           pyodide.FS.writeFile(fileName, fileContent)
         }
-        addOutput(`✓ Loaded ${files.length} files into filesystem\n`, OutputLevel.OUTPUT)
       }
 
       // Run the code
@@ -1104,7 +1223,6 @@ plots
             canvas.appendChild(img)
           }
 
-          addOutput(`✓ ${plotsData.length} plot${plotsData.length > 1 ? 's' : ''} displayed in Graphics panel`, OutputLevel.OUTPUT)
         }
       } catch (plotError) {
         console.error('[Pyodide] Error capturing plots:', plotError)
@@ -1114,7 +1232,9 @@ plots
         addOutput(String(result), OutputLevel.OUTPUT)
       }
 
-      addOutput('✓ Program completed successfully', OutputLevel.OUTPUT)
+      // Show success flash on Run button
+      setShowSuccessFlash(true)
+      setTimeout(() => setShowSuccessFlash(false), 1500)
       setRunState(RunState.STOPPED)
     } catch (error: any) {
       const errorMessage = error.message || String(error)
@@ -1130,6 +1250,32 @@ plots
     }
     setRunState(RunState.STOPPED)
     addOutput('Program stopped', OutputLevel.WARNING)
+  }
+
+  // Restart Python kernel
+  const restartKernel = () => {
+    if (activeKernel === 'pyodide') {
+      // Clear Pyodide state
+      delete (window as any).__pyodidePromise
+      setActiveKernel(null)
+    } else if (activeKernel === 'skulpt') {
+      // Clear Skulpt state - it will reload on next run
+      delete (window as any).Sk
+      delete (window as any).__skulptPromises
+      setActiveKernel(null)
+    }
+    setShowKernelMenu(false)
+  }
+
+  // Force switch kernel
+  const switchKernel = (kernel: 'skulpt' | 'pyodide') => {
+    // Clear both kernels
+    delete (window as any).__pyodidePromise
+    delete (window as any).Sk
+    delete (window as any).__skulptPromises
+    setActiveKernel(null)
+    setShowKernelMenu(false)
+    // The kernel will auto-select based on imports on next run
   }
 
   // Reset code to original markdown content
@@ -1226,8 +1372,8 @@ plots
   return (
     <div
       ref={wrapperRef}
-      className="flex flex-col w-full border rounded-lg overflow-hidden bg-background"
-      style={{ height: fullscreen ? '100vh' : '600px' }}
+      className="flex flex-col w-full border rounded-lg overflow-hidden bg-background relative"
+      style={{ height: fullscreen ? '100vh' : `${manualHeight ?? calculatedEditorHeight}px` }}
     >
       {/* Main content area */}
       <div ref={containerRef} className="flex flex-1 overflow-hidden relative">
@@ -1240,99 +1386,179 @@ plots
               display: showEditor ? 'flex' : 'none'
             }}
           >
-            {/* File Tabs */}
-            <div className="flex items-center justify-between gap-1 px-2 py-1 border-b bg-muted/10">
-                <div className="flex items-center gap-1 overflow-x-auto flex-1">
-                  {files.map((file, index) => (
-                    <div key={index} className="flex items-center">
-                      {renamingIndex === index ? (
-                        <input
-                          type="text"
-                          value={renameValue}
-                          onChange={(e) => setRenameValue(e.target.value)}
-                          onBlur={() => confirmRename(index)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              confirmRename(index)
-                            } else if (e.key === 'Escape') {
-                              cancelRename()
-                            }
-                          }}
-                          autoFocus
-                          className="h-7 px-2 text-xs border rounded bg-background"
-                          style={{ width: '120px' }}
-                        />
-                      ) : (
-                        <>
-                          <Button
-                            size="sm"
-                            variant={activeFileIndex === index ? 'secondary' : 'ghost'}
-                            onClick={() => switchToFile(index)}
-                            onDoubleClick={() => startRename(index)}
-                            className="h-7 px-2 text-xs gap-1"
-                            title="Double-click to rename"
-                          >
-                            <FileText className="w-3 h-3" />
-                            {file.name}
-                          </Button>
-                          {files.length > 1 && (
+            {/* Floating Toolbar - Top Right (zoom controls + kernel indicator) */}
+            <div ref={kernelMenuRef} className="absolute top-1 right-1 z-30 flex items-center gap-0.5 bg-background/80 backdrop-blur-sm rounded px-1 py-0.5">
+              {/* Zoom Controls */}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={decreaseFontSize}
+                className="h-6 w-6 p-0"
+                title="Decrease font size"
+              >
+                <ZoomOut className="w-3 h-3" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={increaseFontSize}
+                className="h-6 w-6 p-0"
+                title="Increase font size"
+              >
+                <ZoomIn className="w-3 h-3" />
+              </Button>
+
+              {/* Python Kernel Indicator */}
+              {language === 'python' && (
+                <>
+                  <div className="w-px h-4 bg-border mx-1" />
+                  <button
+                    onClick={() => setShowKernelMenu(!showKernelMenu)}
+                    className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                      kernelLoading
+                        ? 'bg-yellow-500/20 animate-pulse'
+                        : activeKernel
+                        ? 'hover:bg-muted'
+                        : ''
+                    }`}
+                    title={activeKernel ? `Python (${activeKernel})` : 'Python kernel not loaded'}
+                  >
+                    <svg
+                      viewBox="0 0 256 255"
+                      className={`w-4 h-4 ${
+                        kernelLoading
+                          ? 'text-yellow-600 dark:text-yellow-400'
+                          : activeKernel
+                          ? 'text-muted-foreground hover:text-foreground'
+                          : 'text-muted-foreground/40'
+                      }`}
+                      fill="currentColor"
+                    >
+                      <path d="M126.916.072c-64.832 0-60.784 28.115-60.784 28.115l.072 29.128h61.868v8.745H41.631S.145 61.355.145 126.77c0 65.417 36.21 63.097 36.21 63.097h21.61v-30.356s-1.165-36.21 35.632-36.21h61.362s34.475.557 34.475-33.319V33.97S194.67.072 126.916.072zM92.802 19.66a11.12 11.12 0 0 1 11.13 11.13 11.12 11.12 0 0 1-11.13 11.13 11.12 11.12 0 0 1-11.13-11.13 11.12 11.12 0 0 1 11.13-11.13z" />
+                      <path d="M128.757 254.126c64.832 0 60.784-28.115 60.784-28.115l-.072-29.127H127.6v-8.745h86.441s41.486 4.705 41.486-60.712c0-65.416-36.21-63.096-36.21-63.096h-21.61v30.355s1.165 36.21-35.632 36.21h-61.362s-34.475-.557-34.475 33.32v56.013s-5.235 33.897 62.518 33.897zm34.114-19.586a11.12 11.12 0 0 1-11.13-11.13 11.12 11.12 0 0 1 11.13-11.131 11.12 11.12 0 0 1 11.13 11.13 11.12 11.12 0 0 1-11.13 11.13z" />
+                    </svg>
+                  </button>
+
+                  {/* Kernel Menu Dropdown */}
+                  {showKernelMenu && (
+                    <div className="absolute top-8 right-0 bg-popover border rounded-lg shadow-lg p-2 min-w-[160px] z-50">
+                      <div className="text-xs text-muted-foreground mb-2 px-2">
+                        {activeKernel ? (
+                          <span>Kernel: <strong className="text-foreground capitalize">{activeKernel}</strong></span>
+                        ) : (
+                          <span>No kernel loaded</span>
+                        )}
+                      </div>
+                      <div className="border-t my-1" />
+                      <button
+                        onClick={restartKernel}
+                        disabled={!activeKernel}
+                        className="w-full text-left px-2 py-1 text-sm rounded hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Restart kernel
+                      </button>
+                      <div className="border-t my-1" />
+                      <div className="text-xs text-muted-foreground px-2 mb-1">Switch to:</div>
+                      <button
+                        onClick={() => switchKernel('skulpt')}
+                        className={`w-full text-left px-2 py-1 text-sm rounded hover:bg-muted ${activeKernel === 'skulpt' ? 'bg-muted' : ''}`}
+                      >
+                        Skulpt <span className="text-xs text-muted-foreground">(turtle)</span>
+                      </button>
+                      <button
+                        onClick={() => switchKernel('pyodide')}
+                        className={`w-full text-left px-2 py-1 text-sm rounded hover:bg-muted ${activeKernel === 'pyodide' ? 'bg-muted' : ''}`}
+                      >
+                        Pyodide <span className="text-xs text-muted-foreground">(numpy, etc)</span>
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* File Tabs - hidden in single-file mode */}
+            {!singleFile && (
+              <div className="flex items-center gap-1 px-2 py-1 border-b bg-muted/10 pr-24">
+                  <div className="flex items-center gap-1 overflow-x-auto flex-1">
+                    {files.map((file, index) => (
+                      <div key={index} className="flex items-center">
+                        {renamingIndex === index ? (
+                          <input
+                            type="text"
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onBlur={() => confirmRename(index)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                confirmRename(index)
+                              } else if (e.key === 'Escape') {
+                                cancelRename()
+                              }
+                            }}
+                            autoFocus
+                            className="h-7 px-2 text-xs border rounded bg-background"
+                            style={{ width: '120px' }}
+                          />
+                        ) : (
+                          <>
                             <Button
                               size="sm"
-                              variant="ghost"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                removeFile(index)
-                              }}
-                              className="h-6 w-6 p-0 ml-1"
-                              title="Remove file"
+                              variant={activeFileIndex === index ? 'secondary' : 'ghost'}
+                              onClick={() => switchToFile(index)}
+                              onDoubleClick={() => startRename(index)}
+                              className="h-7 px-2 text-xs gap-1"
+                              title="Double-click to rename"
                             >
-                              <X className="w-3 h-3" />
+                              <FileText className="w-3 h-3" />
+                              {file.name}
                             </Button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  ))}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={addNewFile}
-                    className="h-7 px-2 text-xs"
-                    title="Add new file"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={decreaseFontSize}
-                    className="h-6 w-6 p-0"
-                    title="Decrease font size"
-                  >
-                    <ZoomOut className="w-3 h-3" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={increaseFontSize}
-                    className="h-6 w-6 p-0"
-                    title="Increase font size"
-                  >
-                    <ZoomIn className="w-3 h-3" />
-                  </Button>
-                </div>
-            </div>
+                            {files.length > 1 && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  removeFile(index)
+                                }}
+                                className="h-6 w-6 p-0 ml-1"
+                                title="Remove file"
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    ))}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={addNewFile}
+                      className="h-7 px-2 text-xs"
+                      title="Add new file"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+              </div>
+            )}
 
             {/* CodeMirror Editor */}
             <div ref={editorRef} className="flex-1 overflow-auto w-full h-full relative">
               {/* Floating Control Buttons - Bottom Left */}
               <div className="absolute bottom-2 left-2 flex items-center gap-1 z-10">
                 {runState === RunState.STOPPED ? (
-                  <Button onClick={runCode} size="sm" variant="default" className="h-7 px-2 shadow-lg">
+                  <Button
+                    onClick={runCode}
+                    size="sm"
+                    variant={showSuccessFlash ? 'default' : 'default'}
+                    className={`h-7 px-2 shadow-lg transition-colors ${
+                      showSuccessFlash ? 'bg-green-600 hover:bg-green-600 text-white' : ''
+                    }`}
+                  >
                     <Play className="w-3 h-3 mr-1" />
-                    Run
+                    {showSuccessFlash ? '✓' : 'Run'}
                   </Button>
                 ) : (
                   <Button onClick={stopCode} size="sm" variant="destructive" className="h-7 px-2 shadow-lg">
@@ -1372,7 +1598,7 @@ plots
         {showEditor && showGraphics && canvasVisible && (
           <div
             onMouseDown={handleSplitterMouseDown}
-            className={`w-2 bg-border hover:bg-primary/20 cursor-col-resize flex-shrink-0 transition-colors relative flex items-center justify-center ${
+            className={`w-1 bg-border hover:bg-primary/20 cursor-col-resize flex-shrink-0 transition-colors relative flex items-center justify-center ${
               isDraggingSplitter ? 'bg-primary/30' : ''
             }`}
           >
@@ -1426,8 +1652,20 @@ plots
         )}
       </div>
 
-      {/* Output/History Panel */}
-      <div className="min-h-32 max-h-64 border-t flex flex-col">
+      {/* Horizontal Divider (between main content and output) - only show when there's output or in history mode */}
+      {(output.length > 0 || activePanel === 'history') && (
+        <div
+          onMouseDown={handleHorizontalSplitterMouseDown}
+          className="h-1 bg-border hover:bg-primary/20 cursor-row-resize flex-shrink-0 transition-colors"
+        />
+      )}
+
+      {/* Output/History Panel - collapse when no output */}
+      {(output.length > 0 || activePanel === 'history') && (
+        <div
+          className="flex flex-col overflow-hidden"
+          style={{ height: `${outputPanelHeight}px` }}
+        >
         {/* Tabs */}
         <div className="flex items-center gap-1 p-1 border-b bg-muted/30">
           <Button
@@ -1453,10 +1691,7 @@ plots
         {/* Panel Content */}
         {activePanel === 'output' ? (
           <div ref={outputPanelRef} className="flex-1 overflow-auto p-2 font-mono text-sm">
-            {output.length === 0 ? (
-              <div className="text-muted-foreground italic">No output yet. Run your code to see results here.</div>
-            ) : (
-              output.map((entry, index) => (
+            {output.map((entry, index) => (
                 <div key={index} className="mb-2">
                   {/* Text message */}
                   <div
@@ -1520,8 +1755,7 @@ plots
                     </div>
                   )}
                 </div>
-              ))
-            )}
+              ))}
           </div>
         ) : (
           <div className="flex-1 overflow-x-auto overflow-y-hidden p-2">
@@ -1693,6 +1927,25 @@ plots
           </div>
         )}
       </div>
+      )}
+
+      {/* Resize Handle (bottom-right corner) */}
+      {!fullscreen && (
+        <div
+          onMouseDown={handleResizeMouseDown}
+          className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground/60 transition-colors"
+          title="Drag to resize"
+        >
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="currentColor"
+          >
+            <path d="M9 1v8H1" stroke="currentColor" strokeWidth="1.5" fill="none" />
+          </svg>
+        </div>
+      )}
     </div>
   )
-}
+})
