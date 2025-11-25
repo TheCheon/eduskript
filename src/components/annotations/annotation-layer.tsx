@@ -86,7 +86,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         }
       }
     }
-    return [2, 3, 4]
+    return [4, 8, 14]
   })
   const contentRef = useRef<HTMLDivElement>(null)
   const mainRef = useRef<HTMLElement | null>(null)
@@ -114,13 +114,71 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     if (paper) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setPaperElement(paper)
-       
+
       setPaperWidth(paper.getBoundingClientRect().width)
 
       // Ensure paper has position:relative for absolute canvas positioning
       paper.style.position = 'relative'
     }
   }, [viewportWidth])
+
+  // Track annotating state in ref for event handlers (avoids stale closure issues)
+  const isAnnotatingRef = useRef(false)
+  isAnnotatingRef.current = mode !== 'view' || stylusModeActive
+
+  // Add annotation-active class to paper when in draw/erase mode (prevents text selection on iOS Safari)
+  useEffect(() => {
+    const paper = document.getElementById('paper')
+    if (!paper) return
+
+    const isAnnotating = mode !== 'view' || stylusModeActive
+
+    if (isAnnotating) {
+      paper.classList.add('annotation-active')
+    } else {
+      paper.classList.remove('annotation-active')
+    }
+
+    return () => {
+      paper.classList.remove('annotation-active')
+    }
+  }, [mode, stylusModeActive])
+
+  // Prevent selection globally when annotating (capture phase for all touch/pointer events)
+  useEffect(() => {
+    const preventSelection = (e: Event) => {
+      if (isAnnotatingRef.current) {
+        e.preventDefault()
+        return false
+      }
+    }
+
+    // Prevent default on ALL touch/pointer events in capture phase to stop Safari selection
+    const preventDefault = (e: PointerEvent | TouchEvent) => {
+      if (!isAnnotatingRef.current) return
+
+      const target = e.target as Element
+      // Only prevent on canvas or when target is inside paper
+      if (target?.tagName === 'CANVAS' || target?.closest('#paper')) {
+        e.preventDefault()
+      }
+    }
+
+    document.addEventListener('selectstart', preventSelection, true)
+    document.addEventListener('pointerdown', preventDefault, { capture: true, passive: false })
+    document.addEventListener('pointerup', preventDefault, { capture: true, passive: false })
+    document.addEventListener('touchstart', preventDefault, { capture: true, passive: false })
+    document.addEventListener('touchend', preventDefault, { capture: true, passive: false })
+
+    return () => {
+      document.removeEventListener('selectstart', preventSelection, true)
+      document.removeEventListener('pointerdown', preventDefault, true)
+      document.removeEventListener('pointerup', preventDefault, true)
+      document.removeEventListener('touchstart', preventDefault, true)
+      document.removeEventListener('touchend', preventDefault, true)
+    }
+  }, [])
+
 
   // Save pen colors to localStorage whenever they change
   useEffect(() => {
@@ -652,8 +710,9 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         const now = Date.now()
         const timeSinceLastPen = now - lastPenEventTimeRef.current
 
-        // Pen has priority - ignore mouse events for 200ms after last pen event
-        if (timeSinceLastPen < 200) {
+        // Pen has priority - ignore mouse events for 500ms after last pen event
+        // (increased from 200ms for better iPad Safari compatibility)
+        if (timeSinceLastPen < 500) {
           return
         }
 

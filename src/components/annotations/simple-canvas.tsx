@@ -117,6 +117,13 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       return false
     }, [])
 
+    // Apply pressure floor so light touches still produce visible strokes
+    // Maps pressure from [0, 1] to [MIN_PRESSURE, 1]
+    const applyPressureFloor = useCallback((pressure: number): number => {
+      const MIN_PRESSURE = 0.4
+      return MIN_PRESSURE + (1 - MIN_PRESSURE) * pressure
+    }, [])
+
     // Apply moving average smoothing to point positions while preserving pressure
     const smoothPoints = useCallback((points: Array<{ x: number; y: number; pressure: number }>, windowSize: number = 3): Array<{ x: number; y: number; pressure: number }> => {
       if (points.length < windowSize) return points
@@ -171,7 +178,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
 
         // For very short strokes (2 points), just draw a straight line
         if (points.length === 2) {
-          const lineWidth = path.width * (points[1].pressure || 0.5)
+          const lineWidth = path.width * applyPressureFloor(points[1].pressure || 0.5)
 
           ctx.beginPath()
           ctx.lineWidth = lineWidth
@@ -188,7 +195,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
 
         // Draw first segment as a straight line to preserve pen-down appearance
         ctx.beginPath()
-        ctx.lineWidth = baseWidth * (points[0].pressure || 0.5)
+        ctx.lineWidth = baseWidth * applyPressureFloor(points[0].pressure || 0.5)
         ctx.moveTo(points[0].x, points[0].y)
 
         if (points.length === 3) {
@@ -197,7 +204,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
           ctx.stroke()
 
           ctx.beginPath()
-          ctx.lineWidth = baseWidth * (points[1].pressure || 0.5)
+          ctx.lineWidth = baseWidth * applyPressureFloor(points[1].pressure || 0.5)
           ctx.moveTo(points[1].x, points[1].y)
           ctx.lineTo(points[2].x, points[2].y)
           ctx.stroke()
@@ -219,7 +226,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
             const midY1 = (p0.y + p1.y) / 2
 
             ctx.beginPath()
-            ctx.lineWidth = baseWidth * (p0.pressure || 0.5)
+            ctx.lineWidth = baseWidth * applyPressureFloor(p0.pressure || 0.5)
             ctx.moveTo(midX0, midY0)
             ctx.quadraticCurveTo(p0.x, p0.y, midX1, midY1)
             ctx.stroke()
@@ -232,7 +239,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
           const lastMidY = (points[secondLastIdx].y + points[lastIdx].y) / 2
 
           ctx.beginPath()
-          ctx.lineWidth = baseWidth * (points[lastIdx].pressure || 0.5)
+          ctx.lineWidth = baseWidth * applyPressureFloor(points[lastIdx].pressure || 0.5)
           ctx.moveTo(lastMidX, lastMidY)
           ctx.lineTo(points[lastIdx].x, points[lastIdx].y)
           ctx.stroke()
@@ -278,7 +285,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
           for (let i = startIdx + 1; i < points.length; i++) {
             const lastPoint = points[i - 1]
             const currentPoint = points[i]
-            const lineWidth = strokeWidth * currentPoint.pressure
+            const lineWidth = strokeWidth * applyPressureFloor(currentPoint.pressure)
 
             ctx.lineWidth = lineWidth
             ctx.beginPath()
@@ -360,6 +367,11 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       // Detect eraser button (button 5 = 32 in bitmask)
       const isEraserButton = isStylusInput && (e.buttons & 32) !== 0
 
+      // Prevent default to stop iOS Safari from initiating text selection
+      if (isStylusInput || mode !== 'view') {
+        e.preventDefault()
+      }
+
       // Track active pointers for multi-touch detection
       activePointersRef.current.add(e.pointerId)
       // Only track touch/mouse for multi-touch gestures (exclude stylus)
@@ -379,11 +391,9 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       }
 
       // In stylus mode, only allow pen input for drawing
+      // Don't switch modes on non-stylus input (could be palm touch on iPad)
+      // User can manually switch via toolbar if needed
       if (stylusModeActive && !isStylusInput) {
-        // Switch to view mode when non-stylus input is detected
-        if (onNonStylusInput) {
-          onNonStylusInput()
-        }
         return
       }
 
@@ -436,6 +446,11 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       // Don't draw if multiple touch/mouse pointers are active (pinch gesture)
       // But always allow stylus to proceed regardless of touch count
       const isStylusInput = e.pointerType === 'pen'
+
+      // Prevent default to stop iOS Safari from initiating text selection during drawing
+      if (isStylusInput || isDrawingRef.current) {
+        e.preventDefault()
+      }
 
       // Keep pen timestamp fresh during drawing for priority system
       if (isStylusInput && isDrawingRef.current && onStylusDetected) {
@@ -694,12 +709,9 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
             width: `${width}px`,
             height: `${height}px`,
             // Chrome fix: touchAction must be 'none' for pen input to work properly
-            // Chrome won't send pointermove events for pen if touchAction allows panning
-            // Multi-touch detection in the event handlers prevents drawing during pinch gestures
             touchAction: 'none',
             cursor: mode === 'erase' ? 'none' : (mode === 'draw' ? 'crosshair' : 'default'),
-            // Only receive events when in draw/erase mode OR when stylus mode is active
-            // This allows text selection in view mode without stylus mode
+            // Capture events in draw/erase mode OR stylus mode (to prevent selection)
             pointerEvents: (mode !== 'view' || stylusModeActive) ? 'auto' : 'none'
           }}
         />

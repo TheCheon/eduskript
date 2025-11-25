@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Pen, Eraser, Trash2, Eye, EyeOff, Camera } from 'lucide-react'
+import { Pen, Eraser, Trash2, Pointer, Camera } from 'lucide-react'
 import { Circle } from '@uiw/react-color'
 import Image from 'next/image'
 import brushThickIcon from './brush_thick.png'
@@ -93,6 +93,48 @@ export function AnnotationToolbar({
   // Allow snapping at any zoom level
   const snapDisabled = false
 
+  // Ref for the popover elements to detect clicks outside
+  const penPopoverRef = useRef<HTMLDivElement>(null)
+  const deletePopoverRef = useRef<HTMLDivElement>(null)
+  const snapPopoverRef = useRef<HTMLDivElement>(null)
+
+  // Close popovers when stylus touches paper or when clicking outside
+  useEffect(() => {
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as Element
+
+      // Close all popovers on stylus input on paper/canvas (user wants to draw)
+      if (e.pointerType === 'pen') {
+        // Only close if touching paper/canvas area, not the toolbar
+        const isOnToolbar = target.closest('[data-annotation-toolbar]')
+        if (!isOnToolbar) {
+          setShowPenControls(null)
+          setShowDeleteControls(false)
+          setShowSnapControls(false)
+        }
+        return
+      }
+
+      // For touch/mouse, close if clicking outside the popover and toolbar
+      const isInsideToolbar = target.closest('[data-annotation-toolbar]')
+      if (isInsideToolbar) return // Don't close for any toolbar interaction
+
+      // Clicking outside toolbar closes all popovers
+      if (showPenControls !== null) {
+        setShowPenControls(null)
+      }
+      if (showDeleteControls) {
+        setShowDeleteControls(false)
+      }
+      if (showSnapControls) {
+        setShowSnapControls(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown, true)
+    return () => document.removeEventListener('pointerdown', handlePointerDown, true)
+  }, [showPenControls, showDeleteControls, showSnapControls])
+
   const handlePenMouseEnter = (penIndex: number) => {
     // Clear any pending hide timer
     if (hideTimerRef.current) {
@@ -137,9 +179,17 @@ export function AnnotationToolbar({
     // Only handle touch/pen, not mouse (mouse uses hover)
     if (e.pointerType === 'mouse') return
 
+    // Prevent default to avoid text selection on long-press (iOS Safari)
+    e.preventDefault()
+
     longPressStartPos.current = { x: e.clientX, y: e.clientY }
     longPressTimerRef.current = setTimeout(() => {
       setShowPenControls(penIndex)
+      // Also select this pen when opening its config
+      onPenChange(penIndex)
+      if (mode !== 'draw') {
+        onModeChange('draw')
+      }
       longPressTimerRef.current = null
     }, 500)
   }
@@ -219,6 +269,9 @@ export function AnnotationToolbar({
     // Only handle touch/pen, not mouse (mouse uses hover)
     if (e.pointerType === 'mouse') return
 
+    // Prevent default to avoid text selection on long-press (iOS Safari)
+    e.preventDefault()
+
     deleteLongPressStartPos.current = { x: e.clientX, y: e.clientY }
     deleteLongPressTimerRef.current = setTimeout(() => {
       setShowDeleteControls(true)
@@ -288,6 +341,9 @@ export function AnnotationToolbar({
     // Only handle touch/pen, not mouse (mouse uses hover)
     if (e.pointerType === 'mouse' || !snapDisabled) return
 
+    // Prevent default to avoid text selection on long-press (iOS Safari)
+    e.preventDefault()
+
     snapLongPressStartPos.current = { x: e.clientX, y: e.clientY }
     snapLongPressTimerRef.current = setTimeout(() => {
       setShowSnapControls(true)
@@ -319,11 +375,12 @@ export function AnnotationToolbar({
   }
 
   const toolbarContent = (
-    <div className="fixed bottom-6 right-6 z-50 bg-background/95 backdrop-blur border border-border rounded-lg shadow-lg p-2 flex flex-col gap-1" style={{ isolation: 'isolate' }}>
+    <div data-annotation-toolbar className="fixed bottom-6 right-6 z-50 bg-background/95 backdrop-blur border border-border rounded-lg shadow-lg p-2 flex flex-col gap-1 select-none" style={{ isolation: 'isolate', touchAction: 'manipulation' }}>
       {/* Three Pen Tools */}
       {[0, 1, 2].map((penIndex) => (
         <div key={penIndex} className="relative">
           <button
+            data-pen-button
             onClick={() => handlePenClick(penIndex)}
             onMouseEnter={() => handlePenMouseEnter(penIndex)}
             onMouseLeave={handlePenMouseLeave}
@@ -350,6 +407,7 @@ export function AnnotationToolbar({
           {/* Pen controls popover (size slider + color picker) */}
           {showPenControls === penIndex && (
             <div
+              ref={penPopoverRef}
               className="absolute right-full mr-2 bottom-0 flex gap-2"
               onMouseEnter={() => {
                 if (hoverTimerRef.current) {
@@ -376,9 +434,9 @@ export function AnnotationToolbar({
                 {/* Vertical slider */}
                 <input
                   type="range"
-                  min="1"
-                  max="10"
-                  step="0.5"
+                  min="2"
+                  max="30"
+                  step="1"
                   value={penSizes[penIndex]}
                   onChange={(e) => handleSizeChange(penIndex, parseFloat(e.target.value))}
                   className="flex-grow cursor-pointer [writing-mode:vertical-lr] [direction:rtl] slider-vertical"
@@ -428,6 +486,7 @@ export function AnnotationToolbar({
         onMouseLeave={handleSnapMouseLeave}
       >
         <button
+          data-snap-button
           onClick={handleSnapClick}
           onPointerDown={handleSnapPointerDown}
           onPointerMove={handleSnapPointerMove}
@@ -457,6 +516,7 @@ export function AnnotationToolbar({
         {/* Snap controls popup */}
         {showSnapControls && snapDisabled && (
           <div
+            ref={snapPopoverRef}
             className="absolute right-full mr-2 bottom-0"
             onMouseEnter={() => {
               if (snapHoverTimerRef.current) {
@@ -490,15 +550,22 @@ export function AnnotationToolbar({
       {/* View/Hide Annotations */}
       <button
         onClick={() => onModeChange('view')}
-        className={`p-3 rounded-md transition-colors ${
+        className={`p-3 rounded-md transition-colors relative ${
           mode === 'view'
             ? 'text-foreground bg-accent'
             : 'text-muted-foreground hover:text-foreground hover:bg-accent'
         }`}
-        title={mode === 'view' ? 'Viewing' : 'Exit annotation mode'}
-        aria-label="Toggle view mode"
+        title={mode === 'view' ? 'Pan/scroll mode' : 'Switch to pan mode'}
+        aria-label="Toggle pan mode"
       >
-        {mode === 'view' ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+        <Pointer className="w-5 h-5" />
+        {mode !== 'view' && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <svg className="w-6 h-6 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+            </svg>
+          </div>
+        )}
       </button>
 
       {/* Divider */}
@@ -508,6 +575,7 @@ export function AnnotationToolbar({
       {hasAnnotations && (
         <div className="relative">
           <button
+            data-delete-button
             onClick={handleDeleteClick}
             onMouseEnter={handleDeleteMouseEnter}
             onMouseLeave={handleDeleteMouseLeave}
@@ -525,6 +593,7 @@ export function AnnotationToolbar({
           {/* Delete confirmation toggle popup */}
           {showDeleteControls && (
             <div
+              ref={deletePopoverRef}
               className="absolute right-full mr-2 bottom-0"
               onMouseEnter={() => {
                 if (deleteHoverTimerRef.current) {
