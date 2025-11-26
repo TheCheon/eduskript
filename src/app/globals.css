@@ -26,11 +26,10 @@ html.dark {
   color-scheme: dark;
 }
 
-/* Disable native scroll for custom pan/zoom */
+/* Enable native scroll - zoom is handled via CSS transform */
 html,
 body {
-  overflow: hidden;
-  height: 100vh;
+  height: 100%;
   width: 100%;
 }
 

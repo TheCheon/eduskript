@@ -40,18 +40,17 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [stylusModeActive, setStylusModeActive] = useState(false)
   const [activePen, setActivePen] = useState(0)
-  // Use refs for zoom and pan to avoid re-renders on every gesture
+  // Use refs for zoom to avoid re-renders on every gesture
   const zoomRef = useRef(1.0)
-  const panXRef = useRef(0)
-  const panYRef = useRef(0)
   const rafIdRef = useRef<number | null>(null)
   const touchesRef = useRef<Map<number, { x: number; y: number }>>(new Map())
   const initialPinchDistanceRef = useRef<number | null>(null)
   const initialZoomRef = useRef(1.0)
   const initialPinchCenterRef = useRef<{ x: number; y: number } | null>(null)
-  const initialPanRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
-  const singleTouchStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
-  const middleMouseDragRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
+  // Store the content point under the initial pinch center (in unscaled content coordinates)
+  const initialContentPointRef = useRef<{ x: number; y: number } | null>(null)
+  // Scroll container ref for zoom-scroll sync
+  const scrollContainerRef = useRef<HTMLElement | null>(null)
   // Display-only zoom state (updated on gesture end, not during gesture)
   const [zoom, setZoom] = useState(1.0)
   const [penColors, setPenColors] = useState<[string, string, string]>(() => {
@@ -741,90 +740,11 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   }, [stylusModeActive, mode])
 
   // Calculate scroll limits based on main content bounds
-  const calculateScrollLimits = useCallback((newPanY: number, newZoom?: number) => {
-    if (!mainRef.current) return newPanY
-
-    const currentZoom = newZoom ?? zoomRef.current
-
-    // Remove current transform temporarily to get natural dimensions
-    const currentTransform = mainRef.current.style.transform
-    mainRef.current.style.transform = 'none'
-
-    // Get the main content element bounds (includes article + everything below it)
-    const mainRect = mainRef.current.getBoundingClientRect()
-    const mainTop = mainRect.top
-    const mainHeight = mainRect.height
-
-    // Restore transform
-    mainRef.current.style.transform = currentTransform
-
-    // Calculate limits in pan space
-    // Top limit: content top should not go below viewport top
-    const maxPanY = -mainTop / currentZoom
-
-    // Bottom limit: content bottom should not go above viewport bottom
-    // Allow scrolling to see all content including comments, export buttons, etc.
-    const minPanY = (viewportHeight - mainTop - mainHeight * currentZoom) / currentZoom
-
-    // Clamp panY between limits
-    return Math.max(minPanY, Math.min(maxPanY, newPanY))
-  }, [viewportHeight])
-
-  // Calculate horizontal pan limits based on #paper
-  // #paper is responsive and centered by CSS, so at zoom 1.0 no pan needed
-  // Only need panning when zoomed in (scaled paper wider than viewport)
-  const calculateHorizontalLimit = useCallback((newPanX: number, newZoom?: number) => {
-    if (!mainRef.current) return newPanX
-
-    const currentZoom = newZoom ?? zoomRef.current
-
-    const paperElement = document.getElementById('paper')
-    if (!paperElement) return newPanX
-
-    // Remove transform to get natural position
-    const currentTransform = mainRef.current.style.transform
-    mainRef.current.style.transform = 'none'
-
-    const mainRect = mainRef.current.getBoundingClientRect()
-    const paperRect = paperElement.getBoundingClientRect()
-
-    mainRef.current.style.transform = currentTransform
-
-    // Transform origin is "top center" of main element
-    const originX = (mainRect.left + mainRect.right) / 2
-    const leftBoundary = sidebarWidth
-
-    // Calculate where paper edges will be after zoom
-    const transformedLeft = originX + (paperRect.left - originX) * currentZoom
-    const transformedRight = originX + (paperRect.right - originX) * currentZoom
-    const transformedWidth = transformedRight - transformedLeft
-
-    const availableWidth = viewportWidth - leftBoundary
-
-    // If paper fits in viewport, lock horizontal pan (CSS handles centering)
-    if (transformedWidth <= availableWidth) {
-      // Keep paper centered - calculate pan to center it
-      const transformedCenter = (transformedLeft + transformedRight) / 2
-      const desiredCenter = leftBoundary + availableWidth / 2
-      return (desiredCenter - transformedCenter) / currentZoom
-    }
-
-    // Paper is wider than viewport (zoomed in) - allow panning
-    const maxPanX = (leftBoundary - transformedLeft) / currentZoom
-    const minPanX = (viewportWidth - transformedRight) / currentZoom
-
-    return Math.max(minPanX, Math.min(maxPanX, newPanX))
-  }, [viewportWidth, sidebarWidth])
-
-  // Helper function to apply pan and zoom transform using RAF (no re-renders)
-  const applyTransform = useCallback((newPanX: number, newPanY: number, newZoom?: number) => {
-    performance.mark('apply-pan-transform-start')
-
-    panXRef.current = newPanX
-    panYRef.current = newPanY
-    if (newZoom !== undefined) {
-      zoomRef.current = newZoom
-    }
+  // Helper function to apply zoom transform using RAF (no re-renders)
+  // With native scroll, we only need to handle zoom - scroll is handled by browser
+  const applyZoom = useCallback((newZoom: number, focalX?: number, focalY?: number) => {
+    const oldZoom = zoomRef.current
+    zoomRef.current = newZoom
 
     // Cancel any pending RAF
     if (rafIdRef.current !== null) {
@@ -833,153 +753,132 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
     // Apply transform in next frame
     rafIdRef.current = requestAnimationFrame(() => {
-      performance.mark('apply-pan-transform-raf')
-
       if (mainRef.current) {
-        mainRef.current.style.transform = `scale(${zoomRef.current}) translate(${newPanX}px, ${newPanY}px)`
+        mainRef.current.style.transform = `scale(${newZoom})`
       }
-      rafIdRef.current = null
 
-      performance.mark('apply-pan-transform-end')
-      performance.measure('Apply Pan Transform (RAF)', 'apply-pan-transform-raf', 'apply-pan-transform-end')
-      performance.measure('Apply Pan Transform (Total)', 'apply-pan-transform-start', 'apply-pan-transform-end')
+      // Adjust scroll position to keep focal point stationary
+      if (scrollContainerRef.current && focalX !== undefined && focalY !== undefined) {
+        const container = scrollContainerRef.current
+        const containerRect = container.getBoundingClientRect()
+
+        // Convert client coordinates to container-relative coordinates
+        const relativeX = focalX - containerRect.left
+        const relativeY = focalY - containerRect.top
+
+        // Find the content point under the focal point (in unscaled coordinates)
+        const contentX = (relativeX + container.scrollLeft) / oldZoom
+        const contentY = (relativeY + container.scrollTop) / oldZoom
+
+        // Calculate new scroll so the same content point stays under the focal point
+        const newScrollX = contentX * newZoom - relativeX
+        const newScrollY = contentY * newZoom - relativeY
+
+        container.scrollLeft = Math.max(0, newScrollX)
+        container.scrollTop = Math.max(0, newScrollY)
+      }
+
+      rafIdRef.current = null
     })
   }, [])
 
   // Handle zoom reset
   const handleResetZoom = useCallback(() => {
-    // Reset pan to 0,0 and zoom to 1.0
-    const newPanX = calculateHorizontalLimit(0, 1.0)
-    const newPanY = calculateScrollLimits(0, 1.0)
-    applyTransform(newPanX, newPanY, 1.0)
+    applyZoom(1.0)
     setZoom(1.0)
-  }, [calculateHorizontalLimit, calculateScrollLimits, applyTransform])
+    // Scroll to top
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0
+    }
+  }, [applyZoom])
 
-  // Custom pinch-zoom and pan handling
+  // Custom pinch-zoom handling (native scroll handles single-finger pan)
   const handleTouchStart = useCallback((e: TouchEvent) => {
-    performance.mark('annotation-touch-start')
-
     // Track all touches
     for (let i = 0; i < e.touches.length; i++) {
       const touch = e.touches[i]
       touchesRef.current.set(touch.identifier, { x: touch.clientX, y: touch.clientY })
     }
 
-    // Single touch - start pan in view mode (acts as scroll at zoom = 1.0)
-    if (e.touches.length === 1 && mode === 'view') {
-      const touch = e.touches[0]
-      singleTouchStartRef.current = {
-        x: touch.clientX,
-        y: touch.clientY,
-        panX: panXRef.current,
-        panY: panYRef.current
-      }
-    }
-
     // Two touches - start pinch zoom and prevent browser zoom
     if (e.touches.length === 2) {
       e.preventDefault() // Prevent browser zoom
 
-      // Clear single touch pan
-      singleTouchStartRef.current = null
+      const container = scrollContainerRef.current
+      if (!container) return
 
+      const containerRect = container.getBoundingClientRect()
       const touch1 = e.touches[0]
       const touch2 = e.touches[1]
       const distance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY)
       const centerX = (touch1.clientX + touch2.clientX) / 2
       const centerY = (touch1.clientY + touch2.clientY) / 2
 
+      // Convert pinch center to container-relative coordinates
+      const relativeX = centerX - containerRect.left
+      const relativeY = centerY - containerRect.top
+
+      // Calculate the content point under the initial pinch center (in unscaled coordinates)
+      // This point should stay under the fingers throughout the gesture
+      const contentX = (relativeX + container.scrollLeft) / zoomRef.current
+      const contentY = (relativeY + container.scrollTop) / zoomRef.current
+
       initialPinchDistanceRef.current = distance
       initialPinchCenterRef.current = { x: centerX, y: centerY }
+      initialContentPointRef.current = { x: contentX, y: contentY }
       initialZoomRef.current = zoomRef.current
-      initialPanRef.current = { x: panXRef.current, y: panYRef.current }
     }
-  }, [mode])
+  }, [])
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
-    performance.mark('annotation-touch-move-start')
-
     // Update touch positions
     for (let i = 0; i < e.touches.length; i++) {
       const touch = e.touches[i]
       touchesRef.current.set(touch.identifier, { x: touch.clientX, y: touch.clientY })
     }
 
-    // Handle single-finger pan when zoomed
-    if (e.touches.length === 1 && singleTouchStartRef.current !== null) {
-      const touch = e.touches[0]
-      const deltaX = touch.clientX - singleTouchStartRef.current.x
-      const deltaY = touch.clientY - singleTouchStartRef.current.y
-      let newPanX = singleTouchStartRef.current.panX + deltaX / zoomRef.current
-      let newPanY = singleTouchStartRef.current.panY + deltaY / zoomRef.current
-
-      // Apply limits
-      newPanX = calculateHorizontalLimit(newPanX)
-      newPanY = calculateScrollLimits(newPanY)
-
-      applyTransform(newPanX, newPanY)
-    }
-
-    // Handle pinch zoom and pan (2 fingers)
-    if (e.touches.length === 2 && initialPinchDistanceRef.current !== null && initialPinchCenterRef.current !== null) {
+    // Handle pinch zoom (2 fingers) - single-finger is handled by native scroll
+    if (e.touches.length === 2 && initialPinchDistanceRef.current !== null && initialContentPointRef.current !== null) {
       e.preventDefault() // Prevent browser zoom during pinch
 
+      const container = scrollContainerRef.current
+      if (!container) return
+
+      const containerRect = container.getBoundingClientRect()
       const touch1 = e.touches[0]
       const touch2 = e.touches[1]
       const currentDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY)
       const currentCenterX = (touch1.clientX + touch2.clientX) / 2
       const currentCenterY = (touch1.clientY + touch2.clientY) / 2
 
-      // Calculate zoom factor
+      // Calculate zoom factor relative to initial state
       const zoomFactor = currentDistance / initialPinchDistanceRef.current
       const newZoom = Math.max(0.5, Math.min(2.5, initialZoomRef.current * zoomFactor))
 
-      // Zoom around the initial pinch center point, accounting for transform-origin: top center of main
-      // We need to get the main element's center as the origin
-      if (!mainRef.current) return
+      // Convert current pinch center to container-relative coordinates
+      const relativeX = currentCenterX - containerRect.left
+      const relativeY = currentCenterY - containerRect.top
 
-      // Get natural (untransformed) position of main element
-      const currentTransform = mainRef.current.style.transform
-      mainRef.current.style.transform = 'none'
-      const mainRect = mainRef.current.getBoundingClientRect()
-      mainRef.current.style.transform = currentTransform
+      // Calculate scroll position to keep the initial content point under the current pinch center
+      // Formula: contentPoint * newZoom - relativePosition = newScroll
+      const newScrollX = initialContentPointRef.current.x * newZoom - relativeX
+      const newScrollY = initialContentPointRef.current.y * newZoom - relativeY
 
-      const originX = (mainRect.left + mainRect.right) / 2
-      const originY = mainRect.top
-
-      const initialCenterX = initialPinchCenterRef.current.x
-      const initialCenterY = initialPinchCenterRef.current.y
-      const zoomPanX = (initialCenterX - originX) * (1 / newZoom - 1 / initialZoomRef.current) + initialPanRef.current.x
-      const zoomPanY = (initialCenterY - originY) * (1 / newZoom - 1 / initialZoomRef.current) + initialPanRef.current.y
-
-      // Add pan from finger movement
-      const deltaCenterX = currentCenterX - initialCenterX
-      const deltaCenterY = currentCenterY - initialCenterY
-      let newPanX = zoomPanX + deltaCenterX / newZoom
-      let newPanY = zoomPanY + deltaCenterY / newZoom
-
-      // Apply limits
-      newPanX = calculateHorizontalLimit(newPanX, newZoom)
-      newPanY = calculateScrollLimits(newPanY, newZoom)
-
-      // Apply transform directly (no React re-render)
-      applyTransform(newPanX, newPanY, newZoom)
+      // Apply transform and scroll synchronously (no RAF) for smooth gesture handling
+      zoomRef.current = newZoom
+      if (mainRef.current) {
+        mainRef.current.style.transform = `scale(${newZoom})`
+      }
+      container.scrollLeft = Math.max(0, newScrollX)
+      container.scrollTop = Math.max(0, newScrollY)
     }
-
-    performance.mark('annotation-touch-move-end')
-    performance.measure('Annotation Touch Move', 'annotation-touch-move-start', 'annotation-touch-move-end')
-  }, [calculateScrollLimits, calculateHorizontalLimit, applyTransform])
+  }, [])
 
   const handleTouchEnd = useCallback((e: TouchEvent) => {
     // Remove ended touches
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i]
       touchesRef.current.delete(touch.identifier)
-    }
-
-    // Clear single touch pan
-    if (e.touches.length === 0) {
-      singleTouchStartRef.current = null
     }
 
     // Reset pinch state when less than 2 touches remain
@@ -990,145 +889,46 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       }
       initialPinchDistanceRef.current = null
       initialPinchCenterRef.current = null
+      initialContentPointRef.current = null
     }
   }, [])
 
-  // Handle trackpad/mousepad pinch zoom and pan
+  // Handle trackpad pinch zoom (Ctrl+wheel) - regular scroll is handled by browser
   const handleWheel = useCallback((e: WheelEvent) => {
-    performance.mark('annotation-wheel-start')
-
-    // Trackpad pinch zoom comes through as wheel events with ctrlKey
+    // Only intercept Ctrl/Cmd+wheel for zoom - let browser handle regular scroll
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault()
-
-      if (!mainRef.current) return
 
       // Calculate zoom delta (negative deltaY means zoom in)
       const delta = -e.deltaY * 0.01
       const newZoom = Math.max(0.5, Math.min(2.5, zoomRef.current * (1 + delta)))
 
-      // Get natural (untransformed) position of main element
-      const currentTransform = mainRef.current.style.transform
-      mainRef.current.style.transform = 'none'
-      const mainRect = mainRef.current.getBoundingClientRect()
-      mainRef.current.style.transform = currentTransform
+      // Apply zoom with focal point at cursor position
+      applyZoom(newZoom, e.clientX, e.clientY)
 
-      // Zoom around cursor position, accounting for transform-origin: top center of main element
-      const originX = (mainRect.left + mainRect.right) / 2
-      const originY = mainRect.top
-
-      const mouseX = e.clientX
-      const mouseY = e.clientY
-      let newPanX = (mouseX - originX) * (1 / newZoom - 1 / zoomRef.current) + panXRef.current
-      let newPanY = (mouseY - originY) * (1 / newZoom - 1 / zoomRef.current) + panYRef.current
-
-      // Apply limits
-      newPanX = calculateHorizontalLimit(newPanX, newZoom)
-      newPanY = calculateScrollLimits(newPanY, newZoom)
-
-      // Apply transform directly (no React re-render during zoom)
-      applyTransform(newPanX, newPanY, newZoom)
-
-      // Update display state for child components (debounced via RAF)
+      // Update display state for child components
       setZoom(newZoom)
     }
-    // Trackpad two-finger pan / mousewheel scroll (no ctrl key)
-    else {
-      e.preventDefault()
+    // Let browser handle regular wheel scroll naturally
+  }, [applyZoom])
 
-      // Convert scroll to pan (deltaX and deltaY are in pixels)
-      // This handles both trackpad pan and regular mousewheel scroll
-      let newPanX = panXRef.current - e.deltaX / zoomRef.current
-      let newPanY = panYRef.current - e.deltaY / zoomRef.current
-
-      // Apply limits
-      newPanX = calculateHorizontalLimit(newPanX)
-      newPanY = calculateScrollLimits(newPanY)
-
-      applyTransform(newPanX, newPanY)
-    }
-
-    performance.mark('annotation-wheel-end')
-    performance.measure('Annotation Wheel', 'annotation-wheel-start', 'annotation-wheel-end')
-  }, [calculateScrollLimits, calculateHorizontalLimit, applyTransform])
-
-  // Handle middle mouse button drag for desktop
-  const handleMouseDown = useCallback((e: MouseEvent) => {
-    // Middle mouse button (button = 1)
-    if (e.button === 1) {
-      e.preventDefault()
-      middleMouseDragRef.current = {
-        x: e.clientX,
-        y: e.clientY,
-        panX: panXRef.current,
-        panY: panYRef.current
-      }
-      document.body.style.cursor = 'grabbing'
-    }
-  }, [])
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (middleMouseDragRef.current) {
-      performance.mark('annotation-mouse-move-start')
-
-      const deltaX = e.clientX - middleMouseDragRef.current.x
-      const deltaY = e.clientY - middleMouseDragRef.current.y
-      let newPanX = middleMouseDragRef.current.panX + deltaX / zoomRef.current
-      let newPanY = middleMouseDragRef.current.panY + deltaY / zoomRef.current
-
-      // Apply limits
-      newPanX = calculateHorizontalLimit(newPanX)
-      newPanY = calculateScrollLimits(newPanY)
-
-      applyTransform(newPanX, newPanY)
-
-      performance.mark('annotation-mouse-move-end')
-      performance.measure('Annotation Mouse Move', 'annotation-mouse-move-start', 'annotation-mouse-move-end')
-    }
-  }, [calculateScrollLimits, calculateHorizontalLimit, applyTransform])
-
-  const handleMouseUp = useCallback((e: MouseEvent) => {
-    if (middleMouseDragRef.current && e.button === 1) {
-      middleMouseDragRef.current = null
-      document.body.style.cursor = ''
-    }
-  }, [])
-
-  // Find and store reference to parent <main> element and initialize transform
+  // Find and store reference to parent <main> element, scroll container, and initialize transform
   useEffect(() => {
     if (!contentRef.current) return
 
     mainRef.current = contentRef.current.closest('main')
+    scrollContainerRef.current = document.getElementById('scroll-container')
+
     if (!mainRef.current) return
 
-    // Set transform properties once
-    mainRef.current.style.transformOrigin = 'top center'
+    // Set transform properties once - scale only, no translate (scroll handles panning)
+    mainRef.current.style.transformOrigin = 'top left'
     mainRef.current.style.transition = 'none'
-    mainRef.current.style.transform = `scale(${zoomRef.current}) translate(${panXRef.current}px, ${panYRef.current}px)`
+    mainRef.current.style.transform = `scale(${zoomRef.current})`
   }, [])
 
-  // Reposition on resize or sidebar change - reuses calculateHorizontalLimit for consistency
-  useEffect(() => {
-    const handleResize = () => {
-      // Delay to let CSS transitions complete (sidebar animation is ~300ms)
-      setTimeout(() => {
-        const newPanX = calculateHorizontalLimit(panXRef.current)
-        if (mainRef.current) {
-          panXRef.current = newPanX
-          mainRef.current.style.transform = `scale(${zoomRef.current}) translate(${newPanX}px, ${panYRef.current}px)`
-        }
-      }, 350)
-    }
 
-    // Reposition when sidebar changes or on initial mount
-    handleResize()
-
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [calculateHorizontalLimit, sidebarWidth])
-
-
-  // Set up event listeners on document to capture ALL events (sidebar, main, etc.)
+  // Set up event listeners for zoom gestures (scroll is handled natively by browser)
   useEffect(() => {
     // Touch events for touchscreen pinch zoom
     document.addEventListener('touchstart', handleTouchStart, { passive: false })
@@ -1136,13 +936,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     document.addEventListener('touchend', handleTouchEnd, { passive: false })
     document.addEventListener('touchcancel', handleTouchEnd, { passive: false })
 
-    // Wheel events for trackpad/mousepad pinch zoom
+    // Wheel events for trackpad pinch zoom (Ctrl+wheel only, regular scroll is passive)
     document.addEventListener('wheel', handleWheel, { passive: false })
-
-    // Mouse events for middle button drag
-    document.addEventListener('mousedown', handleMouseDown)
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
 
     return () => {
       document.removeEventListener('touchstart', handleTouchStart)
@@ -1150,11 +945,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       document.removeEventListener('touchend', handleTouchEnd)
       document.removeEventListener('touchcancel', handleTouchEnd)
       document.removeEventListener('wheel', handleWheel)
-      document.removeEventListener('mousedown', handleMouseDown)
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [handleTouchStart, handleTouchMove, handleTouchEnd, handleWheel, handleMouseDown, handleMouseMove, handleMouseUp])
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd, handleWheel])
 
   return (
     <>
