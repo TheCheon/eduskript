@@ -480,11 +480,14 @@ export function PublicSiteLayout({
         />
       )}
 
-      {/* Main content */}
-      <div className={`transition-all duration-300 overflow-visible ${
-        isSidebarCollapsed ? 'lg:ml-16' : 'lg:ml-80'
-      }`}>
-        <main className="p-6 lg:p-8 bg-background min-h-screen overflow-visible">
+      {/* Main content with scroll container */}
+      <div
+        id="scroll-container"
+        className={`transition-all duration-300 h-screen overflow-auto ${
+          isSidebarCollapsed ? 'lg:ml-16' : 'lg:ml-80'
+        }`}
+      >
+        <main className="p-6 lg:p-8 bg-background min-h-screen">
           {children}
         </main>
       </div>
