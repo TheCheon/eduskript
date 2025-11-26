@@ -705,8 +705,8 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
             position: 'absolute',
             top: 0,
             left: 0,
-            // Fixed width and height to match canvas internal dimensions
-            width: `${width}px`,
+            right: 0,
+            // Width determined by left:0 + right:0; height from prop
             height: `${height}px`,
             // Chrome fix: touchAction must be 'none' for pen input to work properly
             touchAction: 'none',

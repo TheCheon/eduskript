@@ -31,6 +31,7 @@ html,
 body {
   height: 100%;
   width: 100%;
+  overflow-x: hidden; /* Prevent horizontal scroll on body - scroll container handles it */
 }
 
 /* Highlight.js theme for light mode */
@@ -298,16 +299,16 @@ body {
  * Responsive paper container
  *
  * #paper is the canvas boundary - canvas always matches its bounds exactly.
- * Width is responsive, centered with mx-auto.
+ * Width is 100% of parent (respects main's padding for symmetric margins).
  * Combined padding (canvas boundary + text readability) all on #paper.
- *
- * On desktop (>=1024px): width = 100vw - sidebar_width
- * On mobile (<1024px): width = 100vw (sidebar overlays)
  */
 .paper-responsive {
   max-width: 1280px;
-  width: calc(100vw - var(--sidebar-width, 0px));
+  /* Don't set explicit width - let block element flow naturally */
+  box-sizing: border-box;
   position: relative;
+  /* Prevent content from causing horizontal overflow */
+  overflow-x: hidden;
 
   /* Combined horizontal padding: canvas boundary + text readability */
   /* 96px (p-24) + 96px (px-24) = 192px on large screens */

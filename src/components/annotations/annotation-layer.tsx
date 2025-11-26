@@ -13,6 +13,50 @@ import { useLayout } from '@/contexts/layout-context'
 import { SnapOverlay, type Snap } from './snap-overlay'
 import { SnapsDisplay } from './snaps-display'
 
+// DEBUG: Temporary component to show layout measurements
+function DebugOverlay({
+  viewportWidth,
+  viewportHeight,
+  paperWidth,
+  paperElement,
+  mainRef,
+  scrollContainerRef
+}: {
+  viewportWidth: number
+  viewportHeight: number
+  paperWidth: number
+  paperElement: HTMLElement | null
+  mainRef: React.RefObject<HTMLElement | null>
+  scrollContainerRef: React.RefObject<HTMLElement | null>
+}) {
+  const [tick, setTick] = useState(0)
+
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 500)
+    return () => clearInterval(interval)
+  }, [])
+
+  const paper = paperElement?.getBoundingClientRect()
+  const main = mainRef.current?.getBoundingClientRect()
+  const scroll = scrollContainerRef.current
+
+  return (
+    <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[99999] bg-red-900/95 text-white text-sm p-4 rounded-lg font-mono shadow-2xl border-4 border-yellow-400">
+      <div className="font-bold mb-2">Layout Debug (tick {tick})</div>
+      <div>viewport: {viewportWidth}x{viewportHeight}</div>
+      <div>window.innerWidth: {typeof window !== 'undefined' ? window.innerWidth : 'n/a'}px</div>
+      <div className="mt-1 text-cyan-300">paperWidth (state): {paperWidth}px</div>
+      <div className="text-cyan-300">paper (actual): {paper?.width.toFixed(0) ?? 'n/a'}px</div>
+      <div className="mt-1 text-green-300">main width: {main?.width.toFixed(0) ?? 'n/a'}px</div>
+      <div className="text-green-300">main left: {main?.left.toFixed(0) ?? 'n/a'}px</div>
+      <div className="mt-1 text-yellow-300">scroll clientWidth: {scroll?.clientWidth.toFixed(0) ?? 'n/a'}</div>
+      <div className="text-yellow-300">scroll scrollWidth: {scroll?.scrollWidth.toFixed(0) ?? 'n/a'}</div>
+      <div className="text-yellow-300">scrollLeft: {scroll?.scrollLeft.toFixed(0) ?? 0}</div>
+      <div className="mt-1 text-red-300">overflow: {scroll && scroll.scrollWidth > scroll.clientWidth ? `YES (+${(scroll.scrollWidth - scroll.clientWidth).toFixed(0)}px)` : 'no'}</div>
+    </div>
+  )
+}
+
 interface AnnotationLayerProps {
   pageId: string
   content: string
@@ -994,6 +1038,16 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         </div>
       )}
 
+      {/* DEBUG: Layout measurements */}
+      <DebugOverlay
+        viewportWidth={viewportWidth}
+        viewportHeight={viewportHeight}
+        paperWidth={paperWidth}
+        paperElement={paperElement}
+        mainRef={mainRef}
+        scrollContainerRef={scrollContainerRef}
+      />
+
       {/* Content wrapper */}
       <div ref={contentRef} style={{ position: 'relative' }}>
         {children}
@@ -1008,7 +1062,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
             left: 0,
             right: 0,
             bottom: 0,
-            width: `${paperWidth}px`,
+            // Width is determined by left:0 + right:0, not explicit value
             height: pageHeight,
             pointerEvents: mode === 'view' && !stylusModeActive ? 'none' : 'auto',
             zIndex: 10
