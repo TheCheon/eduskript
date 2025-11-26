@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { checkSkriptPermissions } from '@/lib/permissions'
+import { CACHE_TAGS } from '@/lib/cached-queries'
 
 export async function GET(
   request: NextRequest,
@@ -188,14 +189,19 @@ export async function PATCH(
     })
 
     if (user?.username) {
-      // Revalidate relevant paths for all collections this skript is in
+      // Invalidate cached data using tags
       for (const cs of existingSkript.collectionSkripts) {
         if (cs.collection) {
+          // Invalidate skript-level cache
+          revalidateTag(CACHE_TAGS.skriptBySlug(user.username, cs.collection.slug, updatedSkript.slug), 'default')
+          // Invalidate collection-level cache
+          revalidateTag(CACHE_TAGS.collectionBySlug(user.username, cs.collection.slug), 'default')
+          // Revalidate paths as fallback
           revalidatePath(`/${user.username}/${cs.collection.slug}/${updatedSkript.slug}`)
-          revalidatePath(`/${user.username}/${cs.collection.slug}`)
         }
       }
-      revalidatePath(`/${user.username}`)
+      // Invalidate teacher content cache (homepage, sidebar)
+      revalidateTag(CACHE_TAGS.teacherContent(user.username), 'default')
       revalidatePath('/dashboard')
     }
 
@@ -263,13 +269,15 @@ export async function DELETE(
     })
 
     if (user?.username) {
-      // Revalidate relevant paths for all collections this skript was in
+      // Invalidate cached data using tags
       for (const cs of existingSkript.collectionSkripts) {
         if (cs.collection) {
-          revalidatePath(`/${user.username}/${cs.collection.slug}`)
+          // Invalidate collection-level cache (skript was removed)
+          revalidateTag(CACHE_TAGS.collectionBySlug(user.username, cs.collection.slug), 'default')
         }
       }
-      revalidatePath(`/${user.username}`)
+      // Invalidate teacher content cache (homepage, sidebar)
+      revalidateTag(CACHE_TAGS.teacherContent(user.username), 'default')
       revalidatePath('/dashboard')
     }
 

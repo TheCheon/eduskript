@@ -6,10 +6,11 @@ import { prisma } from '@/lib/prisma'
 import { PublicSiteLayout } from '@/components/public/layout'
 import { getNavigationUrl } from '@/lib/utils'
 import { headers } from 'next/headers'
+import { getTeacherByUsernameDeduped, getPublishedCollection } from '@/lib/cached-queries'
 
-// Enable ISR with on-demand regeneration for previews
-export const revalidate = 0 // No caching for previews to show latest changes
-export const dynamic = 'force-dynamic' // Force dynamic rendering for auth checks
+// Enable ISR - pages are cached until explicitly invalidated
+export const revalidate = false
+export const dynamicParams = true
 
 interface CollectionPreviewProps {
   params: Promise<{

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { CACHE_TAGS } from '@/lib/cached-queries'
 
 export async function PATCH(
   request: NextRequest,
@@ -120,29 +121,31 @@ export async function PATCH(
       })
     }
 
-    // Revalidate the public page cache for all relevant paths
+    // Revalidate the public page cache using tags
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: { username: true }
     })
 
     if (user?.username) {
-      // Get the collection slug from the first collectionSkript relation
       const collectionSlug = existingPage.skript.collectionSkripts[0]?.collection?.slug
 
       if (collectionSlug) {
-        // Revalidate the specific page
+        // Invalidate cached data for this page
+        revalidateTag(CACHE_TAGS.pageBySlug(user.username, collectionSlug, existingPage.skript.slug, updatedPage.slug), 'default')
+
+        // Invalidate skript-level cache (navigation might need updating)
+        revalidateTag(CACHE_TAGS.skriptBySlug(user.username, collectionSlug, existingPage.skript.slug), 'default')
+
+        // Invalidate collection-level cache
+        revalidateTag(CACHE_TAGS.collectionBySlug(user.username, collectionSlug), 'default')
+
+        // Also revalidate paths for any non-cached renders
         revalidatePath(`/${user.username}/${collectionSlug}/${existingPage.skript.slug}/${updatedPage.slug}`)
-
-        // Revalidate the skript page (in case it lists pages)
-        revalidatePath(`/${user.username}/${collectionSlug}/${existingPage.skript.slug}`)
-
-        // Revalidate the collection page (in case it lists skripts/pages)
-        revalidatePath(`/${user.username}/${collectionSlug}`)
       }
 
-      // Revalidate the home page (in case it lists collections)
-      revalidatePath(`/${user.username}`)
+      // Invalidate teacher content cache (for full sidebar, homepage, etc.)
+      revalidateTag(CACHE_TAGS.teacherContent(user.username), 'default')
 
       // Revalidate dashboard pages
       revalidatePath('/dashboard')
