@@ -47,6 +47,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   const initialPinchDistanceRef = useRef<number | null>(null)
   const initialZoomRef = useRef(1.0)
   const initialPinchCenterRef = useRef<{ x: number; y: number } | null>(null)
+  // Store the content point under the initial pinch center (in unscaled content coordinates)
+  const initialContentPointRef = useRef<{ x: number; y: number } | null>(null)
   // Scroll container ref for zoom-scroll sync
   const scrollContainerRef = useRef<HTMLElement | null>(null)
   // Display-only zoom state (updated on gesture end, not during gesture)
@@ -699,11 +701,22 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       // Adjust scroll position to keep focal point stationary
       if (scrollContainerRef.current && focalX !== undefined && focalY !== undefined) {
         const container = scrollContainerRef.current
-        // Calculate new scroll position to maintain focal point
-        const scrollX = (focalX + container.scrollLeft) * (newZoom / oldZoom) - focalX
-        const scrollY = (focalY + container.scrollTop) * (newZoom / oldZoom) - focalY
-        container.scrollLeft = Math.max(0, scrollX)
-        container.scrollTop = Math.max(0, scrollY)
+        const containerRect = container.getBoundingClientRect()
+
+        // Convert client coordinates to container-relative coordinates
+        const relativeX = focalX - containerRect.left
+        const relativeY = focalY - containerRect.top
+
+        // Find the content point under the focal point (in unscaled coordinates)
+        const contentX = (relativeX + container.scrollLeft) / oldZoom
+        const contentY = (relativeY + container.scrollTop) / oldZoom
+
+        // Calculate new scroll so the same content point stays under the focal point
+        const newScrollX = contentX * newZoom - relativeX
+        const newScrollY = contentY * newZoom - relativeY
+
+        container.scrollLeft = Math.max(0, newScrollX)
+        container.scrollTop = Math.max(0, newScrollY)
       }
 
       rafIdRef.current = null
@@ -732,14 +745,28 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     if (e.touches.length === 2) {
       e.preventDefault() // Prevent browser zoom
 
+      const container = scrollContainerRef.current
+      if (!container) return
+
+      const containerRect = container.getBoundingClientRect()
       const touch1 = e.touches[0]
       const touch2 = e.touches[1]
       const distance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY)
       const centerX = (touch1.clientX + touch2.clientX) / 2
       const centerY = (touch1.clientY + touch2.clientY) / 2
 
+      // Convert pinch center to container-relative coordinates
+      const relativeX = centerX - containerRect.left
+      const relativeY = centerY - containerRect.top
+
+      // Calculate the content point under the initial pinch center (in unscaled coordinates)
+      // This point should stay under the fingers throughout the gesture
+      const contentX = (relativeX + container.scrollLeft) / zoomRef.current
+      const contentY = (relativeY + container.scrollTop) / zoomRef.current
+
       initialPinchDistanceRef.current = distance
       initialPinchCenterRef.current = { x: centerX, y: centerY }
+      initialContentPointRef.current = { x: contentX, y: contentY }
       initialZoomRef.current = zoomRef.current
     }
   }, [])
@@ -752,23 +779,41 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
 
     // Handle pinch zoom (2 fingers) - single-finger is handled by native scroll
-    if (e.touches.length === 2 && initialPinchDistanceRef.current !== null && initialPinchCenterRef.current !== null) {
+    if (e.touches.length === 2 && initialPinchDistanceRef.current !== null && initialContentPointRef.current !== null) {
       e.preventDefault() // Prevent browser zoom during pinch
 
+      const container = scrollContainerRef.current
+      if (!container) return
+
+      const containerRect = container.getBoundingClientRect()
       const touch1 = e.touches[0]
       const touch2 = e.touches[1]
       const currentDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY)
       const currentCenterX = (touch1.clientX + touch2.clientX) / 2
       const currentCenterY = (touch1.clientY + touch2.clientY) / 2
 
-      // Calculate zoom factor
+      // Calculate zoom factor relative to initial state
       const zoomFactor = currentDistance / initialPinchDistanceRef.current
       const newZoom = Math.max(0.5, Math.min(2.5, initialZoomRef.current * zoomFactor))
 
-      // Apply zoom with focal point at pinch center
-      applyZoom(newZoom, currentCenterX, currentCenterY)
+      // Convert current pinch center to container-relative coordinates
+      const relativeX = currentCenterX - containerRect.left
+      const relativeY = currentCenterY - containerRect.top
+
+      // Calculate scroll position to keep the initial content point under the current pinch center
+      // Formula: contentPoint * newZoom - relativePosition = newScroll
+      const newScrollX = initialContentPointRef.current.x * newZoom - relativeX
+      const newScrollY = initialContentPointRef.current.y * newZoom - relativeY
+
+      // Apply transform and scroll synchronously (no RAF) for smooth gesture handling
+      zoomRef.current = newZoom
+      if (mainRef.current) {
+        mainRef.current.style.transform = `scale(${newZoom})`
+      }
+      container.scrollLeft = Math.max(0, newScrollX)
+      container.scrollTop = Math.max(0, newScrollY)
     }
-  }, [applyZoom])
+  }, [])
 
   const handleTouchEnd = useCallback((e: TouchEvent) => {
     // Remove ended touches
@@ -785,6 +830,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       }
       initialPinchDistanceRef.current = null
       initialPinchCenterRef.current = null
+      initialContentPointRef.current = null
     }
   }, [])
 
