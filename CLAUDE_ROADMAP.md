@@ -11,19 +11,19 @@
 
 
 Editor:
-- [ ] editor is still flashing. your notes: ~~editor flashing in preview~~ → **Implemented**: CodeEditor wrapped in React.memo to prevent unnecessary re-renders
-- [ ] then the output appears anew, let's add it to the height of the editor rather than take up space of the editor. that's not very intuitive.
+- [ ] when output is long enough to scroll, scroll events on it should scroll the output. currently they still scroll the page thus making scrolling with e.g. trackpad gesture impossible. (maybe fixed by new scroll system)
 
 Migration stuff:
 - add the strong element from informatikgarten.ch
+- in the live preview, color_title 
 - **SQL** - port sql.js component to our editor. already done, just check again if it works
 - Implement long-press for pen/eraser toolbox (hover doesn't work on iPad). already done, just check again if it works well.
 
 consider going back to sqlite (cost & speed)
 - security implications? 
 - backup?
-- full text search implications
-- the main reason i now switched to postgres is because i thought we need a "real" database. but i notice now, maybe sqlite is better for the time being until we have many many customers. it's probably cheaper to run and easy to backup. let'
+- full text search implications, which we'll definitely need in the future!
+- the main reason i now switched to postgres is because i thought we need a "real" database. but i notice now, maybe sqlite is better for the time being until we have many many customers. it's probably cheaper to run and easy to backup.
 - lets consider pros and cons! remember we can still delete all data without worrying.
 
 

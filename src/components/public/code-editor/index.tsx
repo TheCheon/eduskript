@@ -146,7 +146,6 @@ export const CodeEditor = memo(function CodeEditor({
   const LINE_HEIGHT = 20 // approximate line height in pixels
   const MIN_EDITOR_HEIGHT = 200 // minimum height for the editor component
   const MAX_EDITOR_HEIGHT = 600 // maximum height before scrolling
-  const OUTPUT_PANEL_HEIGHT = 160 // approximate output panel height (min-h-32 + tabs)
 
   // Multi-file support
   const [files, setFiles] = useState<PythonFile[]>(defaultData.files)
@@ -165,13 +164,16 @@ export const CodeEditor = memo(function CodeEditor({
   const showGraphics = containerRef.current ? ((100 - editorWidth) / 100) * containerRef.current.offsetWidth >= MIN_VISIBLE_WIDTH : true
   const [canvasVisible, setCanvasVisible] = useState(false) // Start hidden, show only when graphics detected
 
-  // Calculate auto-height based on number of lines in the code
+  // Calculate auto-height based on number of lines in the code (editor area only, output adds separately)
   const lineCount = currentCode.split('\n').length
   const fileTabsHeight = singleFile ? 0 : 36 // height of file tabs row
   const calculatedEditorHeight = Math.max(
     MIN_EDITOR_HEIGHT,
-    Math.min(MAX_EDITOR_HEIGHT, lineCount * LINE_HEIGHT + fileTabsHeight + OUTPUT_PANEL_HEIGHT + 60) // 60px for controls
+    Math.min(MAX_EDITOR_HEIGHT, lineCount * LINE_HEIGHT + fileTabsHeight + 60) // 60px for controls
   )
+  // Output panel adds to total height when visible
+  const hasOutputVisible = output.length > 0 || activePanel === 'history'
+  const totalHeight = calculatedEditorHeight + (hasOutputVisible ? outputPanelHeight + 4 : 0) // +4 for horizontal splitter
 
   // Font size state
   const [fontSize, setFontSize] = useState<number>(defaultData.fontSize ?? 14)
@@ -743,23 +745,28 @@ export const CodeEditor = memo(function CodeEditor({
     if (!outputPanel) return
 
     const handleWheel = (e: WheelEvent) => {
-      // Only stop propagation if we're at the scroll boundary
       const { scrollTop, scrollHeight, clientHeight } = outputPanel
+      const isScrollable = scrollHeight > clientHeight
+
+      if (!isScrollable) return // Let page scroll if content doesn't need scrolling
+
       const isAtTop = scrollTop === 0 && e.deltaY < 0
       const isAtBottom = scrollTop + clientHeight >= scrollHeight && e.deltaY > 0
 
-      // Stop propagation unless we're at a boundary and trying to scroll further
+      // Prevent page scroll unless we're at a boundary trying to scroll further
       if (!isAtTop && !isAtBottom) {
+        e.preventDefault()
         e.stopPropagation()
       }
     }
 
-    outputPanel.addEventListener('wheel', handleWheel, { passive: true })
+    // Must use passive: false to allow preventDefault
+    outputPanel.addEventListener('wheel', handleWheel, { passive: false })
 
     return () => {
       outputPanel.removeEventListener('wheel', handleWheel)
     }
-  }, [])
+  }, [hasOutputVisible]) // Re-attach when panel visibility changes
 
   // Add output helper
   const addOutput = (message: string, level: OutputLevel = OutputLevel.OUTPUT) => {
@@ -1376,7 +1383,7 @@ plots
     <div
       ref={wrapperRef}
       className="flex flex-col w-full border rounded-lg overflow-hidden bg-background relative"
-      style={{ height: fullscreen ? '100vh' : `${manualHeight ?? calculatedEditorHeight}px` }}
+      style={{ height: fullscreen ? '100vh' : `${manualHeight ?? totalHeight}px` }}
     >
       {/* Main content area */}
       <div ref={containerRef} className="flex flex-1 overflow-hidden relative">
