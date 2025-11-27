@@ -171,9 +171,9 @@ export function ExcalidrawImage({ lightSrc, darkSrc, alt, filename, style, onWid
     : 'mx-auto'
 
   return (
-    <figure
+    <span
       ref={containerRef}
-      className={`excalidraw-wrapper relative my-4 group ${alignmentClasses}`}
+      className={`excalidraw-wrapper block relative my-4 group ${alignmentClasses}`}
       data-excalidraw={filename}
       style={currentWidth !== null ? { ...style, width: `${currentWidth}%` } : style}
     >
@@ -189,35 +189,35 @@ export function ExcalidrawImage({ lightSrc, darkSrc, alt, filename, style, onWid
         unoptimized
       />
       {caption && (
-        <figcaption className="mt-2 text-sm text-center text-muted-foreground italic">
+        <span className="block mt-2 text-sm text-center text-muted-foreground italic">
           {caption}
-        </figcaption>
+        </span>
       )}
 
       {/* Resize handle - only show if onWidthChange is provided (editor mode) */}
       {onWidthChange && (
         <>
-          <div
+          <span
             onMouseDown={handleMouseDown}
-            className={`absolute top-0 bottom-0 ${currentAlign === 'right' ? 'left-0' : 'right-0'} w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-primary/20 transition-all ${
+            className={`block absolute top-0 bottom-0 ${currentAlign === 'right' ? 'left-0' : 'right-0'} w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-primary/20 transition-all ${
               isDragging ? 'opacity-100 bg-primary/30' : ''
             }`}
           >
             {/* Visual indicator */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-8 bg-white dark:bg-black rounded-full transition-colors shadow-[0_0_0_2px_rgba(0,0,0,0.4)] dark:shadow-[0_0_0_2px_rgba(255,255,255,0.4)]" />
-          </div>
+            <span className="block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-8 bg-white dark:bg-black rounded-full transition-colors shadow-[0_0_0_2px_rgba(0,0,0,0.4)] dark:shadow-[0_0_0_2px_rgba(255,255,255,0.4)]" />
+          </span>
 
           {/* Width indicator - centered above image, shown on hover or when dragging */}
           {(isDragging || effectiveWidth < 100) && (
-            <div className={`absolute -top-8 left-1/2 -translate-x-1/2 bg-background/95 backdrop-blur border border-border/50 px-2 py-1 rounded text-[10px] font-mono text-foreground z-10 pointer-events-none transition-opacity ${
+            <span className={`block absolute -top-8 left-1/2 -translate-x-1/2 bg-background/95 backdrop-blur border border-border/50 px-2 py-1 rounded text-[10px] font-mono text-foreground z-10 pointer-events-none transition-opacity ${
               isDragging ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
             }`}>
               {Math.round(effectiveWidth)}%
-            </div>
+            </span>
           )}
 
           {/* Alignment and wrap controls */}
-          <div className="absolute top-2 right-2 bg-background/95 backdrop-blur border border-border/50 rounded opacity-0 group-hover:opacity-100 transition-opacity z-10 flex gap-0.5 p-0.5">
+          <span className="absolute top-2 right-2 bg-background/95 backdrop-blur border border-border/50 rounded opacity-0 group-hover:opacity-100 transition-opacity z-10 flex gap-0.5 p-0.5">
             <button
               onClick={() => handleAlignChange('left')}
               className={`p-1.5 rounded hover:bg-accent transition-colors ${
@@ -245,7 +245,7 @@ export function ExcalidrawImage({ lightSrc, darkSrc, alt, filename, style, onWid
             >
               <AlignRight className="w-3.5 h-3.5" />
             </button>
-            <div className="w-px bg-border mx-0.5" />
+            <span className="w-px bg-border mx-0.5" />
             <button
               onClick={handleWrapToggle}
               className={`p-1.5 rounded hover:bg-accent transition-colors ${
@@ -255,9 +255,9 @@ export function ExcalidrawImage({ lightSrc, darkSrc, alt, filename, style, onWid
             >
               <WrapText className="w-3.5 h-3.5" />
             </button>
-          </div>
+          </span>
         </>
       )}
-    </figure>
+    </span>
   )
 }

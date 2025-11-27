@@ -16,10 +16,12 @@ import { ExcalidrawImage } from './excalidraw-image'
 import { Heading } from './heading'
 import { MathBlock } from './math-block'
 import { CodeEditor } from '@/components/public/code-editor'
+import { MuxVideo } from './mux-video'
 import { remarkFileResolver } from '@/lib/remark-plugins/file-resolver'
 import { remarkImageAttributes } from '@/lib/remark-plugins/image-attributes'
 import { remarkCodeEditor } from '@/lib/remark-plugins/code-editor'
 import { remarkCallouts } from '@/lib/remark-plugins/callouts'
+import { remarkMuxVideo } from '@/lib/remark-plugins/mux-video'
 import { rehypeCodemirrorHighlight } from '@/lib/rehype-plugins/codemirror-highlight'
 import { rehypeSourceLine } from '@/lib/rehype-plugins/source-line'
 import { rehypeColorTitle } from '@/lib/rehype-plugins/color-title'
@@ -308,6 +310,33 @@ function decodeHtmlEntities(text: string): string {
   return result
 }
 
+function MuxVideoComponent({ ...props }: React.HTMLAttributes<HTMLElement> & Record<string, unknown>) {
+  const src = (props['src'] as string) || ''
+  const poster = (props['poster'] as string) || ''
+  const alt = (props['alt'] as string) || ''
+  const blurDataURL = (props['blurDataURL'] as string) || (props['blurdataurl'] as string) || ''
+  const aspectRatio = parseFloat((props['aspectRatio'] as string) || (props['aspectratio'] as string) || '') || 16 / 9
+
+  // Use span to avoid hydration errors (figure/div can't be nested in p tags)
+  return (
+    <span className="block my-6">
+      <MuxVideo
+        src={src}
+        poster={poster}
+        alt={alt}
+        blurDataURL={blurDataURL}
+        aspectRatio={aspectRatio}
+        className="w-full rounded-lg overflow-hidden"
+      />
+      {alt && !alt.includes('autoplay') && !alt.includes('loop') && (
+        <span className="block text-center text-sm text-muted-foreground mt-2">
+          {alt}
+        </span>
+      )}
+    </span>
+  )
+}
+
 // Icon mapping for callout types
 const calloutIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   note: FileText,
@@ -402,6 +431,7 @@ const rehypeReactComponents = {
   img: ImageComponent,
   blockquote: BlockquoteComponent,
   'code-editor': CodeEditorComponent,
+  'muxvideo': MuxVideoComponent,
   h1: (props: React.HTMLAttributes<HTMLHeadingElement>) => <Heading level={1} {...props} />,
   h2: (props: React.HTMLAttributes<HTMLHeadingElement>) => <Heading level={2} {...props} />,
   h3: (props: React.HTMLAttributes<HTMLHeadingElement>) => <Heading level={3} {...props} />,
@@ -443,6 +473,7 @@ export function MarkdownRenderer({ content, context, onContentChange }: Markdown
           .use(remarkParse)
           .use(remarkGfm)
           .use(remarkMath)
+          .use(remarkMuxVideo, { fileList: context?.fileList }) // Transform ![](video.mp4) to Mux player BEFORE file resolver
           .use(remarkFileResolver, { fileList: context?.fileList })
           .use(remarkImageAttributes)
           .use(remarkCodeEditor) // Convert code blocks with "editor" meta to interactive editors
