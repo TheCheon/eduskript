@@ -747,6 +747,10 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
   --callout-important-accent: #5fffe9;
   --callout-warning: #ff9100;
   --callout-warning-accent: #ffc87f;
+  --callout-idea: #ffea00;
+  --callout-idea-accent: #fff59d;
+  --callout-code: #69f0ae;
+  --callout-code-accent: #b9f6ca;
 }
 
 .dark {
@@ -777,6 +781,10 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
   --callout-warning-accent: #7f4800;
   --callout-discuss: #ffe357dd;
   --callout-discuss-accent: #ab983edd;
+  --callout-idea: #ffea00;
+  --callout-idea-accent: #7f7500;
+  --callout-code: #69f0ae;
+  --callout-code-accent: #347857;
 }
 
 .prose-theme blockquote.callout-foldable {
@@ -924,6 +932,21 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
 .prose-theme blockquote.callout-discuss .callout-title {
   background-color: var(--callout-discuss-accent) !important;
 }
+
+.prose-theme blockquote.callout-idea {
+  border-left: 6px solid var(--callout-idea) !important;
+}
+.prose-theme blockquote.callout-idea .callout-title {
+  background-color: var(--callout-idea-accent) !important;
+}
+
+.prose-theme blockquote.callout-code {
+  border-left: 6px solid var(--callout-code) !important;
+}
+.prose-theme blockquote.callout-code .callout-title {
+  background-color: var(--callout-code-accent) !important;
+}
+
 /* ===== Typography Styles ===== */
 /* Modern typography (Roboto Slab + Barlow Condensed) */
 [data-typography="modern"] .prose-theme,

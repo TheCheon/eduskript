@@ -38,6 +38,8 @@ export const calloutTypes: Record<string, string> = {
   quote: 'quote',
   solution: 'solution',
   discuss: 'discuss',
+  idea: 'idea',
+  code: 'code',
 }
 
 // match breaks

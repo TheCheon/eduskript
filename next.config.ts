@@ -2,6 +2,12 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // Allow larger body sizes for import API (default is 10MB)
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '500mb',
+    },
+  },
   // Configure server external packages for Prisma
   // These packages contain native bindings and must not be bundled
   serverExternalPackages: [

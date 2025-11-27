@@ -16,7 +16,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { GripVertical, Trash2, Eye, Edit } from 'lucide-react'
+import { GripVertical, Trash2, Eye, Edit, Globe, ExternalLink, Loader2 } from 'lucide-react'
 
 interface Skript {
   id: string
@@ -52,6 +52,7 @@ interface SortableSkriptItemProps {
   onSkriptUpdated: () => void
   onSkriptDeleted: () => void
   canEdit?: boolean
+  username?: string
 }
 
 function SortableSkriptItem({
@@ -61,13 +62,44 @@ function SortableSkriptItem({
   onSkriptUpdated,
   onSkriptDeleted,
   canEdit = true,
-  currentUserId
+  currentUserId,
+  username
 }: SortableSkriptItemProps & { currentUserId?: string }) {
   // Check if current user can edit this specific skript
   const canEditSkript = canEdit && (!skript.authors || skript.authors.length === 0 ||
     skript.authors.some(a => a.userId === currentUserId && a.permission === 'author'))
   const isViewOnly = !canEditSkript
   const alert = useAlertDialog()
+  const [isPublishingAll, setIsPublishingAll] = useState(false)
+
+  const handlePublishAll = async () => {
+    setIsPublishingAll(true)
+    try {
+      const response = await fetch(`/api/skripts/${skript.id}/publish-all`, {
+        method: 'POST'
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        alert.showSuccess(`Published skript and ${result.pagesPublished} pages`)
+        onSkriptUpdated()
+      } else {
+        alert.showError('Failed to publish')
+      }
+    } catch (error) {
+      console.error('Error publishing all:', error)
+      alert.showError('Failed to publish')
+    } finally {
+      setIsPublishingAll(false)
+    }
+  }
+
+  const handlePreview = () => {
+    if (username && skript.pages.length > 0) {
+      const firstPage = skript.pages.sort((a, b) => a.order - b.order)[0]
+      window.open(`/${username}/${collectionSlug}/${skript.slug}/${firstPage.slug}`, '_blank')
+    }
+  }
 
   const handleDeleteSkript = async () => {
     if (!confirm(`Are you sure you want to delete the skript "${skript.title}"? This will also delete all pages in this skript.`)) {
@@ -140,6 +172,47 @@ function SortableSkriptItem({
             <div className="flex gap-2 items-center">
               {canEditSkript && (
                 <>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handlePublishAll}
+                          disabled={isPublishingAll}
+                          className="text-green-600 border-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+                        >
+                          {isPublishingAll ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Globe className="w-4 h-4" />
+                          )}
+                          <span className="ml-1.5">Publish All</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Publish skript and all pages</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  {username && skript.pages.length > 0 && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handlePreview}
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Preview skript</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                   <PublishToggle
                     type="skript"
                     itemId={skript.id}
@@ -221,13 +294,44 @@ function StaticSkriptItem({
   onSkriptUpdated,
   onSkriptDeleted,
   canEdit = true,
-  currentUserId
+  currentUserId,
+  username
 }: SortableSkriptItemProps & { currentUserId?: string }) {
   // Check if current user can edit this specific skript
   const canEditSkript = canEdit && (!skript.authors || skript.authors.length === 0 ||
     skript.authors.some(a => a.userId === currentUserId && a.permission === 'author'))
   const isViewOnly = !canEditSkript
   const alert = useAlertDialog()
+  const [isPublishingAll, setIsPublishingAll] = useState(false)
+
+  const handlePublishAll = async () => {
+    setIsPublishingAll(true)
+    try {
+      const response = await fetch(`/api/skripts/${skript.id}/publish-all`, {
+        method: 'POST'
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        alert.showSuccess(`Published skript and ${result.pagesPublished} pages`)
+        onSkriptUpdated()
+      } else {
+        alert.showError('Failed to publish')
+      }
+    } catch (error) {
+      console.error('Error publishing all:', error)
+      alert.showError('Failed to publish')
+    } finally {
+      setIsPublishingAll(false)
+    }
+  }
+
+  const handlePreview = () => {
+    if (username && skript.pages.length > 0) {
+      const firstPage = skript.pages.sort((a, b) => a.order - b.order)[0]
+      window.open(`/${username}/${collectionSlug}/${skript.slug}/${firstPage.slug}`, '_blank')
+    }
+  }
 
   const handleDeleteSkript = async () => {
     if (!confirm(`Are you sure you want to delete the skript "${skript.title}"? This will also delete all pages in this skript.`)) {
@@ -287,6 +391,47 @@ function StaticSkriptItem({
         <div className="flex gap-2 items-center">
           {canEditSkript && (
             <>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handlePublishAll}
+                      disabled={isPublishingAll}
+                      className="text-green-600 border-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+                    >
+                      {isPublishingAll ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Globe className="w-4 h-4" />
+                      )}
+                      <span className="ml-1.5">Publish All</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Publish skript and all pages</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              {username && skript.pages.length > 0 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handlePreview}
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Preview skript</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               <PublishToggle
                 type="skript"
                 itemId={skript.id}
@@ -330,7 +475,7 @@ function StaticSkriptItem({
           )}
         </div>
       </div>
-      
+
       {/* Pages list */}
       {skript.pages.length > 0 && (
         <div className="border-t bg-muted/50">
@@ -368,6 +513,7 @@ interface SortableSkriptsProps {
   onSkriptDeleted?: () => void
   canEdit?: boolean
   currentUserId?: string
+  username?: string
 }
 
 export function SortableSkripts({
@@ -378,7 +524,8 @@ export function SortableSkripts({
   onSkriptUpdated,
   onSkriptDeleted,
   canEdit = true,
-  currentUserId
+  currentUserId,
+  username
 }: SortableSkriptsProps) {
   const [items, setItems] = useState(skripts)
   const [isReordering, setIsReordering] = useState(false)
@@ -465,6 +612,7 @@ export function SortableSkripts({
                     onSkriptDeleted={onSkriptDeleted || onReorder}
                     canEdit={canEdit}
                     currentUserId={currentUserId}
+                    username={username}
                   />
                 ))}
                 {provided.placeholder}
@@ -485,6 +633,7 @@ export function SortableSkripts({
               onSkriptDeleted={onSkriptDeleted || onReorder}
               canEdit={canEdit}
               currentUserId={currentUserId}
+              username={username}
             />
           ))}
         </div>
@@ -501,6 +650,7 @@ export function SortableSkripts({
               onSkriptDeleted={onSkriptDeleted || onReorder}
               canEdit={canEdit}
               currentUserId={currentUserId}
+              username={username}
             />
           ))}
         </div>

@@ -16,6 +16,7 @@ import { UserPermissions, CollectionWithAuthors } from '@/types'
 
 interface CollectionEditorProps {
   currentUserId: string
+  username: string
   collection: {
     id: string
     title: string
@@ -57,7 +58,7 @@ interface CollectionEditorProps {
   userPermissions: UserPermissions
 }
 
-export function CollectionEditor({ collection, userPermissions, currentUserId }: CollectionEditorProps) {
+export function CollectionEditor({ collection, userPermissions, currentUserId, username }: CollectionEditorProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [isPublished, setIsPublished] = useState(collection.isPublished)
   const router = useRouter()
@@ -265,6 +266,7 @@ export function CollectionEditor({ collection, userPermissions, currentUserId }:
               onSkriptDeleted={handleSkriptCreated}
               canEdit={userPermissions.canEdit}
               currentUserId={currentUserId}
+              username={username}
             />
           ) : (
             <div className="text-center py-8">
