@@ -20,7 +20,12 @@ const SCALEWAY_IMPORT_BUCKET = process.env.SCW_IMPORT_BUCKET
 const SCALEWAY_ACCESS_KEY = process.env.SCALEWAY_ACCESS_KEY_ID || process.env.SCW_ACCESS_KEY
 const SCALEWAY_SECRET_KEY = process.env.SCALEWAY_SECRET_ACCESS_KEY || process.env.SCW_SECRET_KEY
 
-// Check if S3 is configured (for snaps/file storage)
+// Check if S3 credentials are configured (needed for any S3 operation)
+function hasS3Credentials(): boolean {
+  return !!(SCALEWAY_ACCESS_KEY && SCALEWAY_SECRET_KEY)
+}
+
+// Check if S3 is configured (for snaps/file storage - requires main bucket)
 export function isS3Configured(): boolean {
   return !!(SCALEWAY_ACCESS_KEY && SCALEWAY_SECRET_KEY && SCALEWAY_BUCKET)
 }
@@ -40,8 +45,8 @@ let s3Client: S3Client | null = null
 
 function getS3Client(): S3Client {
   if (!s3Client) {
-    if (!isS3Configured()) {
-      throw new Error('Scaleway S3 credentials not configured. Set SCALEWAY_ACCESS_KEY_ID and SCALEWAY_SECRET_ACCESS_KEY.')
+    if (!hasS3Credentials()) {
+      throw new Error(`S3 credentials not configured. Set SCW_ACCESS_KEY and SCW_SECRET_KEY. Got ACCESS_KEY=${!!SCALEWAY_ACCESS_KEY}, SECRET_KEY=${!!SCALEWAY_SECRET_KEY}`)
     }
 
     s3Client = new S3Client({

@@ -101,8 +101,9 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     console.error('[import/prepare] Error:', error)
+    const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json(
-      { error: 'Failed to prepare import' },
+      { error: `Failed to prepare import: ${message}` },
       { status: 500 }
     )
   }
