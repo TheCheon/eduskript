@@ -22,16 +22,10 @@ export const authOptions: NextAuthOptions = {
           try {
             // Try to get from the global signup type tracker
             const accountType = (global as any).__nextauth_signup_type
-            console.log('[Auth] isStudentSignup check:', {
-              email,
-              accountType,
-              isStudent: accountType === 'student'
-            })
             // Clean up after use
             delete (global as any).__nextauth_signup_type
             return accountType === 'student'
-          } catch (error) {
-            console.log('[Auth] Error checking signup type:', error)
+          } catch {
             return false
           }
         },

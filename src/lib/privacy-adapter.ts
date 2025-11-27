@@ -33,12 +33,6 @@ export function PrivacyAdapter(options: PrivacyAdapterOptions): Adapter {
     // Override linkAccount to capture OAuth info for students
     // @ts-ignore - Type mismatch between next-auth and @auth/prisma-adapter versions
     async linkAccount(account: any) {
-      console.log('[PrivacyAdapter] Linking account:', {
-        provider: account.provider,
-        providerAccountId: account.providerAccountId,
-        userId: account.userId
-      })
-
       // Call base adapter to create Account record
       if (baseAdapter.linkAccount) {
         const result = await baseAdapter.linkAccount(account as any)
@@ -59,8 +53,6 @@ export function PrivacyAdapter(options: PrivacyAdapterOptions): Adapter {
               // DON'T overwrite studentPseudonym - it's email-based for teacher matching
             }
           })
-
-          console.log('[PrivacyAdapter] Updated student with OAuth provider info')
         }
 
         return result
@@ -72,11 +64,6 @@ export function PrivacyAdapter(options: PrivacyAdapterOptions): Adapter {
     async createUser(user: Omit<AdapterUser, 'id'>) {
       // Check if this is a student signup
       const isStudent = await isStudentSignup(user.email, user)
-
-      console.log('[PrivacyAdapter] Creating user:', {
-        email: isStudent ? '[REDACTED - STUDENT]' : user.email,
-        isStudent
-      })
 
       if (isStudent) {
         // CRITICAL: For students, NEVER store email
@@ -101,30 +88,14 @@ export function PrivacyAdapter(options: PrivacyAdapterOptions): Adapter {
               // (Prisma will set them to null automatically)
             },
           })
-
-          console.log('[PrivacyAdapter] Created student user without email storage:', createdUser.id)
         } catch (error: any) {
-          console.error('[PrivacyAdapter] Error creating student user:', error)
-          console.error('[PrivacyAdapter] Error message:', error.message)
-          console.error('[PrivacyAdapter] Error stack:', error.stack)
-          if (error.meta) console.error('[PrivacyAdapter] Error meta:', error.meta)
+          console.error('[PrivacyAdapter] Error creating student user:', error.message)
           throw error
         }
 
         // Note: PreAuthorizedStudent records are NOT auto-enrolled
         // Student will see them as join requests in their My Classes page
         // This allows them to choose whether to consent to identity reveal
-        if (user.email) {
-          const pseudonym = generatePseudonym(user.email)
-
-          const preAuthCount = await prisma.preAuthorizedStudent.count({
-            where: { pseudonym }
-          })
-
-          if (preAuthCount > 0) {
-            console.log('[PrivacyAdapter] Student has', preAuthCount, 'pending class invitation(s) - will appear in My Classes')
-          }
-        }
 
         return {
           id: createdUser.id,
