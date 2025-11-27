@@ -2,10 +2,13 @@ import { notFound } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { SkriptRedirect } from '@/components/SkriptRedirect'
+import { PublicSiteLayout } from '@/components/public/layout'
+import { MarkdownRenderer } from '@/components/markdown/markdown-renderer'
 import { headers } from 'next/headers'
-import { getTeacherByUsernameDeduped } from '@/lib/cached-queries'
+import { getTeacherByUsernameDeduped, getAllPublishedCollections } from '@/lib/cached-queries'
 
 // Enable ISR - pages are cached until explicitly invalidated
 export const revalidate = false
@@ -206,8 +209,92 @@ export default async function SkriptPreviewPage({ params }: SkriptPreviewProps) 
       notFound()
     }
 
-    // Find the first available page to redirect to
-    const firstPage = skript.pages.find((page: CollectionPage) => 
+    // Check for published frontpage
+    const frontPage = await prisma.frontPage.findFirst({
+      where: {
+        skriptId: skript.id,
+        isPublished: true
+      }
+    })
+
+    // If there's a published frontpage, show it
+    if (frontPage?.content) {
+      // Get all published collections for sidebar
+      const rawCollections = await getAllPublishedCollections(teacher.id, domain)
+
+      // Transform to SiteStructure format
+      const collections = rawCollections.map(c => ({
+        id: c.id,
+        title: c.title,
+        slug: c.slug,
+        skripts: c.collectionSkripts.map(cs => ({
+          id: cs.skript.id,
+          title: cs.skript.title,
+          slug: cs.skript.slug,
+          pages: cs.skript.pages
+        }))
+      }))
+
+      // Get teacher's preferences
+      const teacherPrefs = await prisma.user.findUnique({
+        where: { id: teacher.id },
+        select: { sidebarBehavior: true, typographyPreference: true }
+      })
+
+      const teacherData = {
+        name: teacher.name || 'Teacher',
+        username: teacher.username || '',
+        bio: teacher.bio || undefined,
+        title: teacher.title || undefined
+      }
+
+      // Get available pages for navigation
+      const availablePages = skript.pages.filter((page: CollectionPage) =>
+        isAuthor || page.isPublished
+      )
+
+      return (
+        <PublicSiteLayout
+          teacher={teacherData}
+          siteStructure={collections}
+          rootSkripts={[]}
+          sidebarBehavior={teacherPrefs?.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
+          typographyPreference={teacherPrefs?.typographyPreference as 'modern' | 'classic' || 'modern'}
+        >
+          <div className="prose-theme max-w-4xl mx-auto">
+            {/* Frontpage content */}
+            <MarkdownRenderer
+              content={frontPage.content}
+              context={{ domain, skriptId: skript.id }}
+            />
+
+            {/* Pages navigation */}
+            {availablePages.length > 0 && (
+              <div className="mt-12 pt-8 border-t border-border">
+                <h2 className="text-2xl font-semibold mb-6">Pages in this skript</h2>
+                <div className="grid gap-3">
+                  {availablePages.map((page: CollectionPage, index: number) => (
+                    <Link
+                      key={page.id}
+                      href={`/${domain}/${collectionSlug}/${skriptSlug}/${page.slug}`}
+                      className="flex items-center gap-4 p-4 bg-card border border-border rounded-lg hover:bg-accent transition-colors"
+                    >
+                      <span className="text-muted-foreground font-mono text-sm w-8">
+                        {String(index + 1).padStart(2, '0')}
+                      </span>
+                      <span className="font-medium">{page.title}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </PublicSiteLayout>
+      )
+    }
+
+    // No frontpage - redirect to first available page
+    const firstPage = skript.pages.find((page: CollectionPage) =>
       isAuthor || page.isPublished
     )
 

@@ -1,11 +1,13 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { PublicSiteLayout } from '@/components/public/layout'
+import { MarkdownRenderer } from '@/components/markdown/markdown-renderer'
 import {
   getTeacherByUsernameDeduped,
   getTeacherWithLayout,
   getTeacherHomepageContent,
 } from '@/lib/cached-queries'
+import { prisma } from '@/lib/prisma'
 
 // Enable ISR - pages are cached until explicitly invalidated
 export const revalidate = false
@@ -76,6 +78,14 @@ export default async function DomainIndex({ params }: DomainIndexProps) {
     notFound()
   }
 
+  // Check for published frontpage
+  const frontPage = await prisma.frontPage.findFirst({
+    where: {
+      userId: teacher.id,
+      isPublished: true
+    }
+  })
+
   // Get page layout items
   const pageItems = teacher.pageLayout?.items || []
 
@@ -103,72 +113,83 @@ export default async function DomainIndex({ params }: DomainIndexProps) {
       sidebarBehavior={teacher.sidebarBehavior as 'contextual' | 'full' || 'contextual'}
       typographyPreference={teacher.typographyPreference as 'modern' | 'classic' || 'modern'}
     >
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center py-12">
-          <h1 className="text-4xl font-bold text-foreground mb-4">
-            Welcome to {teacher.name}&apos;s Educational Platform
-          </h1>
-
-          {teacher.bio && (
-            <p className="text-lg text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto">
-              {teacher.bio}
-            </p>
-          )}
-
-          {pageItems.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500 dark:text-gray-400">
-                This teacher hasn&apos;t organized their page yet.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-8 mt-12">
-              {/* Render collections */}
-              {collections.map((collection) => (
-                <div key={collection.id} className="bg-card border border-border rounded-lg shadow-md p-6">
-                  <h2 className="text-2xl font-semibold text-foreground mb-3">
-                    {collection.title}
-                  </h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    {collection.skripts.map((skript) => (
-                      <div key={skript.id} className="bg-muted p-4 rounded-lg">
-                        <h4 className="font-medium text-foreground">{skript.title}</h4>
-                        <div className="text-xs text-muted-foreground mt-2">
-                          {skript.pages.length} pages
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-
-              {/* Render root-level skripts */}
-              {rootSkripts.map((skript) => (
-                <div key={skript.id} className="bg-card border border-border rounded-lg shadow-md p-6">
-                  <h2 className="text-2xl font-semibold text-foreground mb-3">
-                    {skript.title}
-                  </h2>
-                  {skript.description && (
-                    <p className="text-gray-600 dark:text-gray-400 mb-4">
-                      {skript.description}
-                    </p>
-                  )}
-                  <div className="text-sm text-gray-500 dark:text-gray-500 mb-4">
-                    From collection: {skript.collection.title} • {skript.pages.length} pages
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {skript.pages.map((page) => (
-                      <div key={page.id} className="bg-muted p-3 rounded-lg">
-                        <h4 className="font-medium text-sm text-foreground">{page.title}</h4>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+      {/* If there's a published frontpage, show it */}
+      {frontPage?.content ? (
+        <div className="prose-theme max-w-4xl mx-auto">
+          <MarkdownRenderer
+            content={frontPage.content}
+            context={{ domain }}
+          />
         </div>
-      </div>
+      ) : (
+        // Otherwise show the default homepage content
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center py-12">
+            <h1 className="text-4xl font-bold text-foreground mb-4">
+              Welcome to {teacher.name}&apos;s Educational Platform
+            </h1>
+
+            {teacher.bio && (
+              <p className="text-lg text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto">
+                {teacher.bio}
+              </p>
+            )}
+
+            {pageItems.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500 dark:text-gray-400">
+                  This teacher hasn&apos;t organized their page yet.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-8 mt-12">
+                {/* Render collections */}
+                {collections.map((collection) => (
+                  <div key={collection.id} className="bg-card border border-border rounded-lg shadow-md p-6">
+                    <h2 className="text-2xl font-semibold text-foreground mb-3">
+                      {collection.title}
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      {collection.skripts.map((skript) => (
+                        <div key={skript.id} className="bg-muted p-4 rounded-lg">
+                          <h4 className="font-medium text-foreground">{skript.title}</h4>
+                          <div className="text-xs text-muted-foreground mt-2">
+                            {skript.pages.length} pages
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Render root-level skripts */}
+                {rootSkripts.map((skript) => (
+                  <div key={skript.id} className="bg-card border border-border rounded-lg shadow-md p-6">
+                    <h2 className="text-2xl font-semibold text-foreground mb-3">
+                      {skript.title}
+                    </h2>
+                    {skript.description && (
+                      <p className="text-gray-600 dark:text-gray-400 mb-4">
+                        {skript.description}
+                      </p>
+                    )}
+                    <div className="text-sm text-gray-500 dark:text-gray-500 mb-4">
+                      From collection: {skript.collection.title} • {skript.pages.length} pages
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {skript.pages.map((page) => (
+                        <div key={page.id} className="bg-muted p-3 rounded-lg">
+                          <h4 className="font-medium text-sm text-foreground">{page.title}</h4>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </PublicSiteLayout>
   )
 }
