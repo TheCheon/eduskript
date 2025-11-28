@@ -44,12 +44,15 @@ CREATE TABLE "users" (
     "hashedPassword" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "subdomain" TEXT,
-    "webpageDescription" TEXT,
+    "pageSlug" TEXT,
+    "pageName" TEXT,
+    "pageDescription" TEXT,
+    "pageIcon" TEXT,
     "bio" TEXT,
     "title" TEXT,
     "themePreference" TEXT DEFAULT 'system',
     "sidebarBehavior" TEXT DEFAULT 'contextual',
+    "typographyPreference" TEXT DEFAULT 'modern',
     "isAdmin" BOOLEAN NOT NULL DEFAULT false,
     "requirePasswordReset" BOOLEAN NOT NULL DEFAULT false,
     "accountType" TEXT NOT NULL DEFAULT 'teacher',
@@ -60,18 +63,6 @@ CREATE TABLE "users" (
     "oauthProviderId" TEXT,
 
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "custom_domains" (
-    "id" TEXT NOT NULL,
-    "domain" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "isActive" BOOLEAN NOT NULL DEFAULT false,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "custom_domains_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -311,6 +302,66 @@ CREATE TABLE "identity_reveal_requests" (
     CONSTRAINT "identity_reveal_requests_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "user_data" (
+    "id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "adapter" TEXT NOT NULL,
+    "item_id" TEXT NOT NULL,
+    "data" JSONB NOT NULL,
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "user_data_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "front_pages" (
+    "id" TEXT NOT NULL,
+    "content" TEXT NOT NULL DEFAULT '',
+    "is_published" BOOLEAN NOT NULL DEFAULT false,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "user_id" TEXT,
+    "skript_id" TEXT,
+
+    CONSTRAINT "front_pages_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "front_page_versions" (
+    "id" TEXT NOT NULL,
+    "content" TEXT NOT NULL,
+    "version" INTEGER NOT NULL,
+    "change_log" TEXT,
+    "author_id" TEXT NOT NULL,
+    "front_page_id" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "front_page_versions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "import_jobs" (
+    "id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'pending',
+    "progress" INTEGER NOT NULL DEFAULT 0,
+    "message" TEXT,
+    "s3_key" TEXT,
+    "file_name" TEXT,
+    "file_size" BIGINT,
+    "result" JSONB,
+    "error" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "completed_at" TIMESTAMP(3),
+
+    CONSTRAINT "import_jobs_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "accounts_provider_providerAccountId_key" ON "accounts"("provider", "providerAccountId");
 
@@ -327,16 +378,13 @@ CREATE UNIQUE INDEX "verificationtokens_identifier_token_key" ON "verificationto
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "users_subdomain_key" ON "users"("subdomain");
+CREATE UNIQUE INDEX "users_pageSlug_key" ON "users"("pageSlug");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "users_studentPseudonym_key" ON "users"("studentPseudonym");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "users_oauthProvider_oauthProviderId_key" ON "users"("oauthProvider", "oauthProviderId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "custom_domains_domain_key" ON "custom_domains"("domain");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "collections_slug_key" ON "collections"("slug");
@@ -443,14 +491,41 @@ CREATE INDEX "identity_reveal_requests_teacher_id_idx" ON "identity_reveal_reque
 -- CreateIndex
 CREATE UNIQUE INDEX "identity_reveal_requests_class_id_student_id_email_key" ON "identity_reveal_requests"("class_id", "student_id", "email");
 
+-- CreateIndex
+CREATE INDEX "user_data_user_id_idx" ON "user_data"("user_id");
+
+-- CreateIndex
+CREATE INDEX "user_data_user_id_adapter_idx" ON "user_data"("user_id", "adapter");
+
+-- CreateIndex
+CREATE INDEX "user_data_updated_at_idx" ON "user_data"("updated_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "user_data_user_id_adapter_item_id_key" ON "user_data"("user_id", "adapter", "item_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "front_pages_user_id_key" ON "front_pages"("user_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "front_pages_skript_id_key" ON "front_pages"("skript_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "front_page_versions_front_page_id_version_key" ON "front_page_versions"("front_page_id", "version");
+
+-- CreateIndex
+CREATE INDEX "import_jobs_user_id_idx" ON "import_jobs"("user_id");
+
+-- CreateIndex
+CREATE INDEX "import_jobs_user_id_status_idx" ON "import_jobs"("user_id", "status");
+
+-- CreateIndex
+CREATE INDEX "import_jobs_status_idx" ON "import_jobs"("status");
+
 -- AddForeignKey
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "custom_domains" ADD CONSTRAINT "custom_domains_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "collection_authors" ADD CONSTRAINT "collection_authors_collectionId_fkey" FOREIGN KEY ("collectionId") REFERENCES "collections"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -547,3 +622,21 @@ ALTER TABLE "identity_reveal_requests" ADD CONSTRAINT "identity_reveal_requests_
 
 -- AddForeignKey
 ALTER TABLE "identity_reveal_requests" ADD CONSTRAINT "identity_reveal_requests_student_id_fkey" FOREIGN KEY ("student_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_data" ADD CONSTRAINT "user_data_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "front_pages" ADD CONSTRAINT "front_pages_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "front_pages" ADD CONSTRAINT "front_pages_skript_id_fkey" FOREIGN KEY ("skript_id") REFERENCES "skripts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "front_page_versions" ADD CONSTRAINT "front_page_versions_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "front_page_versions" ADD CONSTRAINT "front_page_versions_front_page_id_fkey" FOREIGN KEY ("front_page_id") REFERENCES "front_pages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "import_jobs" ADD CONSTRAINT "import_jobs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
