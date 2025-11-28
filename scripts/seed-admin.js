@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -26,7 +27,10 @@ async function main() {
   }
 
   console.log('Creating admin user...')
-  const hashedPassword = await bcrypt.hash('letseducate', 12)
+
+  // Generate a random password (16 chars, alphanumeric)
+  const randomPassword = crypto.randomBytes(12).toString('base64').slice(0, 16)
+  const hashedPassword = await bcrypt.hash(randomPassword, 12)
 
   await prisma.user.create({
     data: {
@@ -40,7 +44,11 @@ async function main() {
     }
   })
 
-  console.log('✅ Admin user created: eduadmin@eduskript.org / letseducate')
+  console.log('========================================')
+  console.log('✅ Admin user created!')
+  console.log('   Email:    eduadmin@eduskript.org')
+  console.log(`   Password: ${randomPassword}`)
+  console.log('========================================')
   console.log('⚠️  User must reset password on first login')
 }
 
