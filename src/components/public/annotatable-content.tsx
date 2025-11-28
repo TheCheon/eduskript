@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { AnnotationLayer } from '@/components/annotations/annotation-layer'
 import { MarkdownRenderer } from '@/components/markdown/markdown-renderer'
 
@@ -11,14 +11,22 @@ interface AnnotatableContentProps {
   skriptId?: string
 }
 
-export function AnnotatableContent({ pageId, content, domain, skriptId }: AnnotatableContentProps) {
-  const [fileList, setFileList] = useState<Array<{ id: string, name: string, url?: string, isDirectory?: boolean }>>([])
-  const [isLoadingFiles, setIsLoadingFiles] = useState(!!skriptId)
+// Module-level cache for file lists to avoid refetching on navigation
+const fileListCache = new Map<string, Array<{ id: string, name: string, url?: string, isDirectory?: boolean }>>()
 
-  // Fetch files for this skript if skriptId is provided
+export function AnnotatableContent({ pageId, content, domain, skriptId }: AnnotatableContentProps) {
+  // Initialize with cached data if available (this runs synchronously before render)
+  const [fileList, setFileList] = useState<Array<{ id: string, name: string, url?: string, isDirectory?: boolean }>>(
+    () => (skriptId ? fileListCache.get(skriptId) : undefined) || []
+  )
+  const fetchedRef = useRef<string | null>(null)
+
+  // Fetch files for this skript if skriptId is provided (in background, don't block render)
   useEffect(() => {
-    if (!skriptId) {
-      setIsLoadingFiles(false)
+    if (!skriptId) return
+
+    // Skip if already fetched for this skriptId
+    if (fetchedRef.current === skriptId && fileListCache.has(skriptId)) {
       return
     }
 
@@ -27,12 +35,13 @@ export function AnnotatableContent({ pageId, content, domain, skriptId }: Annota
         const response = await fetch(`/api/upload?skriptId=${skriptId}`)
         if (response.ok) {
           const data = await response.json()
-          setFileList(data.files || [])
+          const files = data.files || []
+          fileListCache.set(skriptId, files)
+          fetchedRef.current = skriptId
+          setFileList(files)
         }
       } catch (error) {
         console.error('Error fetching files for markdown:', error)
-      } finally {
-        setIsLoadingFiles(false)
       }
     }
 
@@ -47,17 +56,7 @@ export function AnnotatableContent({ pageId, content, domain, skriptId }: Annota
     fileList
   }
 
-  // Show loading state while fetching files
-  if (isLoadingFiles) {
-    return (
-      <div className="animate-pulse space-y-4">
-        <div className="h-4 bg-muted rounded w-3/4"></div>
-        <div className="h-4 bg-muted rounded w-1/2"></div>
-        <div className="h-4 bg-muted rounded w-5/6"></div>
-      </div>
-    )
-  }
-
+  // Always render content immediately - files load in background
   return (
     <AnnotationLayer pageId={pageId} content={content}>
       <MarkdownRenderer

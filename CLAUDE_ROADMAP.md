@@ -9,13 +9,11 @@
 
 ## 🎯 Priority List
 
-Before migration of informatikgarten.ch:
-- **Front page editing** - let's add that teachers (not students) and skripts can have frontpages. give teachers the ability to edit their own frontpage as well as frontpages on skripts using the same page editor component we already use. propose good architecture for this first.
+file browser doesn't show all files
 
 - **Content migration** - continue content migration
-- **user logo / site name instead of username** and so on - consider what users want to show on their site.
 
-- Run exams in two weeks on eduskript already?
+- Run exams in two weeks on eduskript already? how?
 
 **LMS Features:**
 - **Teacher/author ability to publsih snaps globally or per class**

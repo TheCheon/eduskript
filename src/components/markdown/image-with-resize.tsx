@@ -180,7 +180,6 @@ export function ImageWithResize({ src, alt = '', title, style, onWidthChange, or
           width={800}
           height={600}
           className="w-full h-auto rounded-md"
-          unoptimized
         />
       </span>
 

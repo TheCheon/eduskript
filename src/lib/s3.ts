@@ -110,6 +110,8 @@ export async function uploadSnapImage(
     ContentType: `image/${format}`,
     // Make publicly readable
     ACL: 'public-read',
+    // Cache for 1 year (snaps are immutable - identified by unique snapId)
+    CacheControl: 'public, max-age=31536000, immutable',
   }))
 
   // Return public URL
@@ -274,6 +276,8 @@ export async function uploadTeacherFile(
     ContentType: contentType,
     // Make publicly readable for serving
     ACL: 'public-read',
+    // Cache for 1 year (content-addressed by hash, so immutable)
+    CacheControl: 'public, max-age=31536000, immutable',
   }))
 
   return key

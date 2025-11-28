@@ -298,7 +298,6 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
                             alt={getFileName(file)}
                             fill
                             className="object-cover"
-                            unoptimized
                           />
                         </div>
                       ) : isExcalidrawFile(getFileName(file)) ? (
