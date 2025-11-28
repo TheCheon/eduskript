@@ -137,9 +137,6 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: ^1.2.8
         version: 1.2.8(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      '@types/busboy':
-        specifier: ^1.5.4
-        version: 1.5.4
       '@uiw/react-color':
         specifier: ^2.9.2
         version: 2.9.2(@babel/runtime@7.27.6)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -306,6 +303,9 @@ importers:
       '@types/bcryptjs':
         specifier: ^2.4.6
         version: 2.4.6
+      '@types/busboy':
+        specifier: ^1.5.4
+        version: 1.5.4
       '@types/hast':
         specifier: ^3.0.4
         version: 3.0.4
