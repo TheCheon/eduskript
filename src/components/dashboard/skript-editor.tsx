@@ -37,8 +37,13 @@ export function SkriptEditor({ skript, collectionSlug, canEdit, userPermissions,
   const [isLoading, setIsLoading] = useState(false)
   const alert = useAlertDialog()
 
-  const handleSkriptUpdated = () => {
-    router.refresh()
+  const handleSkriptUpdated = (newSlug?: string) => {
+    if (newSlug) {
+      // Slug changed - navigate to new URL
+      router.push(`/dashboard/collections/${collectionSlug}/skripts/${newSlug}`)
+    } else {
+      router.refresh()
+    }
   }
 
   const handleDeleteSkript = async () => {

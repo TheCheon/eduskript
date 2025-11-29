@@ -32,7 +32,7 @@ interface EditModalProps {
     slug: string
     isPublished: boolean
   }
-  onItemUpdated: () => void
+  onItemUpdated: (newSlug?: string) => void
   triggerClassName?: string
   buttonText?: string
 }
@@ -109,7 +109,9 @@ export function EditModal({ type, item, onItemUpdated, triggerClassName, buttonT
 
       if (response.ok) {
         setOpen(false)
-        onItemUpdated()
+        // Pass the new slug if it changed, so parent can navigate
+        const slugChanged = formData.slug.trim() !== item.slug
+        onItemUpdated(slugChanged ? formData.slug.trim() : undefined)
       } else {
         const data = await response.json()
         setError(data.error || `Failed to update ${type}`)
