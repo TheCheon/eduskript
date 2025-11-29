@@ -462,7 +462,7 @@ async function processTopic(topicDir, outputTopicDir) {
   return {
     slug: skriptSlug,
     title: topicMeta.title,
-    description: `Migrated from ${topicDir}`,
+    description: null,
     collection: topicMeta.collection,
     order: topicMeta.order,
     pages: pages.map(p => p.slug)
@@ -538,7 +538,7 @@ async function main() {
     manifest.collections.push({
       slug: slugify(collectionName),
       title: collectionName,
-      description: `Migrated content collection`,
+      description: null,
       skripts: skripts.map(s => s.slug)
     })
   }
