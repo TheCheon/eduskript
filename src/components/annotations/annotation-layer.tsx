@@ -72,40 +72,39 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   const scrollContainerRef = useRef<HTMLElement | null>(null)
   // Display-only zoom state (updated on gesture end, not during gesture)
   const [zoom, setZoom] = useState(1.0)
-  const [penColors, setPenColors] = useState<[string, string, string]>(() => {
-    // Load pen colors from localStorage
-    if (typeof window !== 'undefined') {
-      const savedColors = localStorage.getItem('annotation-pen-colors')
-      if (savedColors) {
-        try {
-          const parsed = JSON.parse(savedColors)
-          if (Array.isArray(parsed) && parsed.length === 3) {
-            return parsed as [string, string, string]
-          }
-        } catch (e) {
-          console.error('Error loading pen colors:', e)
+  // Default values used for both SSR and initial client render
+  const defaultPenColors: [string, string, string] = ['#000000', '#FF0000', '#0000FF']
+  const defaultPenSizes: [number, number, number] = [4, 8, 14]
+
+  const [penColors, setPenColors] = useState<[string, string, string]>(defaultPenColors)
+  const [penSizes, setPenSizes] = useState<[number, number, number]>(defaultPenSizes)
+
+  // Load pen settings from localStorage after mount to avoid hydration mismatch
+  useEffect(() => {
+    const savedColors = localStorage.getItem('annotation-pen-colors')
+    if (savedColors) {
+      try {
+        const parsed = JSON.parse(savedColors)
+        if (Array.isArray(parsed) && parsed.length === 3) {
+          setPenColors(parsed as [string, string, string])
         }
+      } catch (e) {
+        console.error('Error loading pen colors:', e)
       }
     }
-    return ['#000000', '#FF0000', '#0000FF']
-  })
-  const [penSizes, setPenSizes] = useState<[number, number, number]>(() => {
-    // Load pen sizes from localStorage
-    if (typeof window !== 'undefined') {
-      const savedSizes = localStorage.getItem('annotation-pen-sizes')
-      if (savedSizes) {
-        try {
-          const parsed = JSON.parse(savedSizes)
-          if (Array.isArray(parsed) && parsed.length === 3) {
-            return parsed as [number, number, number]
-          }
-        } catch (e) {
-          console.error('Error loading pen sizes:', e)
+
+    const savedSizes = localStorage.getItem('annotation-pen-sizes')
+    if (savedSizes) {
+      try {
+        const parsed = JSON.parse(savedSizes)
+        if (Array.isArray(parsed) && parsed.length === 3) {
+          setPenSizes(parsed as [number, number, number])
         }
+      } catch (e) {
+        console.error('Error loading pen sizes:', e)
       }
     }
-    return [4, 8, 14]
-  })
+  }, [])
   const contentRef = useRef<HTMLDivElement>(null)
   const mainRef = useRef<HTMLElement | null>(null)
   const canvasRef = useRef<SimpleCanvasHandle | null>(null)

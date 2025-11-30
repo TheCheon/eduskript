@@ -13,21 +13,23 @@ const inter = Inter({
 const modernBody = Roboto_Slab({
   subsets: ['latin'],
   weight: '300',
-  variable: '--font-modern-body'
+  variable: '--font-modern-body',
+  preload: false, // Only used when user selects "modern" typography
 });
 
 // Classic typography (luz style)
 const classicBody = EB_Garamond({
   subsets: ['latin'],
   weight: ['400', '500', '600'],
-  variable: '--font-classic-body'
+  variable: '--font-classic-body',
+  preload: false, // Only used when user selects "classic" typography
 });
 
 // Shared heading font for both styles
 const headingFont = Barlow_Condensed({
   subsets: ['latin'],
   weight: '700',
-  variable: '--font-heading'
+  variable: '--font-heading',
 });
 
 export const metadata: Metadata = {
@@ -48,7 +50,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
         <link
           rel="stylesheet"

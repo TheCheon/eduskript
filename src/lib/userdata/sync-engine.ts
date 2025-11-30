@@ -275,8 +275,20 @@ export class SyncEngine {
 
       const manifest: ManifestItem[] = await response.json()
 
+      // Check for malformed entries and clean them up
+      const malformedEntries = manifest.filter(item => !item.itemId || !item.adapter)
+      if (malformedEntries.length > 0) {
+        console.warn('[SyncEngine] Found malformed entries, cleaning up:', malformedEntries)
+        await this.cleanupMalformedEntries()
+      }
+
       // Compare with local data and sync as needed
       for (const serverItem of manifest) {
+        // Skip malformed entries (already cleaned up above)
+        if (!serverItem.itemId || !serverItem.adapter) {
+          continue
+        }
+
         const localRecord = await db.userData.get([serverItem.itemId, serverItem.adapter])
 
         if (!localRecord || serverItem.updatedAt > localRecord.updatedAt) {
@@ -542,6 +554,24 @@ export class SyncEngine {
    */
   public clearOperations(): void {
     this.updateStatus({ operations: [] })
+  }
+
+  /**
+   * Call cleanup endpoint to remove malformed entries (empty itemId)
+   */
+  private async cleanupMalformedEntries(): Promise<void> {
+    try {
+      const response = await fetch('/api/user-data/cleanup', { method: 'DELETE' })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('[SyncEngine] Cleaned up malformed entries:', result.deletedCount)
+      } else {
+        console.warn('[SyncEngine] Cleanup failed:', response.status)
+      }
+    } catch (error) {
+      console.error('[SyncEngine] Error cleaning up malformed entries:', error)
+    }
   }
 
   /**
