@@ -17,6 +17,7 @@ import { ExcalidrawImage } from '@/components/markdown/excalidraw-image'
 import { ImageWithResize } from '@/components/markdown/image-with-resize'
 import { Question, Option } from '@/components/markdown/quiz'
 import { Callout } from '@/components/markdown/callout'
+import { CodeBlock } from '@/components/markdown/code-block'
 
 // Simple hash function for generating stable IDs
 function hashCode(str: string): string {
@@ -56,12 +57,13 @@ function PreComponent({ children, ...props }: React.HTMLAttributes<HTMLPreElemen
   return <pre {...props}>{children}</pre>
 }
 
-// Code component - renders inline code or code blocks
+// Code component - renders inline code or code blocks with CodeMirror
 function CodeComponent({ children, className, ...props }: React.HTMLAttributes<HTMLElement> & { className?: string }) {
   const match = /language-(\w+)/.exec(className || '')
   const language = match ? match[1] : undefined
 
   if (!language) {
+    // Inline code
     return (
       <code className="px-[0.4em] py-[0.2em] rounded bg-muted font-mono text-[0.9em]" {...props}>
         {children}
@@ -69,12 +71,24 @@ function CodeComponent({ children, className, ...props }: React.HTMLAttributes<H
     )
   }
 
-  // For syntax-highlighted code, render simple pre/code structure
-  return (
-    <pre className={`language-${language} overflow-x-auto p-4 rounded-lg bg-muted`}>
-      <code className={className}>{children}</code>
-    </pre>
-  )
+  // Extract code string from children
+  const extractCode = (node: ReactNode): string => {
+    if (typeof node === 'string') return node
+    if (typeof node === 'number') return String(node)
+    if (Array.isArray(node)) return node.map(extractCode).join('')
+    if (isValidElement(node)) {
+      const nodeProps = node.props as { children?: ReactNode }
+      if (nodeProps.children) {
+        return extractCode(nodeProps.children)
+      }
+    }
+    return ''
+  }
+
+  const code = extractCode(children)
+
+  // Use CodeMirror-based CodeBlock for syntax highlighting
+  return <CodeBlock code={code} language={language} />
 }
 
 // Heading factory
@@ -336,7 +350,8 @@ export function createMDXComponents(
     Children.forEach(children, (child) => {
       if (isValidElement(child)) {
         // Each child is a tab-item element, get its children
-        tabContents.push(child.props.children)
+        const childProps = child.props as { children?: ReactNode }
+        tabContents.push(childProps.children)
       }
     })
 

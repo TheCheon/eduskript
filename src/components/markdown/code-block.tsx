@@ -1,0 +1,133 @@
+'use client'
+
+import { useEffect, useRef, memo, useState } from 'react'
+import { useTheme } from 'next-themes'
+import { Check, Copy } from 'lucide-react'
+
+interface CodeBlockProps {
+  code: string
+  language?: string
+  className?: string
+}
+
+function CodeBlockInner({ code, language, className }: CodeBlockProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const editorRef = useRef<unknown>(null)
+  const [isMounted, setIsMounted] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  useEffect(() => {
+    if (!isMounted || !containerRef.current) return
+
+    const init = async () => {
+      if (!containerRef.current) return
+
+      // Clean up existing
+      if (editorRef.current) {
+        (editorRef.current as { destroy: () => void }).destroy()
+        editorRef.current = null
+      }
+
+      const { EditorView } = await import('@codemirror/view')
+      const { EditorState } = await import('@codemirror/state')
+      const { vsCodeLight } = await import('@fsegurai/codemirror-theme-vscode-light')
+      const { vsCodeDark } = await import('@fsegurai/codemirror-theme-vscode-dark')
+
+      // Language support
+      let langSupport = null
+      const lang = language?.toLowerCase()
+      if (lang === 'javascript' || lang === 'js') {
+        const { javascript } = await import('@codemirror/lang-javascript')
+        langSupport = javascript()
+      } else if (lang === 'typescript' || lang === 'ts') {
+        const { javascript } = await import('@codemirror/lang-javascript')
+        langSupport = javascript({ typescript: true })
+      } else if (lang === 'python' || lang === 'py') {
+        const { python } = await import('@codemirror/lang-python')
+        langSupport = python()
+      } else if (lang === 'sql') {
+        const { sql } = await import('@codemirror/lang-sql')
+        langSupport = sql()
+      } else if (lang === 'html') {
+        const { html } = await import('@codemirror/lang-html')
+        langSupport = html()
+      } else if (lang === 'css') {
+        const { css } = await import('@codemirror/lang-css')
+        langSupport = css()
+      } else if (lang === 'json') {
+        const { json } = await import('@codemirror/lang-json')
+        langSupport = json()
+      }
+
+      if (!containerRef.current) return
+
+      // Clear the placeholder
+      const placeholder = containerRef.current.querySelector('pre')
+      if (placeholder) placeholder.remove()
+
+      const view = new EditorView({
+        state: EditorState.create({
+          doc: code,
+          extensions: [
+            ...(langSupport ? [langSupport] : []),
+            ...(isDark ? [vsCodeDark] : [vsCodeLight]),
+            EditorState.readOnly.of(true),
+            EditorView.editable.of(false),
+            EditorView.lineWrapping,
+            EditorView.theme({
+              '&': { fontSize: '14px', borderRadius: '8px' },
+              '.cm-content': { padding: '12px', caretColor: 'transparent' },
+              '.cm-gutters': { display: 'none' },
+              '.cm-cursor, .cm-cursorLayer': { display: 'none !important' },
+              '.cm-activeLine': { backgroundColor: 'transparent !important' },
+              '.cm-selectionBackground, .cm-selection': { backgroundColor: 'transparent !important' },
+              '&.cm-focused': { outline: 'none' },
+              '&.cm-focused .cm-selectionBackground': { backgroundColor: 'transparent !important' },
+            }),
+          ],
+        }),
+        parent: containerRef.current,
+      })
+
+      editorRef.current = view
+    }
+
+    init()
+
+    return () => {
+      if (editorRef.current) {
+        (editorRef.current as { destroy: () => void }).destroy()
+        editorRef.current = null
+      }
+    }
+  }, [isMounted, isDark, code, language])
+
+  return (
+    <div className={`code-block relative rounded-lg overflow-hidden ${className || ''}`}>
+      <button
+        onClick={handleCopy}
+        className="absolute top-2 right-2 z-10 p-1.5 rounded bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+        title="Copy code"
+      >
+        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+      </button>
+      <div ref={containerRef}>
+        <pre className="p-3 bg-muted text-sm font-mono"><code>{code}</code></pre>
+      </div>
+    </div>
+  )
+}
+
+export const CodeBlock = memo(CodeBlockInner)
