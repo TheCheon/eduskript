@@ -176,7 +176,7 @@ console.log("second")
 
   describe('remarkImageResolver', () => {
     // Note: remarkImageResolver is now a PURE TRANSFORMER
-    // It does NOT resolve file URLs - that happens in the ImageWithResize component
+    // It does NOT resolve file URLs - that happens in the ContentImage component
     // It only adds data-original-src attribute to mark images for resolution
 
     it('should add data-original-src attribute for relative paths', async () => {

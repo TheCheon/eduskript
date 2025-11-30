@@ -14,7 +14,7 @@ import { Tabs, TabItem } from '@/components/markdown/tabs'
 import { Youtube } from '@/components/markdown/youtube'
 import { MuxVideo } from '@/components/markdown/mux-video'
 import { ExcalidrawImage } from '@/components/markdown/excalidraw-image'
-import { ImageWithResize } from '@/components/markdown/image-with-resize'
+import { ContentImage } from '@/components/markdown/content-image'
 import { Question, Option } from '@/components/markdown/quiz'
 import { Callout } from '@/components/markdown/callout'
 import { CodeBlock } from '@/components/markdown/code-block'
@@ -156,6 +156,11 @@ export function createMDXComponents(
   function ImageComponent({ src, alt, title, style, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) {
     const dataProps = props as Record<string, unknown>
 
+    // Extract source line tracking for editor highlight sync
+    // Check both kebab-case (from HTML) and camelCase (from MDX) formats
+    const sourceLineStart = (dataProps['data-source-line-start'] as string) || (dataProps['dataSourceLineStart'] as string) || undefined
+    const sourceLineEnd = (dataProps['data-source-line-end'] as string) || (dataProps['dataSourceLineEnd'] as string) || undefined
+
     // Check for excalidraw-image custom element
     const dataExcalidraw = dataProps['data-excalidraw'] as string | undefined
     if (dataExcalidraw) {
@@ -172,6 +177,8 @@ export function createMDXComponents(
           wrap={dataWrap === 'true'}
           files={files}
           onWidthChange={onContentChange ? (markdown) => handleImageWidthChange(dataExcalidraw, markdown) : undefined}
+          sourceLineStart={sourceLineStart}
+          sourceLineEnd={sourceLineEnd}
         />
       )
     }
@@ -186,7 +193,7 @@ export function createMDXComponents(
     const srcStr = typeof src === 'string' ? src : ''
 
     return (
-      <ImageWithResize
+      <ContentImage
         key={`image-${originalSrc || src}`}
         src={srcStr}
         alt={alt}
@@ -199,6 +206,8 @@ export function createMDXComponents(
         saturate={dataSaturate}
         files={files}
         onWidthChange={onContentChange ? (markdown) => handleImageWidthChange(originalSrc || srcStr, markdown) : undefined}
+        sourceLineStart={sourceLineStart}
+        sourceLineEnd={sourceLineEnd}
       />
     )
   }
@@ -305,6 +314,9 @@ export function createMDXComponents(
     const alt = (props['alt'] as string) || ''
     const dataAlign = (props['data-align'] as string) || 'center'
     const dataWrap = (props['data-wrap'] as string)
+    // Check both kebab-case (from HTML) and camelCase (from MDX) formats
+    const sourceLineStart = (props['data-source-line-start'] as string) || (props['dataSourceLineStart'] as string) || undefined
+    const sourceLineEnd = (props['data-source-line-end'] as string) || (props['dataSourceLineEnd'] as string) || undefined
 
     return (
       <ExcalidrawImage
@@ -313,6 +325,9 @@ export function createMDXComponents(
         align={dataAlign as 'left' | 'center' | 'right'}
         wrap={dataWrap === 'true'}
         files={files}
+        onWidthChange={onContentChange ? (markdown) => handleImageWidthChange(src, markdown) : undefined}
+        sourceLineStart={sourceLineStart}
+        sourceLineEnd={sourceLineEnd}
       />
     )
   }
@@ -390,9 +405,20 @@ export function createMDXComponents(
     wrap?: boolean
     invert?: 'dark' | 'light' | 'always'
     saturate?: string
+    // Source line tracking (passed through from MDX)
+    'data-source-line-start'?: string
+    'data-source-line-end'?: string
+    dataSourceLineStart?: string
+    dataSourceLineEnd?: string
   }
 
-  function MDXImageComponent({ src, alt = '', width, align = 'center', wrap = false, invert, saturate }: MDXImageProps) {
+  function MDXImageComponent(props: MDXImageProps) {
+    const { src, alt = '', width, align = 'center', wrap = false, invert, saturate } = props
+
+    // Extract source line tracking (check both kebab-case and camelCase)
+    const sourceLineStart = props['data-source-line-start'] || props.dataSourceLineStart
+    const sourceLineEnd = props['data-source-line-end'] || props.dataSourceLineEnd
+
     // Check if this is an excalidraw file
     if (src.endsWith('.excalidraw') || src.endsWith('.excalidraw.md')) {
       return (
@@ -403,12 +429,15 @@ export function createMDXComponents(
           align={align}
           wrap={wrap}
           files={files}
+          onWidthChange={onContentChange ? (markdown) => handleImageWidthChange(src, markdown) : undefined}
+          sourceLineStart={sourceLineStart}
+          sourceLineEnd={sourceLineEnd}
         />
       )
     }
 
     return (
-      <ImageWithResize
+      <ContentImage
         src={src}
         alt={alt}
         style={width ? { width } : undefined}
@@ -417,6 +446,9 @@ export function createMDXComponents(
         invert={invert}
         saturate={saturate}
         files={files}
+        onWidthChange={onContentChange ? (markdown) => handleImageWidthChange(src, markdown) : undefined}
+        sourceLineStart={sourceLineStart}
+        sourceLineEnd={sourceLineEnd}
       />
     )
   }

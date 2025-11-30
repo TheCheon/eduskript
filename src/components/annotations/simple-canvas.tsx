@@ -292,7 +292,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
 
       // Reset globalAlpha
       ctx.globalAlpha = 1.0
-    }, [smoothPoints])
+    }, [smoothPoints, applyPressureFloor])
 
     // Throttled redraw for eraser using RAF to avoid redrawing every single move
     const scheduleEraserRedraw = useCallback(() => {
@@ -342,7 +342,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
           drawRafRef.current = null
         })
       }
-    }, [strokeColor, strokeWidth])
+    }, [strokeColor, strokeWidth, applyPressureFloor])
 
     // Set up high-DPI canvas scaling with zoom support
     useEffect(() => {
@@ -502,7 +502,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       } else {
         currentStrokeSmoothingRef.current = { window: REALTIME_SMOOTHING_WINDOW, color: strokeColor }
       }
-    }, [mode, stylusModeActive, onStylusDetected, onNonStylusInput, onPenStateChange, width, height, updateEraserCursor, strokeColor])
+    }, [mode, stylusModeActive, onStylusDetected, onPenStateChange, width, height, updateEraserCursor, strokeColor])
 
     const draw = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
       // Don't draw if multiple touch/mouse pointers are active (pinch gesture)

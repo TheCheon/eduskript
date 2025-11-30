@@ -6,6 +6,17 @@ This file tracks features that have been fully implemented and deployed.
 
 ---
 
+- resize / layout box component to simplify positioning: currently i think the resizable components (images and excalidraw) each have their own implementation of resize and alignmet gizmos, correct? if so, we could wrap them both in a alignment and resizer gizmo if that makes sense.
+
+rendering pipeline:
+- we unified the pipelines as far as possible so we only have ONE compileMDX()
+- we render ssr in markdown-renderer-server and csr in markdown-renderer-client.
+- before rendering, we create a skriptfiles object that we can pass to plugins if they need files. skriptfiles contains all skript files and their resolved urls on scaleway or video providers. in markdown-renderer-server we get this from the database, in markdown-renderer-client from the file browser component. the skriptfiles contains a environment attribute ("ssr" or "csr").
+- then we first convert markdown stuff to mdx components WITHOUT adapting filenames AT ALL! so ![](video.mp4) becomes <MuxVideo src="video.mp4" />, ![](picture.png) becomes <Image src="picture.png">, ![](drawing.excalidraw) or ![](drawing2.excalidraw.md) become <ExcalidrawImage src="drawing.excalidraw" />  or <ExcalidrawImage src="drawing2.excalidraw.md">
+- we then pass filelist to the components and they resolve the filenames they are given themselves usling filelist.
+
+
+
 ## 🔄 Subdomain Routing Removal (2025-11-22)
 
 **Goal**: Simplify architecture by removing complex subdomain routing in favor of username-based path routing.

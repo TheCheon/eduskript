@@ -67,3 +67,6 @@ dev-scripts/
 # Import/Export temp files
 export-output/
 *.zip
+
+# obsidian
+.obsidian/

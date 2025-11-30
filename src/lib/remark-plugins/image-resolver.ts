@@ -7,7 +7,7 @@ const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.av
  * Remark plugin to mark image nodes with their original source.
  *
  * This is a PURE TRANSFORMER - it does NOT resolve file URLs.
- * File resolution happens in the component (ImageWithResize) using SkriptFiles.
+ * File resolution happens in the component (ContentImage) using SkriptFiles.
  *
  * What it does:
  * - Adds `data-original-src` attribute with the original filename

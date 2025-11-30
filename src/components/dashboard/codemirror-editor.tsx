@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
@@ -513,18 +513,36 @@ const CodeMirrorEditor = function CodeMirrorEditor({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMounted, isDark]) // Only re-initialize when mounted state or theme changes
 
-  // Update editor content when prop changes
+  // Update editor content when prop changes (e.g., from image resize in preview)
   useEffect(() => {
     if (editorViewRef.current && editorContent !== editorViewRef.current.state.doc.toString()) {
       try {
-        const transaction = editorViewRef.current.state.update({
+        const view = editorViewRef.current
+        // Preserve cursor position
+        const cursorPos = view.state.selection.main.head
+        const cursorLine = view.state.doc.lineAt(cursorPos).number
+
+        const transaction = view.state.update({
           changes: {
             from: 0,
-            to: editorViewRef.current.state.doc.length,
+            to: view.state.doc.length,
             insert: editorContent,
           },
         })
-        editorViewRef.current.dispatch(transaction)
+        view.dispatch(transaction)
+
+        // Restore cursor to same line (clamped to new doc length)
+        requestAnimationFrame(() => {
+          if (!editorViewRef.current) return
+          const newView = editorViewRef.current
+          const newDoc = newView.state.doc
+          // Try to restore to same line number, clamped to valid range
+          const targetLine = Math.min(cursorLine, newDoc.lines)
+          const line = newDoc.line(targetLine)
+          newView.dispatch({
+            selection: { anchor: line.from },
+          })
+        })
       } catch (error) {
         console.error('Error updating editor content:', error)
       }
@@ -640,6 +658,43 @@ const CodeMirrorEditor = function CodeMirrorEditor({
       }
     })
   }, [selectionStartLine, selectionEndLine, showPreview, content])
+
+  // Handle click on preview to jump to source line in editor
+  const handlePreviewClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    // Don't handle if editor is not shown or not using CodeMirror
+    if (!showEditor || useSimpleEditor || !editorViewRef.current) return
+
+    // Don't interfere with interactive elements (buttons, inputs, links, etc.)
+    const target = e.target as HTMLElement
+    if (target.closest('button, input, textarea, a, [role="button"], .code-editor, [data-interactive]')) {
+      return
+    }
+
+    // Find the nearest element with source line data
+    const elementWithLine = target.closest('[data-source-line-start]') as HTMLElement | null
+    if (!elementWithLine) return
+
+    const lineNumber = parseInt(elementWithLine.getAttribute('data-source-line-start') || '0', 10)
+    if (lineNumber <= 0) return
+
+    // Get the position at the start of that line in CodeMirror
+    const view = editorViewRef.current
+    try {
+      const line = view.state.doc.line(lineNumber)
+
+      // Set cursor to the start of the line
+      view.dispatch({
+        selection: { anchor: line.from },
+        scrollIntoView: true,
+      })
+
+      // Focus the editor
+      view.focus()
+    } catch (err) {
+      // Line number out of range - content may have changed
+      console.debug('Could not jump to line:', lineNumber, err)
+    }
+  }, [showEditor, useSimpleEditor])
 
   // Handle textarea change for simple editor
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -1159,7 +1214,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
 
         {/* Preview */}
         {showPreview && (
-          <div ref={previewRef} style={{ width: showEditor ? `${100 - editorWidth}%` : '100%' }} className="overflow-auto bg-card" id="markdown-preview-scroll-container" data-typography="modern">
+          <div ref={previewRef} onClick={handlePreviewClick} style={{ width: showEditor ? `${100 - editorWidth}%` : '100%' }} className="overflow-auto bg-card" id="markdown-preview-scroll-container" data-typography="modern">
             <div className="p-4">
               <InteractivePreview
                 markdown={useSimpleEditor ? textareaContent : editorContent}

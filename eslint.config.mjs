@@ -13,6 +13,8 @@ const eslintConfig = [
       'coverage/**',
       '**/*.config.js',
       '**/*.config.mjs',
+      '.obsidian/**',
+      'public/js/**',
     ],
   },
   ...nextPlugin,

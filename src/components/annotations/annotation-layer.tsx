@@ -40,9 +40,9 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   )
 
   // Delete function - update with empty/null data
-  const deleteAnnotationData = async () => {
+  const deleteAnnotationData = useCallback(async () => {
     await updateAnnotationData({ canvasData: '', headingOffsets: {}, pageVersion: '' })
-  }
+  }, [updateAnnotationData])
 
 
   const [mode, setMode] = useState<AnnotationMode>('view')
@@ -86,6 +86,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       try {
         const parsed = JSON.parse(savedColors)
         if (Array.isArray(parsed) && parsed.length === 3) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional one-time init from localStorage
           setPenColors(parsed as [string, string, string])
         }
       } catch (e) {

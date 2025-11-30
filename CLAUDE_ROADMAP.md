@@ -3,41 +3,22 @@
 *Last updated: 2025-11-25*
 *Current Status: Simplified Architecture - Username-Based Routing*
 
-> **Note**: Completed features have been moved to `COMPLETED_FEATURES.md`
+> **Note**: Completed features have been moved to `docs/COMPLETED_FEATURES.md`
 
 ---
 
-rendering pipeline:
-- we unified the pipelines as far as possible so we only have ONE compileMDX()
-- we render ssr in markdown-renderer-server and csr in markdown-renderer-client.
-- before rendering, we create a skriptfiles object that we can pass to plugins if they need files. skriptfiles contains all skript files and their resolved urls on scaleway or video providers. in markdown-renderer-server we get this from the database, in markdown-renderer-client from the file browser component. the skriptfiles contains a environment attribute ("ssr" or "csr").
-- then we first convert markdown stuff to mdx components WITHOUT adapting filenames AT ALL! so ![](video.mp4) becomes <MuxVideo src="video.mp4" />, ![](picture.png) becomes <Image src="picture.png">, ![](drawing.excalidraw) or ![](drawing2.excalidraw.md) become <ExcalidrawImage src="drawing.excalidraw" />  or <ExcalidrawImage src="drawing2.excalidraw.md">
-- we then pass filelist to the components and they resolve the filenames they are given themselves usling filelist.
-
 ## 🎯 Priority List
 
-- resize / layout box component to simplify positioning: currently 
-- move to mdx then remove technical debt. in the database, rename ALL .md files to .mdx to signal the correct syntax to users
-
-- migration had issues, let's try locally until it works and ultimately migrate the database instead (teacher bucket is the same anyway)
 - optimize image caching and isr, look at excalidraw
-
-### Technical Debt: `<Tabs>` Component Implementation
-The current Nextra-style `<Tabs>` implementation in `src/lib/remark-plugins/tabs.ts` uses a hacky serialize → regex extract → re-parse cycle:
-1. Custom `serializeNode()` converts MDAST back to markdown (preserving HTML tags)
-2. Regex extracts tab content from the serialized markdown
-3. `fromMarkdown()` re-parses the extracted content into fresh MDAST nodes
-
-
+- migration had issues, let's try locally until it works and ultimately migrate the database instead (teacher bucket is the same anyway)
 - **Content migration** - continue content migration
-- Run exams in two weeks on eduskript already? how?
 
 **LMS Features:**
+- **Add toggle to classes for teachers to not allow anonymous students, verify student singup UX is cool**
+- **Interactive Quizzes** - In-lesson quizzes with progress tracking
 - **Teacher/author ability to publsih snaps globally or per class**
 - **Teacher/author ability to publish annotations globally or per class**
-- **Add toggle to classes for teachers to not allow anonymous students, verify student singup UX is cool**
 - **Student Progress Tracking** - Gradebook interface, view progress, grade submissions
-- **Interactive Quizzes** - In-lesson quizzes with progress tracking
 - **Randomized questions** maybe through special skripts?
 
 **Infrastructure:**
