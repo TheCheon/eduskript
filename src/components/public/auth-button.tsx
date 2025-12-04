@@ -74,15 +74,29 @@ export function AuthButton({ pageId }: AuthButtonProps) {
         : 'Student')
     : session.user?.name || 'User'
 
-  // If user can edit this page, show edit button instead of dashboard button
+  // If user can edit this page, show profile picture with edit overlay
   if (editUrl && !isStudent) {
     return (
       <Link
         href={editUrl}
         title="Edit this page"
-        className="p-2 rounded-md border border-border bg-card hover:bg-muted transition-colors overflow-hidden inline-flex items-center justify-center"
+        className="relative h-8 w-8 rounded-md border border-border bg-card hover:bg-muted transition-colors overflow-hidden inline-flex items-center justify-center"
       >
-        <Pencil className="h-4 w-4 text-primary" />
+        {session.user?.image ? (
+          <>
+            <Image
+              src={session.user.image}
+              alt={userName}
+              fill
+              className="object-cover"
+            />
+            <div className="absolute inset-0 flex items-center justify-center bg-primary/70">
+              <Pencil className="h-4 w-4 text-primary-foreground" />
+            </div>
+          </>
+        ) : (
+          <Pencil className="h-4 w-4 text-primary" />
+        )}
       </Link>
     )
   }
@@ -91,20 +105,18 @@ export function AuthButton({ pageId }: AuthButtonProps) {
     <Link
       href="/dashboard"
       title={`Go to dashboard (${userName})`}
-      className="p-2 rounded-md border border-border bg-card hover:bg-muted transition-colors overflow-hidden inline-flex items-center justify-center"
+      className="relative h-8 w-8 rounded-md border border-border bg-card hover:bg-muted transition-colors overflow-hidden inline-flex items-center justify-center"
     >
-      {session.user?.image && !isStudent ? (
-        // Show profile picture for teachers (Microsoft provides it, not stored on server)
-        // For students: don't show image even if Microsoft provides one (privacy)
+      {session.user?.image ? (
+        // Show profile picture (OAuth image passed through session, not stored for students)
         <Image
           src={session.user.image}
           alt={userName}
-          width={16}
-          height={16}
-          className="rounded-sm opacity-90 hover:opacity-100 transition-opacity"
+          fill
+          className="object-cover opacity-90 hover:opacity-100 transition-opacity"
         />
       ) : (
-        // Show icon for students or teachers without images
+        // Show icon for users without images
         <UserCheck className="h-4 w-4 text-primary" />
       )}
     </Link>

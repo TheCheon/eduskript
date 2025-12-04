@@ -124,7 +124,9 @@ export function PrivacyAdapter(options: PrivacyAdapterOptions): Adapter {
 
     async createUser(user: Omit<AdapterUser, 'id'>) {
       // Check if this is a student signup
+      console.log('[PrivacyAdapter.createUser] email:', user.email, 'calling isStudentSignup...')
       const isStudent = await isStudentSignup(user.email, user)
+      console.log('[PrivacyAdapter.createUser] isStudent result:', isStudent)
 
       if (isStudent) {
         // CRITICAL: For students, NEVER store email

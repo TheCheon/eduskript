@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Save, Loader2, FileText, Upload, X } from 'lucide-react'
+import { Save, Loader2, FileText, Upload, X, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -26,6 +26,8 @@ export function PageSettings() {
   const [pageIcon, setPageIcon] = useState(session?.user?.pageIcon || '')
   const [iconUploadLoading, setIconUploadLoading] = useState(false)
   const [hostnamePrefix, setHostnamePrefix] = useState('eduskript.org/')
+  const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null)
+  const [checkingSlug, setCheckingSlug] = useState(false)
 
   // Set hostname prefix on client (avoids hydration mismatch)
   useEffect(() => {
@@ -65,6 +67,50 @@ export function PageSettings() {
       setPageIcon(session.user.pageIcon || '')
     }
   }, [session])
+
+  // Debounced slug availability check
+  const checkSlugAvailability = useCallback(async (slug: string) => {
+    if (!slug || slug.length < 3) {
+      return null
+    }
+    try {
+      const response = await fetch(`/api/user/check-slug?slug=${encodeURIComponent(slug)}`)
+      const data = await response.json()
+      return data.available
+    } catch {
+      return null
+    }
+  }, [])
+
+  useEffect(() => {
+    // Don't check if slug hasn't changed from the original
+    if (pageSlug === (session?.user?.pageSlug || '')) {
+      setSlugAvailable(null)
+      setCheckingSlug(false)
+      return
+    }
+
+    if (!pageSlug || pageSlug.length < 3) {
+      setSlugAvailable(null)
+      setCheckingSlug(false)
+      return
+    }
+
+    setCheckingSlug(true)
+    const controller = new AbortController()
+    const timer = setTimeout(async () => {
+      if (controller.signal.aborted) return
+      const available = await checkSlugAvailability(pageSlug)
+      if (controller.signal.aborted) return
+      setSlugAvailable(available)
+      setCheckingSlug(false)
+    }, 500)
+
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [pageSlug, session?.user?.pageSlug, checkSlugAvailability])
 
   const handleSidebarBehaviorChange = async (value: string) => {
     setSidebarBehavior(value)
@@ -145,11 +191,13 @@ export function PageSettings() {
       } else {
         const data = await response.json()
         console.error('Failed to update page info:', data.error || 'Unknown error')
-        alert(`Failed to update: ${data.error || 'Unknown error'}`)
+        // If it's a slug collision, update the UI state
+        if (data.error?.includes('slug') || data.error?.includes('taken')) {
+          setSlugAvailable(false)
+        }
       }
     } catch (error) {
       console.error('Failed to update page info:', error)
-      alert('Failed to update. Please try again.')
     } finally {
       setPageInfoLoading(false)
     }
@@ -161,6 +209,9 @@ export function PageSettings() {
     pageName !== (session?.user?.pageName || '') ||
     pageDescription !== (session?.user?.pageDescription || '') ||
     pageIcon !== (session?.user?.pageIcon || '')
+
+  // Check if slug is valid for saving
+  const slugIsValid = pageSlug.length >= 3 && slugAvailable !== false
 
   // Handle icon file upload
   const handleIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -333,26 +384,51 @@ export function PageSettings() {
           {/* Page URL */}
           <div className="space-y-2">
             <Label htmlFor="pageSlug" className="text-sm font-medium">Page URL</Label>
-            <div className="flex items-center flex-1">
-              <span className="px-3 py-2 bg-muted border border-r-0 border-input rounded-l-md text-muted-foreground text-sm h-10 flex items-center">
-                {hostnamePrefix}
-              </span>
-              <Input
-                id="pageSlug"
-                type="text"
-                value={pageSlug}
-                onChange={(e) => setPageSlug(e.target.value.toLowerCase().replace(/[^a-z0-9\-]/g, ''))}
-                className="rounded-l-none"
-                placeholder="enter-page-slug"
-                pattern="^[a-z0-9\-]+$"
-                required
-              />
+            <div className="flex items-center gap-2">
+              <div className="flex items-center flex-1">
+                <span className="px-3 py-2 bg-muted border border-r-0 border-input rounded-l-md text-muted-foreground text-sm h-10 flex items-center">
+                  {hostnamePrefix}
+                </span>
+                <Input
+                  id="pageSlug"
+                  type="text"
+                  value={pageSlug}
+                  onChange={(e) => setPageSlug(e.target.value.toLowerCase().replace(/[^a-z0-9\-]/g, ''))}
+                  className="rounded-l-none"
+                  placeholder="enter-page-slug"
+                  pattern="^[a-z0-9\-]+$"
+                  required
+                />
+              </div>
+              {session?.user?.pageSlug && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  asChild
+                  title="Preview your public page"
+                >
+                  <a href={`/${session.user.pageSlug}`} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                </Button>
+              )}
             </div>
-            <p className="text-sm text-muted-foreground">
-              {pageSlug
-                ? 'This is your public page URL. Only lowercase letters, numbers, and hyphens allowed.'
-                : 'Set a page URL to enable your public page. Only lowercase letters, numbers, and hyphens allowed.'}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-muted-foreground">
+                {pageSlug
+                  ? 'Only lowercase letters, numbers, and hyphens allowed.'
+                  : 'Set a page URL to enable your public page.'}
+              </p>
+              {checkingSlug && (
+                <span className="text-sm text-muted-foreground">Checking...</span>
+              )}
+              {!checkingSlug && slugAvailable === true && pageSlug.length >= 3 && (
+                <span className="text-sm text-green-600">Available</span>
+              )}
+              {!checkingSlug && slugAvailable === false && (
+                <span className="text-sm text-red-600">Already taken</span>
+              )}
+            </div>
           </div>
 
           {/* Page Name */}
@@ -388,7 +464,7 @@ export function PageSettings() {
           {/* Save Button */}
           <Button
             onClick={handlePageInfoUpdate}
-            disabled={pageInfoLoading || !hasPageInfoChanges}
+            disabled={pageInfoLoading || !hasPageInfoChanges || !slugIsValid}
             className="flex items-center gap-2"
           >
             {pageInfoLoading ? (

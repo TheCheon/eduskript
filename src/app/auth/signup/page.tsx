@@ -24,8 +24,8 @@ export default function SignUpPage() {
   const router = useRouter()
 
   const handleOAuthSignUp = (provider: string) => {
-    // Clear the student cookie to ensure this is a teacher signup
-    document.cookie = 'oauth_from_teacher_page=; path=/; max-age=0'
+    // Redirect to /dashboard ensures this is treated as a teacher signup
+    // (not a student signup from a teacher's page like /eduadmin)
     signIn(provider, { callbackUrl: '/dashboard' })
   }
 

@@ -7,6 +7,8 @@ import { PageBuilder } from './page-builder'
 import { ImportExportSettings } from './import-export-settings'
 import { useSession } from 'next-auth/react'
 import { checkCollectionPermissions, checkSkriptPermissions } from '@/lib/permissions'
+import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
+import { useAlertDialog } from '@/hooks/use-alert-dialog'
 
 interface PageItem {
   id: string
@@ -48,6 +50,7 @@ export function PageBuilderInterface() {
   const [expandedCollections, setExpandedCollections] = useState<string[]>([])
   const [libraryData, setLibraryData] = useState<{ collections: any[], skripts: any[] }>({ collections: [], skripts: [] })
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const alert = useAlertDialog()
 
   // Load existing page layout on component mount
   useEffect(() => {
@@ -642,9 +645,14 @@ export function PageBuilderInterface() {
       const url = `${window.location.origin}/${session.user.pageSlug}`
       window.open(url, '_blank')
     } else {
-      // Username not set - redirect to settings
-      alert('You need to set a Page URL first. Go to Settings > Page Settings to configure it.')
-      window.location.href = '/dashboard/settings'
+      // Username not set - show info dialog and redirect to settings
+      alert.showInfo(
+        'You need to set a Page URL first. You will be redirected to Page Settings.',
+        'Page URL Required'
+      )
+      setTimeout(() => {
+        window.location.href = '/dashboard/settings'
+      }, 1500)
     }
   }
 
@@ -705,6 +713,15 @@ export function PageBuilderInterface() {
           />
         </div>
       </div>
+
+      {/* Alert Dialog */}
+      <AlertDialogModal
+        open={alert.open}
+        onOpenChange={alert.setOpen}
+        type={alert.type}
+        title={alert.title}
+        message={alert.message}
+      />
     </DragDropContext>
   )
 }

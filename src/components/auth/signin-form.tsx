@@ -91,15 +91,10 @@ export function SignInForm({ fromTeacherPage, callbackUrl = '/dashboard' }: Sign
   }
 
   const handleOAuthSignIn = async (provider: string) => {
-    // Set cookie to track if this is a student signup (from teacher page)
-    // This cookie is read by auth.ts to determine account type for new OAuth users
-    if (fromTeacherPage) {
-      document.cookie = `oauth_from_teacher_page=${encodeURIComponent(fromTeacherPage)}; path=/; max-age=600; samesite=lax`
-    } else {
-      // Clear cookie if signing in from main site
-      document.cookie = 'oauth_from_teacher_page=; path=/; max-age=0'
-    }
-
+    // The callbackUrl is used by auth.ts to determine if this is a student signup
+    // If the callbackUrl starts with a teacher's pageSlug (e.g., /eduadmin),
+    // the new user will be created as a student
+    // This is more reliable than cookies since NextAuth preserves callbackUrl through OAuth
     signIn(provider, { callbackUrl })
   }
 

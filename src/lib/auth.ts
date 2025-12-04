@@ -18,17 +18,54 @@ export const authOptions: NextAuthOptions = {
         prisma,
         isStudentSignup: async (email: string, context?: any) => {
           // Check if OAuth was initiated from a teacher's page (student signup)
-          // The cookie is set by SignInForm before OAuth redirect
+          // We use the callback URL to determine this - if it starts with a teacher's pageSlug,
+          // then this is a student signing up on that teacher's page
           try {
             const cookieStore = await cookies()
-            const fromTeacherPage = cookieStore.get('oauth_from_teacher_page')?.value
+            const callbackCookie = cookieStore.get('next-auth.callback-url')
+            const callbackUrl = callbackCookie?.value || ''
 
-            // If the cookie exists, this is a student signup from a teacher's page
-            // New users from teacher pages become students
-            // New users from main site become teachers
-            return !!fromTeacherPage
-          } catch {
-            // If cookies() fails, default to teacher (main site behavior)
+            console.log('[isStudentSignup] email:', email, 'callbackUrl:', callbackUrl)
+
+            // Parse the callback URL to check if it's a teacher's page
+            // Teacher pages start with /{pageSlug} where pageSlug is NOT a reserved route
+            // Reserved routes: auth, api, dashboard, admin, _next, etc.
+            const reservedPaths = ['auth', 'api', 'dashboard', 'admin', '_next', 'favicon.ico', 'robots.txt', 'sitemap.xml']
+
+            // Extract the first path segment from the callback URL
+            // URL might be relative (/eduadmin) or absolute (http://localhost:3000/eduadmin)
+            let pathSegment = ''
+            try {
+              // Try to parse as full URL first
+              const url = new URL(callbackUrl, 'http://dummy.com')
+              const parts = url.pathname.split('/').filter(Boolean)
+              pathSegment = parts[0] || ''
+            } catch {
+              // Fallback for relative URLs
+              const parts = callbackUrl.split('/').filter(Boolean)
+              pathSegment = parts[0] || ''
+            }
+
+            console.log('[isStudentSignup] pathSegment:', pathSegment)
+
+            // If the path segment is reserved or empty, this is NOT a student signup
+            if (!pathSegment || reservedPaths.includes(pathSegment.toLowerCase())) {
+              console.log('[isStudentSignup] result: false (reserved or empty path)')
+              return false
+            }
+
+            // Check if this path segment is a valid teacher's pageSlug
+            const teacher = await prisma.user.findUnique({
+              where: { pageSlug: pathSegment },
+              select: { id: true, accountType: true }
+            })
+
+            const isStudent = teacher !== null && teacher.accountType === 'teacher'
+            console.log('[isStudentSignup] teacher found:', teacher !== null, 'result:', isStudent)
+            return isStudent
+          } catch (e) {
+            // If anything fails, default to teacher (main site behavior)
+            console.log('[isStudentSignup] error:', e)
             return false
           }
         },
@@ -137,13 +174,7 @@ export const authOptions: NextAuthOptions = {
   } : undefined,
   callbacks: {
     async signIn({ user, account, profile }) {
-      // Clean up the OAuth context cookie after sign-in
-      try {
-        const cookieStore = await cookies()
-        cookieStore.delete('oauth_from_teacher_page')
-      } catch {
-        // Ignore cookie cleanup errors
-      }
+      // No cleanup needed - we now use callback URL instead of cookies
       return true
     },
     async jwt({ token, user, trigger, account }) {
@@ -183,7 +214,9 @@ export const authOptions: NextAuthOptions = {
           token.bio = dbUser.bio
           token.name = dbUser.name
           token.email = dbUser.email
-          token.image = dbUser.image
+          // For students, use OAuth image directly (not stored in DB for privacy)
+          // For teachers, use stored image (allows manual upload override)
+          token.image = dbUser.accountType === 'student' ? user.image : dbUser.image
           token.isAdmin = dbUser.isAdmin
           token.requirePasswordReset = dbUser.requirePasswordReset
           token.needsProfileCompletion = dbUser.needsProfileCompletion
@@ -258,7 +291,9 @@ export const authOptions: NextAuthOptions = {
           token.bio = dbUser.bio
           token.name = dbUser.name
           token.email = dbUser.email
-          token.image = dbUser.image
+          // For students, preserve existing OAuth image (not stored in DB)
+          // For teachers, use stored image (allows manual upload override)
+          token.image = dbUser.accountType === 'student' ? token.image : dbUser.image
           token.isAdmin = dbUser.isAdmin
           token.requirePasswordReset = dbUser.requirePasswordReset
           token.needsProfileCompletion = dbUser.needsProfileCompletion
