@@ -15,6 +15,35 @@ We use pnpm.
 - `pnpm db:local` - Start local PostgreSQL in Docker (background)
 - `pnpm db:local:stop` - Stop local PostgreSQL and remove containers
 
+### Direct Database Queries
+For ad-hoc database queries, use `psql` (requires `postgresql-client` package):
+
+```bash
+# Install psql if not available (Ubuntu/Debian)
+sudo apt install postgresql-client
+
+# Connect to local dev database
+psql postgresql://postgres:postgres@localhost:5432/eduskript_dev
+
+# One-liner query example
+psql postgresql://postgres:postgres@localhost:5432/eduskript_dev -c "SELECT id, email, \"pageSlug\" FROM users;"
+```
+
+For programmatic queries via Prisma, use `scripts/db-query.mjs`:
+```bash
+node scripts/db-query.mjs "SELECT * FROM users LIMIT 5"
+```
+
+### Clearing Caches
+If pages return stale data or 404s after database changes:
+```bash
+# Clear Next.js ISR/build cache (fixes stale page renders)
+rm -rf .next
+
+# Then restart dev server
+pnpm dev
+```
+
 ### Development & Build
 - `pnpm dev` - Start development server with Turbopack
 - `pnpm build` - Build for production (includes Prisma generation)
@@ -49,10 +78,33 @@ Eduskript is a multi-tenant education platform where teachers create educational
 - **Page vs Profile Fields**: `pageSlug`, `pageName`, `pageDescription` are for the public page; `name`, `bio`, `title` are user profile fields
 - **Permission System**: Many-to-many relations between users and content (CollectionAuthor, SkriptAuthor, PageAuthor)
 - **Permissions**: `author` (can edit/manage) and `viewer` (read-only access)
-- **Versioning**: Page content versioning with rollback capabilities
+- **Versioning**: Page content versioning with rollback capabilities (PageVersion, FrontPageVersion)
 - **File Storage**: Hierarchical file system for each skript with deduplication via hash
 - **Collaboration**: Request-based partnership system between teachers
 - **Local Development**: PostgreSQL via Docker Compose (see `docker-compose.local.yml`)
+
+**User Account Types:**
+- `accountType`: "teacher" (default) or "student"
+- Students use OAuth identification (`oauthProvider`, `oauthProviderId`) instead of email for privacy
+- `studentPseudonym`: Hash-based identifier for student privacy
+
+**Class System:**
+- `Class`: Teacher-owned groups with `inviteCode` for joining
+- `ClassMembership`: Junction table with `identityConsent` for privacy
+- `allowAnonymous`: Classes can allow unauthenticated access
+- `PreAuthorizedStudent`: Bulk import students via pseudonym
+
+**User Data & Cloud Sync:**
+- `UserData`: JSONB storage for code, annotations, settings, snaps
+- Syncs via `useSyncedUserData` hook (IndexedDB + server)
+- Adapters: 'code', 'annotations', 'settings', 'preferences', 'snaps'
+
+**Additional Models:**
+- `Video`: Mux video hosting with JSONB metadata (playbackId, poster, etc.)
+- `FrontPage`: Custom landing pages for users and skripts
+- `ImportJob`: Async import/export job tracking with progress
+- `PageLayout`/`PageLayoutItem`: User's public page organization
+- `StudentProgress`/`StudentSubmission`: Student work tracking
 
 ### Routing Architecture
 - **Path-based routing**: All public teacher pages use `eduskript.org/[pageSlug]/...` URL structure

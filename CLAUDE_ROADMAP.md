@@ -11,8 +11,6 @@
 
 - **Organization Support** - Groundwork for schools/organizations: org admins can manage users (delete, reset PW), administer org pages, pay per organization. See `docs/ORGANIZATION_GROUNDWORK_PLAN.md` for detailed plan.
 
-- store annotation telemetry using user data service and visualize for admins?
-
 - migration had issues, let's try locally until it works and ultimately migrate the database instead (teacher bucket is the same anyway)
 - **Content migration** - continue content migration
 

@@ -36,7 +36,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    // Get all members
+    // Get all members with identity consent status
     const memberships = await prisma.classMembership.findMany({
       where: { classId },
       include: {
@@ -44,6 +44,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           select: {
             id: true,
             name: true,
+            email: true,
             studentPseudonym: true,
             lastSeenAt: true
           }
@@ -54,31 +55,18 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
     })
 
-    // Get approved identity reveals for this class and teacher
-    const approvedReveals = await prisma.identityRevealRequest.findMany({
-      where: {
-        classId,
-        teacherId: session.user.id,
-        status: 'approved'
-      },
-      select: {
-        studentId: true,
-        email: true
-      }
-    })
-
-    // Create a map of studentId -> revealed email
-    const revealedEmails = new Map(
-      approvedReveals.map(r => [r.studentId, r.email])
-    )
-
     return NextResponse.json({
       students: memberships.map(m => ({
         id: m.student.id,
         displayName: m.student.name, // e.g., "student-a1b2c3d4"
         pseudonym: m.student.studentPseudonym, // e.g., "a1b2c3d4e5f6g7h8"
-        email: revealedEmails.get(m.student.id) || `student_${m.student.studentPseudonym}@eduskript.local`,
-        revealedEmail: revealedEmails.get(m.student.id) || null, // The real email if student consented
+        // Only show real email if student has given identity consent
+        email: m.identityConsent && m.student.email
+          ? m.student.email
+          : `student_${m.student.studentPseudonym}@eduskript.local`,
+        revealedEmail: m.identityConsent ? m.student.email : null,
+        identityConsent: m.identityConsent,
+        consentedAt: m.consentedAt,
         joinedAt: m.joinedAt,
         lastSeenAt: m.student.lastSeenAt
       }))

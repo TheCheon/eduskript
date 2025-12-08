@@ -274,6 +274,7 @@ CREATE TABLE "classes" (
     "teacher_id" TEXT NOT NULL,
     "invite_code" TEXT NOT NULL,
     "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "allow_anonymous" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -300,20 +301,6 @@ CREATE TABLE "pre_authorized_students" (
     "added_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "pre_authorized_students_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "identity_reveal_requests" (
-    "id" TEXT NOT NULL,
-    "class_id" TEXT NOT NULL,
-    "teacher_id" TEXT NOT NULL,
-    "student_id" TEXT NOT NULL,
-    "email" TEXT NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'pending',
-    "requested_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "responded_at" TIMESTAMP(3),
-
-    CONSTRAINT "identity_reveal_requests_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -511,18 +498,6 @@ CREATE INDEX "pre_authorized_students_class_id_idx" ON "pre_authorized_students"
 CREATE UNIQUE INDEX "pre_authorized_students_class_id_pseudonym_key" ON "pre_authorized_students"("class_id", "pseudonym");
 
 -- CreateIndex
-CREATE INDEX "identity_reveal_requests_student_id_status_idx" ON "identity_reveal_requests"("student_id", "status");
-
--- CreateIndex
-CREATE INDEX "identity_reveal_requests_class_id_idx" ON "identity_reveal_requests"("class_id");
-
--- CreateIndex
-CREATE INDEX "identity_reveal_requests_teacher_id_idx" ON "identity_reveal_requests"("teacher_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "identity_reveal_requests_class_id_student_id_email_key" ON "identity_reveal_requests"("class_id", "student_id", "email");
-
--- CreateIndex
 CREATE INDEX "user_data_user_id_idx" ON "user_data"("user_id");
 
 -- CreateIndex
@@ -647,15 +622,6 @@ ALTER TABLE "class_memberships" ADD CONSTRAINT "class_memberships_student_id_fke
 
 -- AddForeignKey
 ALTER TABLE "pre_authorized_students" ADD CONSTRAINT "pre_authorized_students_class_id_fkey" FOREIGN KEY ("class_id") REFERENCES "classes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "identity_reveal_requests" ADD CONSTRAINT "identity_reveal_requests_class_id_fkey" FOREIGN KEY ("class_id") REFERENCES "classes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "identity_reveal_requests" ADD CONSTRAINT "identity_reveal_requests_teacher_id_fkey" FOREIGN KEY ("teacher_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "identity_reveal_requests" ADD CONSTRAINT "identity_reveal_requests_student_id_fkey" FOREIGN KEY ("student_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "user_data" ADD CONSTRAINT "user_data_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
