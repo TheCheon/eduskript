@@ -9,12 +9,9 @@
 
 ## 🎯 Priority List
 
-- **Organization Support** - Groundwork for schools/organizations: org admins can manage users (delete, reset PW), administer org pages, pay per organization. See `docs/ORGANIZATION_GROUNDWORK_PLAN.md` for detailed plan.
-
-- **realtime events** - check docs/
-
-- migration had issues, let's try locally until it works and ultimately migrate the database instead (teacher bucket is the same anyway)
-- **Content migration** - continue content migration
+- ✅ **realtime events system** - SSE infrastructure complete, applied to class invitations (see docs/REALTIME_EVENTS.md)
+- **Teacher annotation broadcasting** - Use realtime events for broadcast mode (teacher annotations → students)
+- **Quiz submission monitoring** - Real-time quiz answer tracking for teachers
 
 **LMS Features:**
 - **Interactive Quizzes** - In-lesson quizzes with progress tracking. there is already a <Question> component.
@@ -22,12 +19,16 @@
 - **Teacher/author ability to publish/distribute snaps globally or per class**
 - **Teacher/author ability to publish/distribute annotations globally or per class**
 - **Student Progress Tracking** - Gradebook interface, view progress, grade submissions
+- **Organization Support** - Groundwork for schools/organizations: org admins can manage users (delete, reset PW), administer org pages, pay per organization. See `docs/ORGANIZATION_GROUNDWORK_PLAN.md` for detailed plan.
+
+
+- migration had issues, let's try locally until it works and ultimately migrate the database instead (teacher bucket is the same anyway)
+- **Content migration** - continue content migration
 
 **Infrastructure:**
 - **Backup System** - Easy database exports and UI to restore if necessary
 - **Marketplace / Sharing** - Content sharing and selling platform
 - **Plugin System** - Extensible component architecture, MDX support
-
 
 small stuff:
 - bigger handles for resize bars in the editor when using touch device (in place but untested)
