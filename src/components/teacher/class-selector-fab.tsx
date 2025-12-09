@@ -7,9 +7,7 @@ import { ChevronDown, Users, X } from 'lucide-react'
 interface ClassInfo {
   id: string
   name: string
-  _count: {
-    memberships: number
-  }
+  memberCount: number
 }
 
 export function ClassSelectorFAB() {
@@ -107,7 +105,7 @@ export function ClassSelectorFAB() {
                     <span className="font-medium truncate">{cls.name}</span>
                     <span className="text-xs text-muted-foreground ml-2 flex items-center gap-1">
                       <Users className="h-3 w-3" />
-                      {cls._count.memberships}
+                      {cls.memberCount}
                     </span>
                   </button>
                 ))}
