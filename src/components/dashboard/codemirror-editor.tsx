@@ -25,6 +25,7 @@ interface CodeMirrorEditorProps {
   onChange: (content: string) => void
   onSave?: () => void
   skriptId?: string
+  pageId?: string
   domain?: string
   isReadOnly?: boolean
   fileList?: Array<{id: string, name: string, url?: string, isDirectory?: boolean}>
@@ -42,6 +43,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
   content,
   onChange,
   skriptId,
+  pageId,
   isReadOnly = false,
   fileList,
   onFileUpload,
@@ -1220,6 +1222,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
                 markdown={useSimpleEditor ? textareaContent : editorContent}
                 onContentChange={onChange}
                 fileList={fileList}
+                pageId={pageId}
               />
             </div>
           </div>

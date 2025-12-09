@@ -19,6 +19,7 @@ interface MarkdownEditorProps {
     isDirectory?: boolean
   }, position: number, screenX: number, screenY: number) => void
   skriptId?: string
+  pageId?: string
   domain?: string
   isReadOnly?: boolean
   fileList?: Array<{id: string, name: string, url?: string, isDirectory?: boolean}>

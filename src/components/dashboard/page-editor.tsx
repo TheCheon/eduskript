@@ -571,6 +571,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
               }
             }}
             skriptId={skript.id}
+            pageId={page.id}
             domain={(session?.user as { pageSlug?: string })?.pageSlug || undefined}
             fileList={fileList}
             fileListLoading={fileListLoading}
