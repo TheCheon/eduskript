@@ -2,16 +2,18 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
+import { useRealtimeEvents } from './use-realtime-events'
 
 const CACHE_KEY = 'hasPendingInvitations'
 
 /**
  * Hook to check for pending class invitations (students only).
- * Uses sessionStorage caching with:
- * - Cache cleared on page reload (F5)
- * - Cache preserved during navigation
+ *
+ * Uses multiple strategies for updates:
+ * - Initial fetch on mount
+ * - Real-time updates via SSE (Server-Sent Events)
  * - Re-fetch on tab visibility change
- * - Real-time updates via custom event
+ * - SessionStorage caching during navigation
  */
 export function usePendingInvitations() {
   const { data: session, status } = useSession()
@@ -33,6 +35,17 @@ export function usePendingInvitations() {
         setHasPendingInvitations(false)
       })
   }, [isStudent])
+
+  // Subscribe to real-time class invitation events via SSE
+  useRealtimeEvents(
+    ['class-invitation'],
+    () => {
+      // When we receive a class-invitation event, set to true immediately
+      setHasPendingInvitations(true)
+      sessionStorage.setItem(CACHE_KEY, 'true')
+    },
+    { enabled: isStudent }
+  )
 
   useEffect(() => {
     if (!isStudent) return
@@ -63,7 +76,7 @@ export function usePendingInvitations() {
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    // Listen for invitation status changes from other components
+    // Listen for invitation status changes from other components (local events)
     const handleInvitationStatusChanged = (e: CustomEvent<{ hasPending: boolean }>) => {
       setHasPendingInvitations(e.detail.hasPending)
     }

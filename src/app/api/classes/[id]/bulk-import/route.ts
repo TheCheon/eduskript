@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { generatePseudonym } from '@/lib/privacy/pseudonym'
 import { bulkImportRateLimiter } from '@/lib/rate-limit'
+import { eventBus } from '@/lib/events'
 
 interface RouteParams {
   params: Promise<{
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Verify class exists and user owns it
     const classRecord = await prisma.class.findUnique({
       where: { id: classId },
-      select: { teacherId: true }
+      select: { teacherId: true, name: true }
     })
 
     if (!classRecord) {
@@ -151,6 +152,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         classId,
         count: pseudonymsToAdd.length
       })
+
+      // Publish real-time events for each pre-authorized student
+      // Students subscribed to their pseudonym channel will receive this
+      for (const pseudonym of pseudonymsToAdd) {
+        await eventBus.publish(`pseudonym:${pseudonym}`, {
+          type: 'class-invitation',
+          classId,
+          className: classRecord.name
+        })
+      }
     }
 
     // NO LONGER CREATING IDENTITY REVEAL REQUESTS
