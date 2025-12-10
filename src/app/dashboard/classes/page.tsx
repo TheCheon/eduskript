@@ -267,7 +267,6 @@ export default function ClassesPage() {
       }
 
       const data = await response.json()
-      console.log('Bulk import response:', data)
 
       // Save emails to local unmapped list for later resolution
       addUnmappedEmails(classId, emails)
@@ -297,8 +296,6 @@ export default function ClassesPage() {
         return // No emails to resolve
       }
 
-      console.log('[Resolve] Resolving emails for class:', classId, unmappedEmails)
-
       const response = await fetch(`/api/classes/${classId}/resolve-emails`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -310,7 +307,6 @@ export default function ClassesPage() {
       }
 
       const data = await response.json()
-      console.log('[Resolve] Resolution response:', data)
 
       // Update mappings for resolved emails
       let hasNewMappings = false
@@ -320,7 +316,6 @@ export default function ClassesPage() {
           await saveEmailMapping(classId, item.email, item.pseudonym)
           // Remove from unmapped list
           removeUnmappedEmail(classId, item.email)
-          console.log('[Resolve] Mapped:', item.email, '->', item.pseudonym)
           hasNewMappings = true
         }
       }

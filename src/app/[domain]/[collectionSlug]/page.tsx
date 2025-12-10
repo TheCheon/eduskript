@@ -238,7 +238,6 @@ export default async function CollectionPreviewPage({ params }: CollectionPrevie
     const redirectUrl = hasSubdomain
       ? `/${collectionSlug}/${firstSkript.slug}/${firstPage.slug}`
       : `/${domain}/${collectionSlug}/${firstSkript.slug}/${firstPage.slug}`
-    console.log(`Redirecting to: ${redirectUrl}`)
     // Redirect to the first available page
     redirect(redirectUrl)
   }

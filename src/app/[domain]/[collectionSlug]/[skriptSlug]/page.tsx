@@ -324,7 +324,6 @@ export default async function SkriptPreviewPage({ params }: SkriptPreviewProps) 
       const redirectUrl = hasSubdomain
         ? `/${collectionSlug}/${skriptSlug}/${firstPage.slug}`
         : `/${domain}/${collectionSlug}/${skriptSlug}/${firstPage.slug}`
-      console.log('Redirecting to:', redirectUrl)
       return <SkriptRedirect redirectUrl={redirectUrl} />
     }
 
@@ -332,7 +331,6 @@ export default async function SkriptPreviewPage({ params }: SkriptPreviewProps) 
     const redirectUrl = hasSubdomain
       ? `/${collectionSlug}`
       : `/${domain}/${collectionSlug}`
-    console.log('Redirecting to:', redirectUrl)
     return <SkriptRedirect redirectUrl={redirectUrl} />
 
   } catch (error) {
