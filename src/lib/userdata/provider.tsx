@@ -127,22 +127,48 @@ export function useSyncedUserData<T>(
   // (callers often pass inline objects which would cause infinite loops)
   const initialDataRef = React.useRef(initialData)
 
-  // Load data on mount (only re-run when pageId or componentId changes)
+  // Extract targeting from options
+  const { targetType, targetId } = options
+
+  // Load data on mount (re-run when pageId, componentId, or targeting changes)
   useEffect(() => {
     let mounted = true
 
     const loadData = async () => {
       try {
         setIsLoading(true)
-        const record = await userDataService.get<T>(pageId, componentId)
 
-        if (mounted) {
-          if (record) {
-            setData(record.data)
-            setIsSynced(record.savedToRemote)
-          } else {
+        // If there's targeting, fetch from server directly
+        // (targeted data is not stored locally - it's for broadcasting to others)
+        if (targetType && targetId) {
+          const response = await fetch(
+            `/api/user-data/${componentId}/${encodeURIComponent(pageId)}?targetType=${targetType}&targetId=${targetId}`
+          )
+          if (response.ok) {
+            const serverData = await response.json()
+            if (mounted && serverData.data) {
+              setData(serverData.data as T)
+              setIsSynced(true)
+            } else if (mounted) {
+              setData(initialDataRef.current)
+              setIsSynced(true)
+            }
+          } else if (mounted) {
             setData(initialDataRef.current)
             setIsSynced(true)
+          }
+        } else {
+          // No targeting - load from local IndexedDB
+          const record = await userDataService.get<T>(pageId, componentId)
+
+          if (mounted) {
+            if (record) {
+              setData(record.data)
+              setIsSynced(record.savedToRemote)
+            } else {
+              setData(initialDataRef.current)
+              setIsSynced(true)
+            }
           }
         }
       } catch (error) {
@@ -162,10 +188,7 @@ export function useSyncedUserData<T>(
     return () => {
       mounted = false
     }
-  }, [pageId, componentId]) // Note: initialData NOT in deps - we use ref instead
-
-  // Extract targeting from options
-  const { targetType, targetId } = options
+  }, [pageId, componentId, targetType, targetId]) // Re-run when targeting changes
 
   const updateData = useCallback(
     async (newData: T, updateOptions: { immediate?: boolean } = {}) => {

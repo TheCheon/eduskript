@@ -153,6 +153,16 @@ export async function POST(request: NextRequest) {
 
     // Process each item
     for (const item of items) {
+      // Log targeting for debugging
+      if (item.targetType || item.targetId) {
+        console.log('[sync] Processing item with targeting:', {
+          adapter: item.adapter,
+          itemId: item.itemId,
+          targetType: item.targetType,
+          targetId: item.targetId
+        })
+      }
+
       try {
         // Parse the data string to JSON
         let parsedData: unknown

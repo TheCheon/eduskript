@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
+import { useRealtimeEvents } from '@/hooks/use-realtime-events'
 import { Users, BookOpen, ShieldCheck } from 'lucide-react'
 
 interface JoinRequest {
@@ -37,23 +38,7 @@ export default function MyClassesPage() {
   const [joining, setJoining] = useState<string | null>(null)
   const alert = useAlertDialog()
 
-  useEffect(() => {
-    if (status === 'loading') return
-
-    if (!session) {
-      router.push('/auth/signin')
-      return
-    }
-
-    if (session.user?.accountType !== 'student') {
-      router.push('/dashboard')
-      return
-    }
-
-    loadClasses()
-  }, [session, status, router])
-
-  const loadClasses = async () => {
+  const loadClasses = useCallback(async () => {
     try {
       setLoading(true)
       const response = await fetch('/api/classes/my-classes')
@@ -77,7 +62,33 @@ export default function MyClassesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (status === 'loading') return
+
+    if (!session) {
+      router.push('/auth/signin')
+      return
+    }
+
+    if (session.user?.accountType !== 'student') {
+      router.push('/dashboard')
+      return
+    }
+
+    loadClasses()
+  }, [session, status, router, loadClasses])
+
+  // Subscribe to real-time class invitation events
+  useRealtimeEvents(
+    ['class-invitation'],
+    () => {
+      // Reload the class list when a new invitation arrives
+      loadClasses()
+    },
+    { enabled: status === 'authenticated' && session?.user?.accountType === 'student' }
+  )
 
   const handleJoinClass = async (inviteCode: string) => {
     try {

@@ -28,7 +28,7 @@ interface SimpleCanvasProps {
   width: number
   height: number
   mode: DrawMode | 'view'
-  onUpdate: (data: string) => void
+  onUpdate?: (data: string) => void  // Optional - not needed for read-only canvases
   initialData?: string
   strokeWidth?: number
   strokeColor?: string
@@ -39,6 +39,7 @@ interface SimpleCanvasProps {
   onTelemetry?: (telemetry: StrokeTelemetry) => void  // Optional telemetry callback (sampled)
   zoom?: number
   headingPositions?: HeadingPosition[]
+  readOnly?: boolean  // When true, disables all interaction
 }
 
 export interface SimpleCanvasHandle {
@@ -47,7 +48,7 @@ export interface SimpleCanvasHandle {
 }
 
 export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
-  ({ width, height, mode, onUpdate, initialData, strokeWidth = 2, strokeColor = '#000000', stylusModeActive = false, onStylusDetected, onNonStylusInput, onPenStateChange, onTelemetry, zoom = 1.0, headingPositions = [] }, ref) => {
+  ({ width, height, mode, onUpdate, initialData, strokeWidth = 2, strokeColor = '#000000', stylusModeActive = false, onStylusDetected, onNonStylusInput, onPenStateChange, onTelemetry, zoom = 1.0, headingPositions = [], readOnly = false }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const isDrawingRef = useRef(false)
     const [isPenDrawing, setIsPenDrawing] = useState(false) // Track if pen is actively drawing
@@ -659,7 +660,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
           const totalPoints = pathsRef.current.reduce((sum, path) => sum + path.points.length, 0)
           const sizeKB = (new Blob([data]).size / 1024).toFixed(2)
           console.log(`Canvas data after erase: ${pathsRef.current.length} paths, ${totalPoints} points, ${sizeKB} KB`)
-          onUpdate(data)
+          onUpdate?.(data)
 
           // Clear current path for eraser
           currentPathRef.current = []
@@ -739,7 +740,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         const totalPoints = pathsRef.current.reduce((sum, path) => sum + path.points.length, 0)
         const sizeKB = (new Blob([data]).size / 1024).toFixed(2)
 
-        onUpdate(data)
+        onUpdate?.(data)
       }
     }, [mode, strokeColor, strokeWidth, onUpdate, onPenStateChange, onTelemetry, headingPositions, redrawCanvas, updateEraserCursor, hideEraserCursor])
 
@@ -770,7 +771,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         clear: () => {
           pathsRef.current = []
           redrawCanvas()
-          onUpdate(JSON.stringify([]))
+          onUpdate?.(JSON.stringify([]))
         },
         exportData: () => {
           return JSON.stringify(pathsRef.current)

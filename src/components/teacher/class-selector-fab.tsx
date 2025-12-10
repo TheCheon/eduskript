@@ -270,7 +270,7 @@ export function ClassSelectorFAB() {
                 className="w-full px-3 py-2 text-left text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors flex items-center gap-2"
               >
                 <X className="h-4 w-4" />
-                Clear selection (My View)
+                Clear selection (don&apos;t share content)
               </button>
             </div>
           )}

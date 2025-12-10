@@ -27,14 +27,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const userId = session.user.id
     const { adapter, itemId } = await params
 
-    // Fetch personal data (no targeting)
+    // Check for targeting query params (for teacher broadcast/feedback)
+    const { searchParams } = new URL(request.url)
+    const targetType = searchParams.get('targetType') as 'class' | 'student' | null
+    const targetId = searchParams.get('targetId')
+
+    // Fetch data with optional targeting
     const item = await prisma.userData.findFirst({
       where: {
         userId,
         adapter,
         itemId: decodeURIComponent(itemId),
-        targetType: null,
-        targetId: null,
+        targetType: targetType || null,
+        targetId: targetId || null,
       },
     })
 

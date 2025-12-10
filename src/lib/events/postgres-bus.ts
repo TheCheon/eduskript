@@ -21,8 +21,16 @@ type Handler = (event: AppEvent) => void
 const CHANNEL_PREFIX = 'eduskript_'
 
 // Sanitize channel names for PostgreSQL (alphanumeric + underscore only)
+// PostgreSQL channel names are limited to 63 characters (NAMEDATALEN - 1)
+const MAX_CHANNEL_LENGTH = 63
+
 function sanitizeChannel(channel: string): string {
-  return CHANNEL_PREFIX + channel.replace(/[^a-zA-Z0-9]/g, '_')
+  const sanitized = CHANNEL_PREFIX + channel.replace(/[^a-zA-Z0-9]/g, '_')
+  // Truncate to PostgreSQL's limit if necessary
+  if (sanitized.length > MAX_CHANNEL_LENGTH) {
+    return sanitized.substring(0, MAX_CHANNEL_LENGTH)
+  }
+  return sanitized
 }
 
 class PostgresEventBus implements EventBus {

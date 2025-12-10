@@ -2,15 +2,18 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Eye, EyeOff } from 'lucide-react'
 import { SimpleCanvas, type SimpleCanvasHandle, type DrawMode } from './simple-canvas'
 import { AnnotationToolbar, type AnnotationMode } from './annotation-toolbar'
-import { useSyncedUserData } from '@/lib/userdata/provider'
+import { useSyncedUserData, type SyncedUserDataOptions } from '@/lib/userdata/provider'
 import type { AnnotationData, StrokeTelemetry, TelemetryData } from '@/lib/userdata/types'
 import type { SnapsData } from '@/lib/userdata/adapters'
 import { generateContentHash, type HeadingPosition, type StrokeData } from '@/lib/indexeddb/annotations'
 import { repositionStrokes } from '@/lib/annotations/reposition-strokes'
 import { useLayout } from '@/contexts/layout-context'
+import { useTeacherClass } from '@/contexts/teacher-class-context'
+import { useTeacherBroadcast } from '@/hooks/use-teacher-broadcast'
+import { useSession } from 'next-auth/react'
 import { SnapOverlay, type Snap } from './snap-overlay'
 import { SnapsDisplay } from './snaps-display'
 
@@ -22,12 +25,33 @@ interface AnnotationLayerProps {
 
 export function AnnotationLayer({ pageId, content, children }: AnnotationLayerProps) {
   const { sidebarWidth, viewportWidth, viewportHeight } = useLayout()
+  const { data: session } = useSession()
+  const { selectedClass, selectedStudent, viewMode, isTeacher } = useTeacherClass()
 
-  // Use synced user data service for annotations
+  // Compute targeting options based on teacher selection
+  // - 'my-view': No targeting (personal annotations)
+  // - 'class-broadcast': targetType='class', targetId=classId
+  // - 'student-view': targetType='student', targetId=studentId
+  const syncOptions: SyncedUserDataOptions = useMemo(() => {
+    if (!isTeacher) return {}
+
+    if (viewMode === 'class-broadcast' && selectedClass) {
+      return { targetType: 'class', targetId: selectedClass.id }
+    }
+    if (viewMode === 'student-view' && selectedStudent) {
+      return { targetType: 'student', targetId: selectedStudent.id }
+    }
+    return {} // my-view: personal annotations
+  }, [isTeacher, viewMode, selectedClass, selectedStudent])
+
+  console.log('[AnnotationLayer] Teacher sync options:', { isTeacher, viewMode, selectedClass: selectedClass?.id, selectedStudent: selectedStudent?.id, syncOptions })
+
+  // Use synced user data service for annotations (with targeting for teachers)
   const { data: annotationData, updateData: updateAnnotationData, isLoading: annotationLoading } = useSyncedUserData<AnnotationData>(
     pageId,
     'annotations',
-    null
+    null,
+    syncOptions
   )
 
   // Use synced user data service for snaps
@@ -37,6 +61,47 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     pageId,
     'snaps',
     emptySnapsData
+  )
+
+  // For students: fetch teacher annotations (class broadcasts + individual feedback)
+  const isStudent = session?.user?.accountType === 'student'
+  console.log('[AnnotationLayer] isStudent:', isStudent, 'accountType:', session?.user?.accountType, 'pageId:', pageId)
+  const {
+    classAnnotations: teacherClassAnnotations,
+    individualFeedback: teacherIndividualFeedback,
+    isLoading: teacherAnnotationsLoading,
+  } = useTeacherBroadcast(isStudent ? pageId : '')
+  console.log('[AnnotationLayer] Teacher annotations:', { teacherClassAnnotations, teacherIndividualFeedback, teacherAnnotationsLoading })
+
+  // Toggle to show/hide teacher annotations
+  const [showTeacherAnnotations, setShowTeacherAnnotations] = useState(true)
+
+  // Load toggle preference from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('show-teacher-annotations')
+      if (stored !== null) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional one-time init from localStorage
+        setShowTeacherAnnotations(stored === 'true')
+      }
+    }
+  }, [])
+
+  // Save toggle preference
+  const toggleTeacherAnnotations = useCallback(() => {
+    setShowTeacherAnnotations(prev => {
+      const newValue = !prev
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('show-teacher-annotations', String(newValue))
+      }
+      return newValue
+    })
+  }, [])
+
+  // Check if there are any teacher annotations to show
+  const hasTeacherAnnotations = isStudent && (
+    (teacherClassAnnotations.length > 0) ||
+    (teacherIndividualFeedback !== null)
   )
 
   // Use synced user data service for telemetry (lightweight, sampled)
@@ -1117,6 +1182,96 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
           />
         </div>,
         paperElement
+      )}
+
+      {/* Teacher annotation overlays for students - read-only layers */}
+      {isStudent && showTeacherAnnotations && !teacherAnnotationsLoading && paperElement && pageHeight > 0 && (
+        <>
+          {/* Class broadcast annotations (blue tint) */}
+          {teacherClassAnnotations.map((classAnnotation) => {
+            const annotationData = classAnnotation.data as AnnotationData | null
+            if (!annotationData?.canvasData) return null
+            return (
+              <div key={classAnnotation.classId}>
+                {createPortal(
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      height: pageHeight,
+                      pointerEvents: 'none', // Read-only - no interaction
+                      zIndex: 8, // Below student's own annotations
+                      opacity: 0.8,
+                      filter: 'hue-rotate(200deg) saturate(1.2)', // Blue tint
+                    }}
+                  >
+                    <SimpleCanvas
+                      width={paperWidth}
+                      height={pageHeight}
+                      mode="view"
+                      initialData={annotationData.canvasData}
+                      headingPositions={headingPositions}
+                      zoom={zoom}
+                      readOnly
+                    />
+                  </div>,
+                  paperElement
+                )}
+              </div>
+            )
+          })}
+
+          {/* Individual feedback annotations (orange tint) */}
+          {teacherIndividualFeedback && (() => {
+            const annotationData = teacherIndividualFeedback.data as AnnotationData | null
+            if (!annotationData?.canvasData) return null
+            return createPortal(
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: pageHeight,
+                  pointerEvents: 'none', // Read-only - no interaction
+                  zIndex: 9, // Above class broadcasts, below student's own
+                  opacity: 0.9,
+                  filter: 'hue-rotate(20deg) saturate(1.3)', // Orange/red tint
+                }}
+              >
+                <SimpleCanvas
+                  width={paperWidth}
+                  height={pageHeight}
+                  mode="view"
+                  initialData={annotationData.canvasData}
+                  headingPositions={headingPositions}
+                  zoom={zoom}
+                  readOnly
+                />
+              </div>,
+              paperElement
+            )
+          })()}
+        </>
+      )}
+
+      {/* Teacher annotations toggle button (for students) */}
+      {isStudent && hasTeacherAnnotations && (
+        <button
+          onClick={toggleTeacherAnnotations}
+          className="fixed bottom-6 left-6 z-50 p-3 rounded-full bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          title={showTeacherAnnotations ? 'Hide teacher annotations' : 'Show teacher annotations'}
+        >
+          {showTeacherAnnotations ? (
+            <Eye className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          ) : (
+            <EyeOff className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+          )}
+        </button>
       )}
 
       {/* Toolbar */}
