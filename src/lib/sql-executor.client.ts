@@ -143,10 +143,6 @@ export async function loadDatabase(dbPath: string): Promise<SqlJsDatabase> {
   // Store in cache
   databaseCache.set(dbPath, database)
 
-  // Verify database with a test query
-  const versionQuery = database.exec('SELECT sqlite_version();')
-  console.log(`Database loaded (${dbPath}). SQLite version:`, versionQuery[0]?.values[0][0] || 'Unknown')
-
   return database
 }
 

@@ -25,8 +25,6 @@ export const authOptions: NextAuthOptions = {
             const callbackCookie = cookieStore.get('next-auth.callback-url')
             const callbackUrl = callbackCookie?.value || ''
 
-            console.log('[isStudentSignup] email:', email, 'callbackUrl:', callbackUrl)
-
             // Parse the callback URL to check if it's a teacher's page
             // Teacher pages start with /{pageSlug} where pageSlug is NOT a reserved route
             // Reserved routes: auth, api, dashboard, admin, _next, etc.
@@ -46,11 +44,8 @@ export const authOptions: NextAuthOptions = {
               pathSegment = parts[0] || ''
             }
 
-            console.log('[isStudentSignup] pathSegment:', pathSegment)
-
             // If the path segment is reserved or empty, this is NOT a student signup
             if (!pathSegment || reservedPaths.includes(pathSegment.toLowerCase())) {
-              console.log('[isStudentSignup] result: false (reserved or empty path)')
               return false
             }
 
@@ -60,12 +55,9 @@ export const authOptions: NextAuthOptions = {
               select: { id: true, accountType: true }
             })
 
-            const isStudent = teacher !== null && teacher.accountType === 'teacher'
-            console.log('[isStudentSignup] teacher found:', teacher !== null, 'result:', isStudent)
-            return isStudent
-          } catch (e) {
+            return teacher !== null && teacher.accountType === 'teacher'
+          } catch {
             // If anything fails, default to teacher (main site behavior)
-            console.log('[isStudentSignup] error:', e)
             return false
           }
         },
@@ -311,6 +303,18 @@ export const authOptions: NextAuthOptions = {
               data: { lastSeenAt: new Date() },
             })
           }
+        }
+      }
+
+      // Backfill missing accountType for existing tokens (one-time migration)
+      // This handles tokens created before accountType was added
+      if (token.id && !token.accountType) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { accountType: true }
+        })
+        if (dbUser?.accountType) {
+          token.accountType = dbUser.accountType
         }
       }
 

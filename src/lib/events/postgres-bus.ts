@@ -78,7 +78,6 @@ class PostgresEventBus implements EventBus {
       })
 
       await this.listenerClient.connect()
-      console.log('[PostgresEventBus] Listener connection established')
 
       // Handle incoming notifications
       this.listenerClient.on('notification', (msg) => {
@@ -114,7 +113,6 @@ class PostgresEventBus implements EventBus {
       })
 
       this.listenerClient.on('end', () => {
-        console.log('[PostgresEventBus] Listener connection ended')
         this.listenerClient = null
       })
 
@@ -122,7 +120,6 @@ class PostgresEventBus implements EventBus {
       for (const channel of this.subscribers.keys()) {
         const pgChannel = sanitizeChannel(channel)
         await this.listenerClient.query(`LISTEN ${pgChannel}`)
-        console.log(`[PostgresEventBus] Listening on ${pgChannel}`)
       }
     } catch (error) {
       console.error('[PostgresEventBus] Failed to create listener connection:', error)
@@ -138,7 +135,6 @@ class PostgresEventBus implements EventBus {
     try {
       // Use pool for publishing (connection reuse)
       await this.pool.query(`SELECT pg_notify($1, $2)`, [pgChannel, payload])
-      console.log(`[PostgresEventBus] Published to ${pgChannel}`)
     } catch (error) {
       console.error(`[PostgresEventBus] Failed to publish to ${channel}:`, error)
       throw error
@@ -156,18 +152,16 @@ class PostgresEventBus implements EventBus {
 
     // Start LISTEN on the channel if we have a connection
     if (this.listenerClient) {
-      this.listenerClient.query(`LISTEN ${pgChannel}`).catch(err => {
-        console.error(`[PostgresEventBus] Failed to LISTEN on ${pgChannel}:`, err)
+      this.listenerClient.query(`LISTEN ${pgChannel}`).catch(() => {
+        // Silently handle LISTEN failures
       })
-      console.log(`[PostgresEventBus] Subscribed to ${pgChannel}`)
     } else {
       // Ensure connection is being established
       this.ensureListenerConnection().then(() => {
         if (this.listenerClient) {
-          this.listenerClient.query(`LISTEN ${pgChannel}`).catch(err => {
-            console.error(`[PostgresEventBus] Failed to LISTEN on ${pgChannel}:`, err)
+          this.listenerClient.query(`LISTEN ${pgChannel}`).catch(() => {
+            // Silently handle LISTEN failures
           })
-          console.log(`[PostgresEventBus] Subscribed to ${pgChannel} (after connect)`)
         }
       })
     }
@@ -181,10 +175,9 @@ class PostgresEventBus implements EventBus {
         this.subscribers.delete(channel)
 
         if (this.listenerClient) {
-          this.listenerClient.query(`UNLISTEN ${pgChannel}`).catch(err => {
-            console.error(`[PostgresEventBus] Failed to UNLISTEN on ${pgChannel}:`, err)
+          this.listenerClient.query(`UNLISTEN ${pgChannel}`).catch(() => {
+            // Silently handle UNLISTEN failures
           })
-          console.log(`[PostgresEventBus] Unsubscribed from ${pgChannel}`)
         }
       }
     }

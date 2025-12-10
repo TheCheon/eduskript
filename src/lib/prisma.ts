@@ -21,7 +21,6 @@ const pool = globalForPrisma.pool ?? new Pool({
   connectionTimeoutMillis: 10000, // 10 seconds for Neon cold starts
 })
 if (process.env.NODE_ENV !== 'production') globalForPrisma.pool = pool
-console.log('✓ Prisma initialized with PostgreSQL adapter')
 
 // Create Prisma adapter
 const adapter = new PrismaPg(pool)

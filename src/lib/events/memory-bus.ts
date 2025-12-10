@@ -14,7 +14,6 @@ class InMemoryEventBus implements EventBus {
 
   async publish(channel: string, event: AppEvent): Promise<void> {
     const handlers = this.subscribers.get(channel)
-    console.log(`[EventBus] Publishing to ${channel}: ${handlers?.size ?? 0} subscribers (total channels: ${this.subscribers.size})`)
     if (handlers && handlers.size > 0) {
       // Notify all subscribers asynchronously
       handlers.forEach(handler => {
