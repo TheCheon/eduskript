@@ -17,6 +17,46 @@ import { useSession } from 'next-auth/react'
 import { SnapOverlay, type Snap } from './snap-overlay'
 import { SnapsDisplay } from './snaps-display'
 
+/**
+ * Reposition teacher annotations to align with student's heading positions.
+ * This handles cross-device alignment when teacher broadcasts annotations.
+ */
+function repositionTeacherAnnotations(
+  canvasData: string,
+  teacherHeadingOffsets: Record<string, number> | undefined,
+  teacherPaddingLeft: number | undefined,
+  studentHeadingPositions: HeadingPosition[],
+  studentPaddingLeft: number
+): string {
+  // If no teacher heading offsets, can't reposition - return as-is
+  if (!teacherHeadingOffsets || Object.keys(teacherHeadingOffsets).length === 0) {
+    return canvasData
+  }
+
+  // If student hasn't calculated heading positions yet, return as-is
+  if (studentHeadingPositions.length === 0) {
+    return canvasData
+  }
+
+  try {
+    const strokes: StrokeData[] = JSON.parse(canvasData)
+    if (strokes.length === 0) return canvasData
+
+    const result = repositionStrokes(
+      strokes,
+      studentHeadingPositions,
+      teacherHeadingOffsets,
+      studentPaddingLeft,
+      teacherPaddingLeft
+    )
+
+    return JSON.stringify(result.strokes)
+  } catch {
+    // If parsing fails, return original data
+    return canvasData
+  }
+}
+
 interface AnnotationLayerProps {
   pageId: string
   content: string
@@ -1244,6 +1284,16 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
           {teacherClassAnnotations.map((classAnnotation) => {
             const annotationData = classAnnotation.data as AnnotationData | null
             if (!annotationData?.canvasData) return null
+
+            // Reposition teacher strokes to align with student's heading positions
+            const repositionedCanvasData = repositionTeacherAnnotations(
+              annotationData.canvasData,
+              annotationData.headingOffsets,
+              annotationData.paddingLeft,
+              headingPositions,
+              currentPaddingLeft
+            )
+
             return (
               <div key={classAnnotation.classId}>
                 {createPortal(
@@ -1265,7 +1315,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
                       width={paperWidth}
                       height={pageHeight}
                       mode="view"
-                      initialData={annotationData.canvasData}
+                      initialData={repositionedCanvasData}
                       headingPositions={headingPositions}
                       zoom={zoom}
                       readOnly
@@ -1281,6 +1331,16 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
           {teacherIndividualFeedback && (() => {
             const annotationData = teacherIndividualFeedback.data as AnnotationData | null
             if (!annotationData?.canvasData) return null
+
+            // Reposition teacher strokes to align with student's heading positions
+            const repositionedCanvasData = repositionTeacherAnnotations(
+              annotationData.canvasData,
+              annotationData.headingOffsets,
+              annotationData.paddingLeft,
+              headingPositions,
+              currentPaddingLeft
+            )
+
             return createPortal(
               <div
                 style={{
@@ -1300,7 +1360,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
                   width={paperWidth}
                   height={pageHeight}
                   mode="view"
-                  initialData={annotationData.canvasData}
+                  initialData={repositionedCanvasData}
                   headingPositions={headingPositions}
                   zoom={zoom}
                   readOnly
