@@ -26,6 +26,7 @@ import { remarkQuiz } from './remark-plugins/quiz'
 import { rehypeSourceLine } from './rehype-plugins/source-line'
 import { rehypeColorTitle } from './rehype-plugins/color-title'
 import { rehypeStripInvalidProps } from './rehype-plugins/strip-invalid-props'
+import { rehypeHeadingSectionIds } from './rehype-plugins/heading-section-ids'
 
 export interface MDXModule {
   default: ComponentType<{ components?: Record<string, ComponentType<any>> }>
@@ -55,6 +56,7 @@ export const remarkPlugins: PluggableList = [
  */
 export const rehypePlugins: PluggableList = [
   rehypeSlug,
+  rehypeHeadingSectionIds, // Add data-section-id to headings for annotation repositioning (must be after rehypeSlug)
   rehypeColorTitle,
   rehypeStripInvalidProps, // Strip invalid HTML attributes BEFORE KaTeX adds its styles
   rehypeKatex,
