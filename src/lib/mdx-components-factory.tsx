@@ -420,10 +420,12 @@ export function createMDXComponents(
   }
 
   // QuizOptionComponent - wrapper that preserves props for parent Question to read
-  // Uses data-attributes on a span so Question can access is/feedback via element.props
-  function QuizOptionComponent({ children, is, feedback }: React.HTMLAttributes<HTMLElement> & { is?: string; feedback?: string }) {
+  // Note: uses "correct" instead of "is" because "is" is a reserved React attribute
+  function QuizOptionComponent({ children, correct, is, feedback }: React.HTMLAttributes<HTMLElement> & { correct?: string; is?: string; feedback?: string }) {
     // Return an Option component that the Question can read props from
-    return <Option is={is as 'true' | 'false' | undefined} feedback={feedback}>{children}</Option>
+    // Support both "correct" (new) and "is" (legacy) attribute names
+    const isValue = correct || is
+    return <Option is={isValue as 'true' | 'false' | undefined} feedback={feedback}>{children}</Option>
   }
 
   // MDX Image component - for direct use in MDX as <Image src="..." />
