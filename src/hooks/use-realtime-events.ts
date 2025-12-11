@@ -4,125 +4,159 @@
  * Real-Time Events Hook
  *
  * Provides a React hook for subscribing to Server-Sent Events.
- * Automatically handles connection lifecycle, reconnection, and cleanup.
- *
- * Usage:
- *   useRealtimeEvents(['class-invitation'], (event) => {
- *     console.log('New invitation:', event)
- *   })
+ * Uses a SINGLETON EventSource connection shared across all hook instances.
+ * This prevents multiple SSE connections and orphaned server handlers.
  */
 
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import type { AppEvent } from '@/lib/events/types'
 
 type EventType = AppEvent['type']
+type EventHandler = (event: AppEvent) => void
+
+// Singleton EventSource manager
+class SSEManager {
+  private eventSource: EventSource | null = null
+  private handlers = new Set<EventHandler>()
+  private isConnecting = false
+  private connectionPromise: Promise<void> | null = null
+
+  connect(): Promise<void> {
+    if (this.eventSource?.readyState === EventSource.OPEN) {
+      return Promise.resolve()
+    }
+
+    if (this.connectionPromise) {
+      return this.connectionPromise
+    }
+
+    if (this.isConnecting) {
+      return Promise.resolve()
+    }
+
+    this.isConnecting = true
+    this.connectionPromise = new Promise((resolve) => {
+      this.eventSource = new EventSource('/api/events/stream')
+
+      this.eventSource.onopen = () => {
+        this.isConnecting = false
+        this.connectionPromise = null
+        resolve()
+      }
+
+      this.eventSource.onmessage = (msg) => {
+        try {
+          const event = JSON.parse(msg.data) as AppEvent
+
+          // Skip connection confirmation
+          if ((event as { type: string }).type === 'connected') {
+            return
+          }
+
+          // Notify all handlers
+          this.handlers.forEach(handler => {
+            try {
+              handler(event)
+            } catch (err) {
+              console.error('[SSEManager] Handler error:', err)
+            }
+          })
+        } catch (err) {
+          console.error('[SSEManager] Parse error:', err)
+        }
+      }
+
+      this.eventSource.onerror = () => {
+        this.isConnecting = false
+        this.connectionPromise = null
+        // EventSource auto-reconnects
+      }
+    })
+
+    return this.connectionPromise
+  }
+
+  subscribe(handler: EventHandler): () => void {
+    this.handlers.add(handler)
+
+    // Ensure connected
+    this.connect()
+
+    return () => {
+      this.handlers.delete(handler)
+
+      // Close connection if no more handlers
+      if (this.handlers.size === 0 && this.eventSource) {
+        this.eventSource.close()
+        this.eventSource = null
+      }
+    }
+  }
+
+  isConnected(): boolean {
+    return this.eventSource?.readyState === EventSource.OPEN
+  }
+}
+
+// Global singleton instance
+let sseManager: SSEManager | null = null
+
+function getSSEManager(): SSEManager {
+  if (!sseManager) {
+    sseManager = new SSEManager()
+  }
+  return sseManager
+}
 
 interface UseRealtimeEventsOptions {
-  /** Whether to enable the SSE connection (default: true) */
   enabled?: boolean
-  /** Callback when connection is established */
   onConnect?: () => void
-  /** Callback when connection is lost */
   onDisconnect?: () => void
-  /** Callback on connection error */
   onError?: (error: Event) => void
 }
 
 /**
  * Subscribe to real-time events from the server
- *
- * @param eventTypes - Array of event types to listen for
- * @param onEvent - Callback when a matching event is received
- * @param options - Additional configuration options
- *
- * @example
- * ```tsx
- * // Listen for class invitations
- * useRealtimeEvents(['class-invitation'], (event) => {
- *   if (event.type === 'class-invitation') {
- *     toast.info(`You've been invited to ${event.className}`)
- *   }
- * })
- *
- * // Listen for multiple event types
- * useRealtimeEvents(
- *   ['class-invitation', 'collaboration-request'],
- *   (event) => handleNotification(event)
- * )
- * ```
+ * Uses a singleton EventSource connection shared across all components
  */
 export function useRealtimeEvents<T extends EventType>(
   eventTypes: T[],
   onEvent: (event: Extract<AppEvent, { type: T }>) => void,
   options: UseRealtimeEventsOptions = {}
 ) {
-  const { enabled = true, onConnect, onDisconnect, onError } = options
+  const { enabled = true } = options
   const { status } = useSession()
-  const eventSourceRef = useRef<EventSource | null>(null)
   const [isConnected, setIsConnected] = useState(false)
 
-  // Use refs for callbacks to avoid reconnection on callback changes
+  // Use ref to always have latest callback without re-subscribing
   const onEventRef = useRef(onEvent)
-  const onConnectRef = useRef(onConnect)
-  const onDisconnectRef = useRef(onDisconnect)
-  const onErrorRef = useRef(onError)
-
-  // Keep refs updated
   useEffect(() => {
     onEventRef.current = onEvent
-    onConnectRef.current = onConnect
-    onDisconnectRef.current = onDisconnect
-    onErrorRef.current = onError
   })
 
-  // Stable string representation of event types for dependency array
+  // Stable event types key
   const eventTypesKey = eventTypes.join(',')
 
   useEffect(() => {
-    // Only connect when authenticated, enabled, and in browser
     if (!enabled || status !== 'authenticated' || typeof window === 'undefined') {
       return
     }
 
-    // Create EventSource connection
-    const eventSource = new EventSource('/api/events/stream')
-    eventSourceRef.current = eventSource
+    const manager = getSSEManager()
 
-    eventSource.onopen = () => {
-      setIsConnected(true)
-      onConnectRef.current?.()
-    }
-
-    eventSource.onmessage = (msg) => {
-      try {
-        const event = JSON.parse(msg.data) as AppEvent
-
-        // Skip connection confirmation messages
-        if ((event as { type: string }).type === 'connected') {
-          return
-        }
-
-        // Only handle events we're subscribed to
-        const types = eventTypesKey.split(',')
-        if (types.includes(event.type)) {
-          onEventRef.current(event as Extract<AppEvent, { type: T }>)
-        }
-      } catch {
-        // Invalid JSON, ignore
+    const handler: EventHandler = (event) => {
+      const types = eventTypesKey.split(',')
+      if (types.includes(event.type)) {
+        onEventRef.current(event as Extract<AppEvent, { type: T }>)
       }
     }
 
-    eventSource.onerror = (error) => {
-      onErrorRef.current?.(error)
-      onDisconnectRef.current?.()
-      // EventSource automatically reconnects, no manual intervention needed
-    }
+    const unsubscribe = manager.subscribe(handler)
+    setIsConnected(manager.isConnected())
 
-    // Cleanup on unmount or dependency change
     return () => {
-      eventSource.close()
-      eventSourceRef.current = null
+      unsubscribe()
       setIsConnected(false)
     }
   }, [enabled, status, eventTypesKey])
@@ -132,15 +166,12 @@ export function useRealtimeEvents<T extends EventType>(
 
 /**
  * Hook to track SSE connection state
- *
- * @returns Object with connection state and methods
  */
 export function useRealtimeConnection() {
   const { status } = useSession()
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Use the main hook with empty event types just to track connection
   useRealtimeEvents(
     [],
     () => {},
