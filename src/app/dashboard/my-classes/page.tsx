@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
 import { useRealtimeEvents } from '@/hooks/use-realtime-events'
-import { Users, BookOpen, ShieldCheck } from 'lucide-react'
+import { Users, BookOpen, ShieldCheck, LogOut } from 'lucide-react'
 
 interface JoinRequest {
   classId: string
@@ -36,6 +36,7 @@ export default function MyClassesPage() {
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [joining, setJoining] = useState<string | null>(null)
+  const [leaving, setLeaving] = useState<string | null>(null)
   const alert = useAlertDialog()
 
   const loadClasses = useCallback(async () => {
@@ -113,6 +114,32 @@ export default function MyClassesPage() {
       alert.showError(error instanceof Error ? error.message : 'Failed to join class')
     } finally {
       setJoining(null)
+    }
+  }
+
+  const handleLeaveClass = async (classId: string, className: string) => {
+    if (!confirm(`Are you sure you want to leave "${className}"? You may need to be re-invited to rejoin.`)) {
+      return
+    }
+
+    try {
+      setLeaving(classId)
+      const response = await fetch(`/api/classes/${classId}/leave`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        throw new Error(errorData.error || 'Failed to leave class')
+      }
+
+      // Reload classes to reflect the change
+      await loadClasses()
+    } catch (error) {
+      console.error('Error leaving class:', error)
+      alert.showError(error instanceof Error ? error.message : 'Failed to leave class')
+    } finally {
+      setLeaving(null)
     }
   }
 
@@ -207,17 +234,29 @@ export default function MyClassesPage() {
                   )}
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    {classItem.teacherName && (
-                      <div>Teacher: {classItem.teacherName}</div>
-                    )}
-                    <div className="flex items-center gap-1">
-                      <Users className="w-4 h-4" />
-                      <span>{classItem.memberCount} student{classItem.memberCount !== 1 ? 's' : ''}</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      {classItem.teacherName && (
+                        <div>Teacher: {classItem.teacherName}</div>
+                      )}
+                      <div className="flex items-center gap-1">
+                        <Users className="w-4 h-4" />
+                        <span>{classItem.memberCount} student{classItem.memberCount !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div>
+                        Joined {new Date(classItem.joinedAt).toLocaleDateString()}
+                      </div>
                     </div>
-                    <div>
-                      Joined {new Date(classItem.joinedAt).toLocaleDateString()}
-                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleLeaveClass(classItem.id, classItem.name)}
+                      disabled={leaving === classItem.id}
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <LogOut className="w-4 h-4 mr-1" />
+                      {leaving === classItem.id ? 'Leaving...' : 'Leave'}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
