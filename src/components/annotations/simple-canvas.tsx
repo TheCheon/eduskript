@@ -548,6 +548,18 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         return
       }
 
+      // Show eraser cursor when hovering in erase mode (not drawing yet)
+      if (mode === 'erase' && !isDrawingRef.current) {
+        const canvas = canvasRef.current
+        if (canvas) {
+          const rect = canvas.getBoundingClientRect()
+          const x = (e.clientX - rect.left) * (width / rect.width)
+          const y = (e.clientY - rect.top) * (height / rect.height)
+          updateEraserCursorPosition(x, y)
+        }
+        return
+      }
+
       if (!isDrawingRef.current || mode === 'view') return
 
       const canvas = canvasRef.current

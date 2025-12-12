@@ -199,12 +199,12 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
   }, [])
 
-  // Auto-hide personal layer when teacher selects a class (but only on first selection)
+  // Auto-hide personal annotations when teacher selects a class (but only on first selection)
   const prevViewModeRef = useRef(viewMode)
   useEffect(() => {
     if (isTeacher && prevViewModeRef.current === 'my-view' && viewMode !== 'my-view') {
       // Teacher just switched from personal to class/student view
-      // Auto-hide personal layer
+      // Auto-hide personal reference layer (controls button state in broadcast mode)
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: sync layer visibility when broadcast target changes
       setLayerVisibility(prev => {
         const next = { ...prev, personal: false }
@@ -240,11 +240,14 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     return true // All other layers visible by default
   }, [layerVisibility, isTeacher, viewMode])
 
-  // "My annotations" visibility - always controls personal annotations (person icon)
-  const myAnnotationsVisible = isLayerVisible('my-annotations')
+  // "My annotations" visibility - controls personal annotations (person icon)
+  // When in broadcast mode, this controls the 'personal' reference layer
+  // When in personal mode, this controls the 'my-annotations' main layer
+  const personalLayerKey = (isTeacher && viewMode !== 'my-view') ? 'personal' : 'my-annotations'
+  const myAnnotationsVisible = isLayerVisible(personalLayerKey)
   const toggleMyAnnotationsVisibility = useCallback(() => {
-    toggleLayerVisibility('my-annotations')
-  }, [toggleLayerVisibility])
+    toggleLayerVisibility(personalLayerKey)
+  }, [toggleLayerVisibility, personalLayerKey])
 
   // Active layer key - determines which layer the canvas is drawing to
   const activeLayerKey = useMemo(() => {
@@ -252,6 +255,9 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     if (isTeacher && viewMode === 'student-view') return 'student-feedback'
     return 'my-annotations'
   }, [isTeacher, viewMode])
+
+  // Whether my annotations is the active drawing layer
+  const myAnnotationsActive = activeLayerKey === 'my-annotations'
 
   // Active layer visibility - controls canvas opacity based on what we're drawing to
   const activeLayerVisible = isLayerVisible(activeLayerKey)
@@ -1700,7 +1706,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
                   pointerEvents: 'none',
                   zIndex: 7, // Below all other layers
                   opacity: 0.5,
-                  filter: 'grayscale(0.3)', // Subtle gray tint for personal reference
                 }}
               >
                 <SimpleCanvas
@@ -1746,8 +1751,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
                       height: pageHeight,
                       pointerEvents: 'none',
                       zIndex: 8,
-                      opacity: 0.8,
-                      filter: 'hue-rotate(200deg) saturate(1.2)', // Blue tint
                     }}
                   >
                     <SimpleCanvas
@@ -1790,8 +1793,6 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
                   height: pageHeight,
                   pointerEvents: 'none',
                   zIndex: 9,
-                  opacity: 0.9,
-                  filter: 'hue-rotate(20deg) saturate(1.3)', // Orange/red tint
                 }}
               >
                 <SimpleCanvas
@@ -1829,6 +1830,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         onLayerDelete={handleLayerDelete}
         // My annotations controls (person icon - always controls personal annotations)
         myAnnotationsVisible={myAnnotationsVisible}
+        myAnnotationsActive={myAnnotationsActive}
         onMyAnnotationsToggle={toggleMyAnnotationsVisibility}
         onMyAnnotationsDelete={handleClearPersonalAnnotations}
         // Broadcast controls for teachers

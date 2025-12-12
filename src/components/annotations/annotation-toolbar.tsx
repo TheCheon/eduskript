@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Pen, Eraser, Trash2, Camera, Eye, EyeOff, Radio, User, ChevronDown } from 'lucide-react'
+import { Pen, Eraser, Trash2, Camera, Eye, EyeOff, Radio, User, UserPen, ChevronDown } from 'lucide-react'
 import { Circle } from '@uiw/react-color'
 import { cn } from '@/lib/utils'
 
@@ -97,6 +97,7 @@ interface AnnotationToolbarProps {
   onLayerDelete?: (layerId: string) => void
   // My annotations controls
   myAnnotationsVisible?: boolean
+  myAnnotationsActive?: boolean // True when this is the layer we're drawing to
   onMyAnnotationsToggle?: () => void
   onMyAnnotationsDelete?: () => void
   // Broadcast controls (teachers only)
@@ -135,6 +136,7 @@ export function AnnotationToolbar({
   onLayerDelete,
   // My annotations
   myAnnotationsVisible = true,
+  myAnnotationsActive = true,
   onMyAnnotationsToggle,
   onMyAnnotationsDelete,
   // Broadcast controls
@@ -668,37 +670,10 @@ export function AnnotationToolbar({
                         </button>
                       </div>
                     )}
-                    {/* "Off" option with eye and trash for personal annotations */}
+                    {/* "Off" shown as current state when no class is selected */}
                     {!selectedClass && (
-                      <div className="flex items-center gap-1 px-2 py-1 bg-accent">
-                        <span className="flex-1 text-left text-sm">
-                          Off
-                        </span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onMyAnnotationsToggle?.()
-                          }}
-                          className={cn(
-                            'p-1 rounded transition-colors',
-                            myAnnotationsVisible
-                              ? 'text-foreground hover:bg-background/50'
-                              : 'text-muted-foreground/50 hover:bg-background/50'
-                          )}
-                          title={myAnnotationsVisible ? 'Hide' : 'Show'}
-                        >
-                          {myAnnotationsVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onMyAnnotationsDelete?.()
-                          }}
-                          className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-background/50 transition-colors"
-                          title="Clear"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                      <div className="px-3 py-1.5 text-sm font-medium bg-accent">
+                        Off
                       </div>
                     )}
                     {/* Off option to switch to personal mode (when a class is selected) */}
@@ -898,14 +873,25 @@ export function AnnotationToolbar({
               onPointerUp={handleMyAnnotationsPointerUp}
               onPointerCancel={handleMyAnnotationsPointerUp}
               className={cn(
-                'p-2 rounded-md transition-colors flex items-center gap-1',
-                myAnnotationsVisible
+                'p-2 rounded-md transition-colors relative',
+                myAnnotationsActive
                   ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  : myAnnotationsVisible
+                    ? 'text-foreground hover:bg-accent'
+                    : 'text-muted-foreground/50 hover:text-muted-foreground hover:bg-accent'
               )}
-              title={myAnnotationsVisible ? 'Hide my annotations' : 'Show my annotations'}
+              title={myAnnotationsActive ? 'Drawing to my annotations' : myAnnotationsVisible ? 'Hide my annotations' : 'Show my annotations'}
             >
-              <User className="w-4 h-4" />
+              <UserPen className="w-4 h-4" />
+              {/* Visibility indicator when not active */}
+              {!myAnnotationsActive && (
+                <span className="absolute -top-0.5 -right-0.5">
+                  {myAnnotationsVisible
+                    ? <Eye className="w-2.5 h-2.5 text-foreground" />
+                    : <EyeOff className="w-2.5 h-2.5 text-muted-foreground" />
+                  }
+                </span>
+              )}
             </button>
 
             {/* Delete popup on hover/long-press */}
