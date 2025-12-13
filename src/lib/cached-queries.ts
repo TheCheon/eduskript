@@ -15,6 +15,8 @@ export const CACHE_TAGS = {
   pageBySlug: (pageSlugParam: string, collectionSlug: string, skriptSlug: string, pageSlug: string) =>
     `page:${pageSlugParam}:${collectionSlug}:${skriptSlug}:${pageSlug}`,
   teacherContent: (pageSlug: string) => `teacher-content:${pageSlug}`,
+  organization: (slug: string) => `org:${slug}`,
+  orgContent: (slug: string) => `org-content:${slug}`,
 } as const
 
 /**
@@ -423,3 +425,255 @@ export const getCollectionForPreview = async (teacherId: string, collectionSlug:
     }
   })
 }
+
+// ============================================
+// Organization cached queries
+// ============================================
+
+/**
+ * Get organization with page layout - cached
+ * Used for org public pages
+ */
+export const getOrgWithLayout = (slug: string) =>
+  unstable_cache(
+    async () => {
+      return prisma.organization.findUnique({
+        where: { slug },
+        include: {
+          frontPage: true,
+          pageLayout: {
+            include: {
+              items: {
+                orderBy: { order: 'asc' }
+              }
+            }
+          },
+          _count: {
+            select: { members: true }
+          }
+        }
+      })
+    },
+    [`org-layout-${slug}`],
+    {
+      tags: [CACHE_TAGS.organization(slug), CACHE_TAGS.orgContent(slug)],
+      revalidate: false,
+    }
+  )()
+
+/**
+ * Get org's homepage content - cached
+ * Fetches collections and skripts based on org page layout
+ * Content is fetched based on what org admins have access to
+ */
+/**
+ * Get published page content for an organization - cached
+ * Looks up content owned by any org admin/owner
+ */
+export const getOrgPublishedPage = (
+  orgId: string,
+  slug: string,
+  collectionSlug: string,
+  skriptSlug: string,
+  pageSlug: string
+) =>
+  unstable_cache(
+    async () => {
+      // Get all admin/owner user IDs for this org
+      const adminMembers = await prisma.organizationMember.findMany({
+        where: {
+          organizationId: orgId,
+          role: { in: ['owner', 'admin'] }
+        },
+        select: { userId: true }
+      })
+      const adminUserIds = adminMembers.map(m => m.userId)
+
+      const collection = await prisma.collection.findFirst({
+        where: {
+          slug: collectionSlug,
+          isPublished: true,
+          authors: {
+            some: { userId: { in: adminUserIds } }
+          }
+        },
+        include: {
+          collectionSkripts: {
+            where: {
+              skript: {
+                slug: skriptSlug,
+                isPublished: true
+              }
+            },
+            include: {
+              skript: {
+                include: {
+                  pages: {
+                    where: { isPublished: true },
+                    orderBy: { order: 'asc' },
+                    select: {
+                      id: true,
+                      title: true,
+                      slug: true,
+                      content: true,
+                      order: true,
+                      isPublished: true,
+                    }
+                  }
+                }
+              }
+            },
+            orderBy: { order: 'asc' }
+          }
+        }
+      })
+
+      if (!collection) return null
+
+      const collectionSkript = collection.collectionSkripts[0]
+      if (!collectionSkript) return null
+
+      const skript = collectionSkript.skript
+      const page = skript.pages.find(p => p.slug === pageSlug)
+      if (!page) return null
+
+      return {
+        collection: {
+          id: collection.id,
+          title: collection.title,
+          slug: collection.slug,
+          description: collection.description,
+          isPublished: collection.isPublished,
+        },
+        skript: {
+          id: skript.id,
+          title: skript.title,
+          slug: skript.slug,
+          isPublished: skript.isPublished,
+        },
+        page,
+        allPages: skript.pages,
+      }
+    },
+    [`org-published-page-${slug}-${collectionSlug}-${skriptSlug}-${pageSlug}`],
+    {
+      tags: [CACHE_TAGS.orgContent(slug)],
+      revalidate: false,
+    }
+  )()
+
+export const getOrgHomepageContent = (
+  orgId: string,
+  slug: string,
+  pageLayoutItems: Array<{ type: string; contentId: string }>
+) =>
+  unstable_cache(
+    async () => {
+      // Get all admin/owner user IDs for this org
+      const adminMembers = await prisma.organizationMember.findMany({
+        where: {
+          organizationId: orgId,
+          role: { in: ['owner', 'admin'] }
+        },
+        select: { userId: true }
+      })
+      const adminUserIds = adminMembers.map(m => m.userId)
+
+      const collections: Array<{
+        id: string
+        title: string
+        slug: string
+        skripts: Array<{
+          id: string
+          title: string
+          slug: string
+          pages: Array<{ id: string; title: string; slug: string }>
+        }>
+      }> = []
+
+      const rootSkripts: Array<{
+        id: string
+        title: string
+        description: string | null
+        slug: string
+        collection: { title: string; slug: string }
+        pages: Array<{ id: string; title: string; slug: string }>
+      }> = []
+
+      for (const item of pageLayoutItems) {
+        if (item.type === 'collection') {
+          const collection = await prisma.collection.findFirst({
+            where: {
+              id: item.contentId,
+              isPublished: true,
+              authors: { some: { userId: { in: adminUserIds } } }
+            },
+            include: {
+              collectionSkripts: {
+                where: { skript: { isPublished: true } },
+                include: {
+                  skript: {
+                    include: {
+                      pages: {
+                        where: { isPublished: true },
+                        orderBy: { order: 'asc' },
+                        select: { id: true, title: true, slug: true }
+                      }
+                    }
+                  }
+                },
+                orderBy: { order: 'asc' }
+              }
+            }
+          })
+          if (collection) {
+            collections.push({
+              id: collection.id,
+              title: collection.title,
+              slug: collection.slug,
+              skripts: collection.collectionSkripts.map(cs => ({
+                id: cs.skript.id,
+                title: cs.skript.title,
+                slug: cs.skript.slug,
+                pages: cs.skript.pages
+              }))
+            })
+          }
+        } else if (item.type === 'skript') {
+          const skript = await prisma.skript.findFirst({
+            where: {
+              id: item.contentId,
+              isPublished: true,
+              authors: { some: { userId: { in: adminUserIds } } }
+            },
+            include: {
+              collectionSkripts: { include: { collection: true } },
+              pages: {
+                where: { isPublished: true },
+                orderBy: { order: 'asc' },
+                select: { id: true, title: true, slug: true }
+              }
+            }
+          })
+          if (skript) {
+            const firstCollection = skript.collectionSkripts[0]?.collection
+            rootSkripts.push({
+              id: skript.id,
+              title: skript.title,
+              description: skript.description,
+              slug: skript.slug,
+              collection: firstCollection || { title: 'Uncategorized', slug: 'uncategorized' },
+              pages: skript.pages
+            })
+          }
+        }
+      }
+
+      return { collections, rootSkripts }
+    },
+    [`org-homepage-${slug}`],
+    {
+      tags: [CACHE_TAGS.orgContent(slug)],
+      revalidate: false,
+    }
+  )()

@@ -140,6 +140,12 @@ model User {
   // Import/Export jobs
   importJobs ImportJob[]
 
+  // Organization memberships
+  organizationMemberships OrganizationMember[]
+
+  // Individual billing groundwork (payment provider TBD)
+  billingPlan String @default("free") @map("billing_plan") // "free" | "pro" | etc.
+
   @@unique([oauthProvider, oauthProviderId]) // Students identified by OAuth provider
   @@map("users")
 }
@@ -399,6 +405,34 @@ model PageLayoutItem {
   @@map("page_layout_items")
 }
 
+// Organization Page Layout - for org admin page builder
+model OrgPageLayout {
+  id             String   @id @default(cuid())
+  organizationId String   @unique @map("organization_id")
+  items          OrgPageLayoutItem[]
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("org_page_layouts")
+}
+
+// Individual items in an organization page layout
+model OrgPageLayoutItem {
+  id              String   @id @default(cuid())
+  orgPageLayoutId String   @map("org_page_layout_id")
+  type            String   // "collection" or "skript"
+  contentId       String   @map("content_id")
+  order           Int
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  orgPageLayout OrgPageLayout @relation(fields: [orgPageLayoutId], references: [id], onDelete: Cascade)
+
+  @@unique([orgPageLayoutId, contentId, type])
+  @@map("org_page_layout_items")
+}
+
 // Student Progress Tracking
 // Tracks which pages students have viewed and completed
 model StudentProgress {
@@ -529,7 +563,7 @@ model UserData {
   @@map("user_data")
 }
 
-// FrontPage model - custom landing pages for users and skripts
+// FrontPage model - custom landing pages for users, skripts, and organizations
 // Supports versioning and draft mode (isPublished)
 model FrontPage {
   id          String   @id @default(cuid())
@@ -539,13 +573,15 @@ model FrontPage {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Owner - exactly one of these should be set
-  userId      String?  @unique @map("user_id")    // For user landing pages
-  skriptId    String?  @unique @map("skript_id")  // For skript intro pages
+  userId         String?  @unique @map("user_id")         // For user landing pages
+  skriptId       String?  @unique @map("skript_id")       // For skript intro pages
+  organizationId String?  @unique @map("organization_id") // For organization pages
 
   // Relations
-  user     User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  skript   Skript?  @relation(fields: [skriptId], references: [id], onDelete: Cascade)
-  versions FrontPageVersion[]
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skript       Skript?       @relation(fields: [skriptId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  versions     FrontPageVersion[]
 
   @@map("front_pages")
 }
@@ -598,4 +634,69 @@ model ImportJob {
   @@index([userId, status])
   @@index([status])
   @@map("import_jobs")
+}
+
+// Organization model - schools, companies, or groups
+model Organization {
+  id          String   @id @default(cuid())
+  name        String                          // "Eduskript", "Springfield High"
+  slug        String   @unique                // URL slug for org page
+  description String?
+  logoUrl     String?  @map("logo_url")
+
+  // Settings
+  allowMemberPages   Boolean @default(true) @map("allow_member_pages")  // Members can have personal pages
+  requireEmailDomain String? @map("require_email_domain")               // e.g., "@school.edu" - auto-join on signup
+
+  // Billing groundwork (payment provider TBD)
+  billingPlan String @default("free") @map("billing_plan") // "free" | "school" | "enterprise"
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  members       OrganizationMember[]
+  customDomains CustomDomain[]
+  frontPage     FrontPage?
+  pageLayout    OrgPageLayout?
+
+  @@map("organizations")
+}
+
+// Junction table for Organization-User many-to-many
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  role           String   @default("member") // "owner" | "admin" | "member"
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("organization_members")
+}
+
+// Custom domain mapping for organizations
+// Allows orgs to use their own domains (e.g., eduskript.org, school.edu)
+model CustomDomain {
+  id                String    @id @default(cuid())
+  domain            String    @unique                // "eduskript.org", "school.edu"
+  organizationId    String    @map("organization_id")
+  isPrimary         Boolean   @default(false) @map("is_primary")
+  isVerified        Boolean   @default(false) @map("is_verified")
+  verificationToken String?   @map("verification_token")
+  verifiedAt        DateTime? @map("verified_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([domain])
+  @@index([organizationId])
+  @@map("custom_domains")
 }

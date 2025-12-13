@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
-import { BookOpen, Settings, Users, ChevronLeft, ChevronRight, Shield, GraduationCap, User, Camera, ExternalLink } from 'lucide-react'
+import { BookOpen, Settings, Users, ChevronLeft, ChevronRight, Shield, GraduationCap, User, Camera, ExternalLink, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { usePendingInvitations } from '@/hooks/use-pending-invitations'
 
@@ -28,12 +28,20 @@ const studentNavigation = [
   { name: 'Profile', href: '/dashboard/profile', icon: User },
 ]
 
+interface OrgWithRole {
+  id: string
+  name: string
+  slug: string
+  role: 'owner' | 'admin' | 'member'
+}
+
 export function DashboardSidebar() {
   const pathname = usePathname()
   const [isCollapsed, setIsCollapsed] = useState(false)
   const { data: session } = useSession()
   const hasPendingInvitations = usePendingInvitations()
   const [lastTeacherPage, setLastTeacherPage] = useState<{ slug: string; name: string } | null>(null)
+  const [adminOrgs, setAdminOrgs] = useState<OrgWithRole[]>([])
 
   // Determine which navigation to show based on account type
   const isStudent = session?.user?.accountType === 'student'
@@ -55,6 +63,29 @@ export function DashboardSidebar() {
       // Ignore parse errors
     }
   }, [isStudent])
+
+  // Fetch organizations where user is admin/owner (teachers only)
+  useEffect(() => {
+    if (!isTeacher || !session?.user?.id) return
+
+    const fetchOrgs = async () => {
+      try {
+        const response = await fetch('/api/user/organizations')
+        if (response.ok) {
+          const data = await response.json()
+          // Filter to only show orgs where user is admin or owner
+          const adminOrgsFiltered = data.organizations.filter(
+            (org: OrgWithRole) => org.role === 'admin' || org.role === 'owner'
+          )
+          setAdminOrgs(adminOrgsFiltered)
+        }
+      } catch {
+        // Silently fail - org nav is optional
+      }
+    }
+
+    fetchOrgs()
+  }, [isTeacher, session?.user?.id])
 
   return (
     <div className={cn(
@@ -111,6 +142,30 @@ export function DashboardSidebar() {
               </Link>
             )
           })}
+
+          {/* Organization Links (for org admins/owners) */}
+          {adminOrgs.length > 0 && (
+            <>
+              <div className="my-4 border-t border-border" />
+              {adminOrgs.map((org) => (
+                <Link
+                  key={org.id}
+                  href={`/dashboard/org/${org.id}/settings`}
+                  className={cn(
+                    'flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors',
+                    pathname.startsWith(`/dashboard/org/${org.id}`)
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                    isCollapsed ? 'justify-center px-2' : ''
+                  )}
+                  title={isCollapsed ? org.name : undefined}
+                >
+                  <Building2 className="w-5 h-5" />
+                  {!isCollapsed && <span>{org.name}</span>}
+                </Link>
+              ))}
+            </>
+          )}
 
           {/* Admin Panel Link (only visible to admins) */}
           {session?.user?.isAdmin && (
