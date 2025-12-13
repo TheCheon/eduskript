@@ -9,10 +9,8 @@
 
 ## 🎯 Priority List
 
-- snap broadcast
-
-- toolbar pencolors don't respect theme.
 - add description of the logging system to @docs
+- toolbar pencolors don't respect theme.
 
 - **Organization Support** - Groundwork for schools/organizations: org admins can manage users (delete, reset PW), administer org pages, pay per organization. See `docs/ORGANIZATION_GROUNDWORK_PLAN.md` for detailed plan.
 **LMS Features:**

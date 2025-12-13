@@ -188,18 +188,22 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
   // Use synced user data service for snaps
   // IMPORTANT: initialData must be a stable reference, not an inline object literal
+  // Teachers: snaps are targeted to class/student based on syncOptions (same as annotations)
   const emptySnapsData = useMemo(() => ({ snaps: [] } as SnapsData), [])
   const { data: snapsData, updateData: updateSnapsData, isLoading: snapsLoading } = useSyncedUserData<SnapsData>(
     pageId,
     'snaps',
-    emptySnapsData
+    emptySnapsData,
+    syncOptions
   )
 
-  // For students: fetch teacher annotations (class broadcasts + individual feedback)
+  // For students: fetch teacher broadcasts (annotations + snaps)
   const isStudent = session?.user?.accountType === 'student'
   const {
     classAnnotations: teacherClassAnnotations,
+    classSnaps: teacherClassSnaps,
     individualFeedback: teacherIndividualFeedback,
+    individualSnapFeedback: teacherIndividualSnapFeedback,
     isLoading: teacherAnnotationsLoading,
     refetch: refetchTeacherAnnotations,
   } = useTeacherBroadcast(isStudent ? pageId : '')
@@ -370,6 +374,8 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
   const hasClassContent = teacherClassAnnotations.length > 0
   const hasIndividualContent = teacherIndividualFeedback !== null
+  const hasClassSnapsContent = teacherClassSnaps.length > 0
+  const hasIndividualSnapsContent = teacherIndividualSnapFeedback !== null
 
   // Use synced user data service for telemetry (lightweight, sampled)
   const emptyTelemetryData = useMemo(() => ({ samples: [], totalStrokeCount: 0, sessionCount: 0, firstSampleAt: 0 } as TelemetryData), [])
@@ -749,6 +755,78 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       height: snapData.height,
     }))
   }, [snapsData?.snaps])
+
+  // Extract teacher class snaps for students (from broadcast data)
+  const teacherClassSnapsData = useMemo(() => {
+    if (!isStudent || !teacherClassSnaps.length) return []
+
+    return teacherClassSnaps.flatMap(classSnap => {
+      const layerId = `class-${classSnap.classId}`
+      if (!isLayerVisible(layerId)) return []
+
+      const snapsData = classSnap.data as { snaps?: Snap[] } | null
+      if (!snapsData?.snaps) return []
+
+      // Tag each snap with its source for layer tracking
+      return snapsData.snaps.map(snap => ({
+        ...snap,
+        id: `class-${classSnap.classId}-${snap.id}`, // Make IDs unique across layers
+        layerId,
+        layerName: classSnap.className,
+        isTeacherSnap: true as const,
+      }))
+    })
+  }, [isStudent, teacherClassSnaps, isLayerVisible])
+
+  // Extract teacher individual feedback snaps for students
+  const teacherIndividualSnapsData = useMemo(() => {
+    if (!isStudent || !teacherIndividualSnapFeedback) return []
+    if (!isLayerVisible('individual')) return []
+
+    const snapsData = teacherIndividualSnapFeedback.data as { snaps?: Snap[] } | null
+    if (!snapsData?.snaps) return []
+
+    return snapsData.snaps.map(snap => ({
+      ...snap,
+      id: `individual-${snap.id}`, // Make IDs unique
+      layerId: 'individual',
+      layerName: 'Teacher feedback',
+      isTeacherSnap: true as const,
+    }))
+  }, [isStudent, teacherIndividualSnapFeedback, isLayerVisible])
+
+  // Combine all teacher snaps for students
+  const allTeacherSnaps = useMemo(() => {
+    return [...teacherClassSnapsData, ...teacherIndividualSnapsData]
+  }, [teacherClassSnapsData, teacherIndividualSnapsData])
+
+  // Student position overrides for teacher snaps (persisted via useSyncedUserData)
+  type SnapPositionOverrides = Record<string, { top: number; left: number; width: number; height: number }>
+  type SnapOverridesData = { classSnaps: SnapPositionOverrides; feedbackSnaps: SnapPositionOverrides }
+  const emptySnapOverrides = useMemo(() => ({ classSnaps: {}, feedbackSnaps: {} } as SnapOverridesData), [])
+  const { data: snapOverrides, updateData: updateSnapOverrides } = useSyncedUserData<SnapOverridesData>(
+    isStudent ? pageId : '__skip__',
+    'snap-overrides',
+    emptySnapOverrides
+  )
+
+  // Callback for when student moves/resizes a teacher snap
+  const handleTeacherSnapOverride = useCallback((
+    snapId: string,
+    layerType: 'class' | 'individual',
+    position: { top: number; left: number; width: number; height: number }
+  ) => {
+    const key = layerType === 'class' ? 'classSnaps' : 'feedbackSnaps'
+    const currentOverrides = snapOverrides ?? { classSnaps: {}, feedbackSnaps: {} }
+    updateSnapOverrides({
+      classSnaps: currentOverrides.classSnaps ?? {},
+      feedbackSnaps: currentOverrides.feedbackSnaps ?? {},
+      [key]: {
+        ...(currentOverrides[key] ?? {}),
+        [snapId]: position
+      }
+    })
+  }, [snapOverrides, updateSnapOverrides])
 
   // Pen priority: pen always wins, ignore other inputs for 200ms after last pen event
   const lastPenEventTimeRef = useRef<number>(0)
@@ -2187,6 +2265,9 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
           onRemoveSnap={handleRemoveSnap}
           onRenameSnap={handleRenameSnap}
           onReorderSnaps={handleReorderSnaps}
+          teacherSnaps={allTeacherSnaps}
+          snapOverrides={snapOverrides}
+          onTeacherSnapOverride={handleTeacherSnapOverride}
           zoom={zoom}
         />,
         mainElement

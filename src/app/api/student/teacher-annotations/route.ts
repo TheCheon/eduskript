@@ -1,10 +1,12 @@
 /**
- * Student Teacher Annotations API
+ * Student Teacher Broadcast API
  *
  * GET /api/student/teacher-annotations?pageId={pageId}
- * Fetch teacher annotations visible to the current student:
+ * Fetch teacher broadcasts visible to the current student:
  * - Class broadcasts (where student is enrolled)
  * - Individual feedback (targeted at this student)
+ *
+ * Returns both annotations and snaps for each broadcast type.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -61,6 +63,21 @@ export async function GET(request: NextRequest) {
       },
     })
 
+    // Fetch class snap broadcasts
+    const classSnaps = await prisma.userData.findMany({
+      where: {
+        targetType: 'class',
+        targetId: { in: classIds },
+        adapter: 'snaps',
+        itemId: pageId,
+      },
+      select: {
+        targetId: true,
+        data: true,
+        updatedAt: true,
+      },
+    })
+
     // Map class annotations with class info, filtering out empty/cleared annotations
     const classAnnotationsWithInfo = classAnnotations
       .filter(annotation => {
@@ -79,6 +96,22 @@ export async function GET(request: NextRequest) {
         }
       })
 
+    // Map class snaps with class info, filtering out empty snap arrays
+    const classSnapsWithInfo = classSnaps
+      .filter(snap => {
+        const data = snap.data as { snaps?: unknown[] } | null
+        return data?.snaps && data.snaps.length > 0
+      })
+      .map(snap => {
+        const membership = memberships.find(m => m.classId === snap.targetId)
+        return {
+          classId: snap.targetId,
+          className: membership?.class.name ?? 'Unknown Class',
+          data: snap.data,
+          updatedAt: snap.updatedAt.getTime(),
+        }
+      })
+
     // Fetch individual feedback targeted at this student
     const individualFeedback = await prisma.userData.findFirst({
       where: {
@@ -93,10 +126,28 @@ export async function GET(request: NextRequest) {
       },
     })
 
+    // Fetch individual snap feedback targeted at this student
+    const individualSnapFeedback = await prisma.userData.findFirst({
+      where: {
+        targetType: 'student',
+        targetId: userId,
+        adapter: 'snaps',
+        itemId: pageId,
+      },
+      select: {
+        data: true,
+        updatedAt: true,
+      },
+    })
+
     // Filter out empty individual feedback (cleared by teacher)
     // Check for both empty string AND empty JSON array
     const feedbackData = individualFeedback?.data as { canvasData?: string } | null
     const hasValidFeedback = feedbackData?.canvasData && feedbackData.canvasData.length > 0 && feedbackData.canvasData !== '[]'
+
+    // Filter out empty individual snap feedback
+    const snapFeedbackData = individualSnapFeedback?.data as { snaps?: unknown[] } | null
+    const hasValidSnapFeedback = snapFeedbackData?.snaps && snapFeedbackData.snaps.length > 0
 
     // Debug: log raw data from database before filtering
     console.log('[student/teacher-annotations] Raw class data from DB:', classAnnotations.map(a => ({
@@ -107,18 +158,27 @@ export async function GET(request: NextRequest) {
 
     console.log('[student/teacher-annotations] Returning:', {
       classAnnotationsCount: classAnnotationsWithInfo.length,
+      classSnapsCount: classSnapsWithInfo.length,
       hasIndividualFeedback: !!(individualFeedback && hasValidFeedback),
+      hasIndividualSnapFeedback: hasValidSnapFeedback,
       pageId
     })
 
     // Return with aggressive no-cache headers to ensure students always get fresh data
-    // Teacher annotations should NEVER be cached on the client - server is always the source of truth
+    // Teacher broadcasts should NEVER be cached on the client - server is always the source of truth
     return NextResponse.json({
       classAnnotations: classAnnotationsWithInfo,
+      classSnaps: classSnapsWithInfo,
       individualFeedback: individualFeedback && hasValidFeedback
         ? {
             data: individualFeedback.data,
             updatedAt: individualFeedback.updatedAt.getTime(),
+          }
+        : null,
+      individualSnapFeedback: hasValidSnapFeedback && individualSnapFeedback
+        ? {
+            data: individualSnapFeedback.data,
+            updatedAt: individualSnapFeedback.updatedAt.getTime(),
           }
         : null,
     }, {

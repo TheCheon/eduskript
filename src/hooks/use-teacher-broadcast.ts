@@ -18,6 +18,13 @@ export interface TeacherClassAnnotation {
   updatedAt: number
 }
 
+export interface TeacherClassSnaps {
+  classId: string
+  className: string
+  data: unknown
+  updatedAt: number
+}
+
 export interface TeacherIndividualFeedback {
   data: unknown
   updatedAt: number
@@ -25,7 +32,9 @@ export interface TeacherIndividualFeedback {
 
 export interface TeacherBroadcastData {
   classAnnotations: TeacherClassAnnotation[]
+  classSnaps: TeacherClassSnaps[]
   individualFeedback: TeacherIndividualFeedback | null
+  individualSnapFeedback: TeacherIndividualFeedback | null
 }
 
 /**
@@ -37,7 +46,9 @@ export interface TeacherBroadcastData {
 export function useTeacherBroadcast(pageId: string) {
   const { status } = useSession()
   const [classAnnotations, setClassAnnotations] = useState<TeacherClassAnnotation[]>([])
+  const [classSnaps, setClassSnaps] = useState<TeacherClassSnaps[]>([])
   const [individualFeedback, setIndividualFeedback] = useState<TeacherIndividualFeedback | null>(null)
+  const [individualSnapFeedback, setIndividualSnapFeedback] = useState<TeacherIndividualFeedback | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -55,9 +66,11 @@ export function useTeacherBroadcast(pageId: string) {
       setIsLoading(true)
 
       // Clear local state BEFORE fetching to ensure server always wins
-      // This prevents showing stale data if teacher deleted annotations while student was offline
+      // This prevents showing stale data if teacher deleted broadcasts while student was offline
       setClassAnnotations([])
+      setClassSnaps([])
       setIndividualFeedback(null)
+      setIndividualSnapFeedback(null)
 
       // Add timestamp to prevent browser caching
       const res = await fetch(`/api/student/teacher-annotations?pageId=${encodeURIComponent(pageId)}&_t=${Date.now()}`)
@@ -68,10 +81,14 @@ export function useTeacherBroadcast(pageId: string) {
       const data: TeacherBroadcastData = await res.json()
       console.log('[useTeacherBroadcast] Fetched data:', {
         classAnnotationsCount: data.classAnnotations?.length ?? 0,
-        hasIndividualFeedback: !!data.individualFeedback
+        classSnapsCount: data.classSnaps?.length ?? 0,
+        hasIndividualFeedback: !!data.individualFeedback,
+        hasIndividualSnapFeedback: !!data.individualSnapFeedback
       })
       setClassAnnotations(data.classAnnotations || [])
+      setClassSnaps(data.classSnaps || [])
       setIndividualFeedback(data.individualFeedback || null)
+      setIndividualSnapFeedback(data.individualSnapFeedback || null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch teacher annotations')
     } finally {
@@ -85,6 +102,8 @@ export function useTeacherBroadcast(pageId: string) {
   }, [fetchAnnotations])
 
   // Subscribe to real-time updates
+  // Note: Snaps share the same SSE events as annotations (teacher-annotations-update, teacher-feedback)
+  // since both are fetched together in a single API call
   useRealtimeEvents(
     ['teacher-annotations-update', 'teacher-feedback'],
     (event) => {
@@ -92,14 +111,14 @@ export function useTeacherBroadcast(pageId: string) {
       // Check if event is for this page
       if (event.type === 'teacher-annotations-update') {
         if (event.pageId === pageId) {
-          console.log('[useTeacherBroadcast] Event matches page, refetching class annotations')
-          // Refetch to get updated class annotations
+          console.log('[useTeacherBroadcast] Event matches page, refetching class broadcasts')
+          // Refetch to get updated class data (annotations + snaps)
           fetchAnnotations()
         }
       } else if (event.type === 'teacher-feedback') {
         if (event.pageId === pageId) {
           console.log('[useTeacherBroadcast] Event matches page, refetching individual feedback')
-          // Refetch to get updated individual feedback
+          // Refetch to get updated individual feedback (annotations + snaps)
           fetchAnnotations()
         }
       }
@@ -109,7 +128,9 @@ export function useTeacherBroadcast(pageId: string) {
 
   return {
     classAnnotations,
+    classSnaps,
     individualFeedback,
+    individualSnapFeedback,
     isLoading,
     error,
     refetch: fetchAnnotations,
