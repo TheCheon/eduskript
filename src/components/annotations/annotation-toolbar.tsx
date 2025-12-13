@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Pen, Eraser, Trash2, Camera, Eye, EyeOff, Radio, User, Users, UserPen, ChevronDown } from 'lucide-react'
+import { Pen, Eraser, Trash2, Camera, Eye, EyeOff, Radio, User, Users, UserPen, ChevronDown, Globe } from 'lucide-react'
 import { Circle } from '@uiw/react-color'
 import { cn } from '@/lib/utils'
 import { useLayout } from '@/contexts/layout-context'
@@ -28,7 +28,7 @@ export interface StudentOption {
   hasAnnotationsOnPage?: boolean
 }
 
-export type BroadcastMode = 'personal' | 'class' | 'student'
+export type BroadcastMode = 'personal' | 'class' | 'student' | 'page'
 
 // Inline SVG brush icons - use currentColor for automatic light/dark mode support
 // Paths extracted from brush_thick.svg and brush_thin.svg with transforms applied
@@ -123,6 +123,14 @@ interface AnnotationToolbarProps {
   onMyAnnotationsDelete?: () => void
   // Broadcast controls (teachers only)
   isTeacher?: boolean
+  // Page author broadcast (public annotations for all visitors)
+  isPageAuthor?: boolean
+  broadcastToPage?: boolean
+  onBroadcastToPageChange?: (value: boolean) => void
+  hasPageBroadcastAnnotations?: boolean
+  onPageBroadcastDelete?: () => void
+  pageBroadcastVisible?: boolean
+  onPageBroadcastToggle?: () => void
   // For teachers: visibility/delete of broadcast layers
   classBroadcastVisible?: boolean
   onClassBroadcastToggle?: () => void
@@ -165,6 +173,15 @@ export function AnnotationToolbar({
   onMyAnnotationsDelete,
   // Broadcast controls
   isTeacher = false,
+  // Page author broadcast
+  isPageAuthor = false,
+  broadcastToPage = false,
+  onBroadcastToPageChange,
+  hasPageBroadcastAnnotations = false,
+  onPageBroadcastDelete,
+  pageBroadcastVisible = true,
+  onPageBroadcastToggle,
+  // Class broadcast
   classBroadcastVisible = true,
   onClassBroadcastToggle,
   onClassBroadcastDelete,
@@ -603,11 +620,11 @@ export function AnnotationToolbar({
       {/* Single horizontal toolbar */}
       <div className="bg-background/95 backdrop-blur border border-border rounded-lg shadow-lg p-2 flex items-center gap-1">
 
-        {/* ============ SECTION 1: Broadcast Controls (Teachers Only) ============ */}
-        {isTeacher && (
+        {/* ============ SECTION 1: Broadcast Controls (Teachers and Page Authors) ============ */}
+        {(isTeacher || isPageAuthor) && (
           <>
             <ToolbarSection>
-              {/* Class selector dropdown - just picks which class, no layer controls */}
+              {/* Class/Page selector dropdown - picks class or "All Visitors" for page authors */}
               <div className="relative" ref={classDropdownRef}>
                 <button
                   onClick={() => {
@@ -616,33 +633,57 @@ export function AnnotationToolbar({
                   }}
                   className={cn(
                     'p-2 rounded-md transition-colors flex items-center gap-1',
-                    selectedClass
+                    broadcastToPage || selectedClass
                       ? 'text-foreground hover:bg-accent'
                       : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                   )}
-                  title="Select class"
+                  title={broadcastToPage ? 'Broadcasting to all visitors' : 'Select class'}
                 >
-                  <Radio className={cn('w-5 h-5', selectedClass && 'text-red-500')} />
+                  {broadcastToPage ? (
+                    <Globe className="w-5 h-5 text-green-500" />
+                  ) : (
+                    <Radio className={cn('w-5 h-5', selectedClass && 'text-red-500')} />
+                  )}
                   <span className="text-xs max-w-[80px] truncate">
-                    {selectedClass ? selectedClass.name : 'Class'}
+                    {broadcastToPage ? 'All Visitors' : selectedClass ? selectedClass.name : 'Broadcast'}
                   </span>
                   <ChevronDown className="w-3 h-3" />
                 </button>
 
-                {showClassDropdown && classes.length > 0 && (
+                {showClassDropdown && (classes.length > 0 || isPageAuthor) && (
                   <div className="absolute bottom-full mb-2 left-0 bg-background border border-border rounded-lg shadow-lg py-1 min-w-[180px] max-h-[200px] overflow-y-auto">
-                    {/* All classes */}
-                    {classes.map(cls => (
+                    {/* All Visitors option (page authors only) */}
+                    {isPageAuthor && (
+                      <>
+                        <button
+                          onClick={() => {
+                            onBroadcastToPageChange?.(true)
+                            setShowClassDropdown(false)
+                          }}
+                          className={cn(
+                            'w-full px-3 py-1.5 text-left text-sm truncate hover:bg-accent transition-colors flex items-center gap-2',
+                            broadcastToPage && 'bg-accent font-medium'
+                          )}
+                        >
+                          <Globe className="w-4 h-4 text-green-500 flex-shrink-0" />
+                          <span className="truncate">All Visitors</span>
+                        </button>
+                        {classes.length > 0 && <div className="h-px bg-border my-1" />}
+                      </>
+                    )}
+                    {/* All classes (teachers only) */}
+                    {isTeacher && classes.map(cls => (
                       <button
                         key={cls.id}
                         onClick={() => {
+                          onBroadcastToPageChange?.(false)
                           onClassSelect?.(cls)
                           onStudentSelect?.(null) // Reset to "Entire class" when switching classes
                           setShowClassDropdown(false)
                         }}
                         className={cn(
                           'w-full px-3 py-1.5 text-left text-sm truncate hover:bg-accent transition-colors flex items-center gap-2',
-                          cls.id === selectedClass?.id && 'bg-accent font-medium'
+                          !broadcastToPage && cls.id === selectedClass?.id && 'bg-accent font-medium'
                         )}
                       >
                         <span className={cn('w-4 flex-shrink-0', !cls.hasAnnotationsOnPage && 'invisible')}>
@@ -655,13 +696,14 @@ export function AnnotationToolbar({
                     <div className="h-px bg-border my-1" />
                     <button
                       onClick={() => {
+                        onBroadcastToPageChange?.(false)
                         onClassSelect?.(null)
                         onStudentSelect?.(null)
                         setShowClassDropdown(false)
                       }}
                       className={cn(
                         'w-full px-3 py-1.5 text-left text-sm hover:bg-accent transition-colors',
-                        !selectedClass ? 'bg-accent font-medium' : 'text-muted-foreground hover:text-foreground'
+                        !broadcastToPage && !selectedClass ? 'bg-accent font-medium' : 'text-muted-foreground hover:text-foreground'
                       )}
                     >
                       Off
@@ -670,8 +712,36 @@ export function AnnotationToolbar({
                 )}
               </div>
 
-              {/* Target selector dropdown (only when class is selected) - controls who to annotate for */}
-              {selectedClass && (
+              {/* Page broadcast indicator (when All Visitors is selected) */}
+              {broadcastToPage && (
+                <div className="flex items-center gap-1 px-2 py-1.5 bg-primary text-primary-foreground rounded-md">
+                  <Globe className="w-4 h-4" />
+                  <span className="text-xs">All Visitors</span>
+                  <button
+                    onClick={onPageBroadcastToggle}
+                    className="p-1 rounded hover:bg-primary-foreground/20 transition-colors"
+                    title={pageBroadcastVisible ? 'Hide page annotations' : 'Show page annotations'}
+                  >
+                    {pageBroadcastVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                  </button>
+                  <button
+                    onClick={onPageBroadcastDelete}
+                    disabled={!hasPageBroadcastAnnotations}
+                    className={cn(
+                      'p-1 rounded transition-colors',
+                      hasPageBroadcastAnnotations
+                        ? 'hover:bg-primary-foreground/20'
+                        : 'opacity-30 cursor-not-allowed'
+                    )}
+                    title="Clear page annotations"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Target selector dropdown (only when class is selected, not in page-broadcast mode) */}
+              {selectedClass && !broadcastToPage && (
                 <div className="relative" ref={studentDropdownRef}>
                   <button
                     onClick={() => {

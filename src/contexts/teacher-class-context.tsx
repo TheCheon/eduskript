@@ -8,6 +8,7 @@ const log = createLogger('teacher:context')
 
 const STORAGE_KEY = 'eduskript-teacher-class'
 const STUDENT_STORAGE_KEY = 'eduskript-teacher-selected-student'
+const PAGE_BROADCAST_KEY = 'eduskript-page-broadcast'
 
 interface SelectedClass {
   id: string
@@ -25,14 +26,18 @@ interface SelectedStudent {
  * - 'my-view': Teacher's personal annotations (no targeting)
  * - 'class-broadcast': Teacher broadcasts to entire class
  * - 'student-view': Teacher viewing/annotating individual student's work
+ * - 'page-broadcast': Author broadcasts to all page visitors (public annotations)
  */
-export type ViewMode = 'my-view' | 'class-broadcast' | 'student-view'
+export type ViewMode = 'my-view' | 'class-broadcast' | 'student-view' | 'page-broadcast'
 
 interface TeacherClassContextValue {
   selectedClass: SelectedClass | null
   setSelectedClass: (classData: SelectedClass | null) => void
   selectedStudent: SelectedStudent | null
   setSelectedStudent: (student: SelectedStudent | null) => void
+  /** When true, broadcasts to all page visitors (requires author permission) */
+  broadcastToPage: boolean
+  setBroadcastToPage: (broadcast: boolean) => void
   viewMode: ViewMode
   isTeacher: boolean
   isLoading: boolean
@@ -44,6 +49,7 @@ export function TeacherClassProvider({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession()
   const [selectedClass, setSelectedClassState] = useState<SelectedClass | null>(null)
   const [selectedStudent, setSelectedStudentState] = useState<SelectedStudent | null>(null)
+  const [broadcastToPage, setBroadcastToPageState] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   const isTeacher = session?.user?.accountType === 'teacher'
@@ -69,6 +75,11 @@ export function TeacherClassProvider({ children }: { children: ReactNode }) {
           setSelectedStudentState(parsed)
         }
       }
+
+      const storedPageBroadcast = localStorage.getItem(PAGE_BROADCAST_KEY)
+      if (storedPageBroadcast === 'true') {
+        setBroadcastToPageState(true)
+      }
     } catch (e) {
       // Invalid stored data, ignore
       console.warn('Failed to parse stored teacher selection:', e)
@@ -79,8 +90,9 @@ export function TeacherClassProvider({ children }: { children: ReactNode }) {
   const setSelectedClass = useCallback((classData: SelectedClass | null) => {
     log('setSelectedClass called', { id: classData?.id, name: classData?.name })
     setSelectedClassState(classData)
-    // Clear student selection when class changes
+    // Clear student selection and page broadcast when class changes
     setSelectedStudentState(null)
+    setBroadcastToPageState(false)
 
     if (typeof window === 'undefined') return
 
@@ -89,13 +101,16 @@ export function TeacherClassProvider({ children }: { children: ReactNode }) {
     } else {
       localStorage.removeItem(STORAGE_KEY)
     }
-    // Always clear student when class changes
+    // Always clear student and page broadcast when class changes
     localStorage.removeItem(STUDENT_STORAGE_KEY)
+    localStorage.removeItem(PAGE_BROADCAST_KEY)
   }, [])
 
   const setSelectedStudent = useCallback((student: SelectedStudent | null) => {
     log('setSelectedStudent called', { id: student?.id, displayName: student?.displayName })
     setSelectedStudentState(student)
+    // Clear page broadcast when selecting a student
+    setBroadcastToPageState(false)
 
     if (typeof window === 'undefined') return
 
@@ -104,16 +119,38 @@ export function TeacherClassProvider({ children }: { children: ReactNode }) {
     } else {
       localStorage.removeItem(STUDENT_STORAGE_KEY)
     }
+    localStorage.removeItem(PAGE_BROADCAST_KEY)
+  }, [])
+
+  const setBroadcastToPage = useCallback((broadcast: boolean) => {
+    log('setBroadcastToPage called', { broadcast })
+    setBroadcastToPageState(broadcast)
+    // Clear class/student selection when enabling page broadcast
+    if (broadcast) {
+      setSelectedClassState(null)
+      setSelectedStudentState(null)
+    }
+
+    if (typeof window === 'undefined') return
+
+    if (broadcast) {
+      localStorage.setItem(PAGE_BROADCAST_KEY, 'true')
+      localStorage.removeItem(STORAGE_KEY)
+      localStorage.removeItem(STUDENT_STORAGE_KEY)
+    } else {
+      localStorage.removeItem(PAGE_BROADCAST_KEY)
+    }
   }, [])
 
   // Derive view mode from selections
   const viewMode: ViewMode = useMemo(() => {
     let mode: ViewMode = 'my-view'
-    if (selectedStudent) mode = 'student-view'
+    if (broadcastToPage) mode = 'page-broadcast'
+    else if (selectedStudent) mode = 'student-view'
     else if (selectedClass) mode = 'class-broadcast'
-    log('viewMode computed', { mode, selectedClassId: selectedClass?.id, selectedStudentId: selectedStudent?.id })
+    log('viewMode computed', { mode, broadcastToPage, selectedClassId: selectedClass?.id, selectedStudentId: selectedStudent?.id })
     return mode
-  }, [selectedClass, selectedStudent])
+  }, [broadcastToPage, selectedClass, selectedStudent])
 
   // Clear selection if user is not a teacher
   useEffect(() => {
@@ -131,6 +168,8 @@ export function TeacherClassProvider({ children }: { children: ReactNode }) {
         setSelectedClass,
         selectedStudent,
         setSelectedStudent,
+        broadcastToPage,
+        setBroadcastToPage,
         viewMode,
         isTeacher,
         isLoading: isLoading || status === 'loading',
@@ -150,6 +189,8 @@ export function useTeacherClass() {
       setSelectedClass: () => {},
       selectedStudent: null,
       setSelectedStudent: () => {},
+      broadcastToPage: false,
+      setBroadcastToPage: () => {},
       viewMode: 'my-view' as ViewMode,
       isTeacher: false,
       isLoading: false,

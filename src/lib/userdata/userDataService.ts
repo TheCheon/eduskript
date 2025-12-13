@@ -37,7 +37,7 @@ export class UserDataService {
   private getCacheKey(
     pageId: string,
     componentId: string,
-    targetType?: 'class' | 'student' | null,
+    targetType?: 'class' | 'student' | 'page' | null,
     targetId?: string | null
   ): string {
     const targetKey = targetType && targetId ? `:${targetType}:${targetId}` : ''
@@ -51,7 +51,7 @@ export class UserDataService {
   private getDbKey(
     pageId: string,
     componentId: string,
-    targetType?: 'class' | 'student' | null,
+    targetType?: 'class' | 'student' | 'page' | null,
     targetId?: string | null
   ): [string, string, string, string] {
     return [pageId, componentId, targetType ?? '', targetId ?? '']
@@ -64,7 +64,7 @@ export class UserDataService {
     pageId: string,
     componentId: string,
     options: {
-      targetType?: 'class' | 'student' | null
+      targetType?: 'class' | 'student' | 'page' | null
       targetId?: string | null
     } = {}
   ): Promise<UserDataRecord<T> | null> {
@@ -92,7 +92,7 @@ export class UserDataService {
     componentId: string,
     data: T,
     options: SaveOptions & {
-      targetType?: 'class' | 'student' | null
+      targetType?: 'class' | 'student' | 'page' | null
       targetId?: string | null
     } = {}
   ): Promise<void> {
@@ -134,7 +134,7 @@ export class UserDataService {
     pageId: string,
     componentId: string,
     data: T,
-    targetType?: 'class' | 'student' | null,
+    targetType?: 'class' | 'student' | 'page' | null,
     targetId?: string | null
   ): Promise<void> {
     try {
@@ -169,7 +169,7 @@ export class UserDataService {
     pageId: string,
     componentId: string,
     options: {
-      targetType?: 'class' | 'student' | null
+      targetType?: 'class' | 'student' | 'page' | null
       targetId?: string | null
     } = {}
   ): Promise<void> {

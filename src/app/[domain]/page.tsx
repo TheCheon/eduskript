@@ -94,6 +94,23 @@ export default async function DomainIndex({ params }: DomainIndexProps) {
     }
   })
 
+  // Fetch public annotations for this front page
+  const publicAnnotations = frontPage ? await prisma.userData.findMany({
+    where: {
+      adapter: 'annotations',
+      itemId: frontPage.id,
+      targetType: 'page',
+    },
+    select: {
+      data: true,
+      userId: true,
+      user: { select: { name: true } }
+    }
+  }) : []
+
+  // Owner can create public annotations on their own front page
+  const isPageAuthor = isOwner
+
   // Check if this is a preview (unpublished)
   const isPreviewMode = isOwner && frontPage && !frontPage.isPublished
 
@@ -141,7 +158,7 @@ export default async function DomainIndex({ params }: DomainIndexProps) {
         {/* Frontpage content or empty state for owners */}
         {frontPage?.content ? (
           <article className="prose-theme">
-            <AnnotationWrapper pageId={frontPage.id} content={frontPage.content}>
+            <AnnotationWrapper pageId={frontPage.id} content={frontPage.content} publicAnnotations={publicAnnotations} isPageAuthor={isPageAuthor}>
               <ServerMarkdownRenderer
                 content={frontPage.content}
                 pageId={frontPage.id}

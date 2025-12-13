@@ -38,9 +38,9 @@ export interface SyncItem {
   data: string
   version: number
   updatedAt: number
-  // Optional targeting for teacher broadcasts/feedback
+  // Optional targeting for teacher broadcasts/feedback/public
   // Uses empty string (not null) for IndexedDB compound key compatibility
-  targetType?: 'class' | 'student' | ''
+  targetType?: 'class' | 'student' | 'page' | ''
   targetId?: string
 }
 
@@ -133,7 +133,7 @@ export class SyncEngine {
     version: number,
     options: {
       immediate?: boolean
-      targetType?: 'class' | 'student' | null
+      targetType?: 'class' | 'student' | 'page' | null
       targetId?: string | null
     } = {}
   ): void {
@@ -507,7 +507,7 @@ export class SyncEngine {
           JSON.stringify(mergedData),
           conflict.serverVersion + 1,
           {
-            targetType: (targetType === 'class' || targetType === 'student') ? targetType : null,
+            targetType: (targetType === 'class' || targetType === 'student' || targetType === 'page') ? targetType : null,
             targetId: targetId || null,
           }
         )

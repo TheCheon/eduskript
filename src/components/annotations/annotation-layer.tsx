@@ -61,17 +61,27 @@ function repositionTeacherAnnotations(
   }
 }
 
+import type { PublicAnnotation } from '@/components/public/annotation-wrapper'
+
+/** Pre-fetched public annotation for rendering */
 interface AnnotationLayerProps {
   pageId: string
   content: string
   children: React.ReactNode
+  /** Public annotations fetched from server (for all visitors) */
+  publicAnnotations?: PublicAnnotation[]
+  /** Whether current user can create public annotations (checked server-side) */
+  isPageAuthor?: boolean
 }
 
-export function AnnotationLayer({ pageId, content, children }: AnnotationLayerProps) {
+export function AnnotationLayer({ pageId, content, children, publicAnnotations = [], isPageAuthor: isPageAuthorProp = false }: AnnotationLayerProps) {
   const { sidebarWidth, viewportWidth, viewportHeight } = useLayout()
   const { data: session } = useSession()
-  const { selectedClass, setSelectedClass, selectedStudent, setSelectedStudent, viewMode, isTeacher } = useTeacherClass()
+  const { selectedClass, setSelectedClass, selectedStudent, setSelectedStudent, broadcastToPage, setBroadcastToPage, viewMode, isTeacher } = useTeacherClass()
   const { setAnnotationVersionMismatch, setOnClearAnnotations } = useUserDataContext()
+
+  // Client-side check for page author permission (ISR pages can't compute this server-side)
+  const [isPageAuthor, setIsPageAuthor] = useState(isPageAuthorProp)
 
   // State for classes and students lists (for toolbar broadcast controls)
   const [teacherClasses, setTeacherClasses] = useState<Array<{ id: string; name: string; hasAnnotationsOnPage?: boolean }>>([])
@@ -116,6 +126,28 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     fetchClasses()
   }, [isTeacher, pageId])
 
+  // Fetch page author permission client-side (ISR pages can't compute this server-side)
+  useEffect(() => {
+    // Skip if already true from prop (non-ISR page) or no session
+    if (isPageAuthorProp || !session?.user) return
+
+    const checkPermission = async () => {
+      try {
+        const res = await fetch(`/api/pages/${encodeURIComponent(pageId)}/author-check`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.isPageAuthor) {
+            setIsPageAuthor(true)
+          }
+        }
+      } catch (e) {
+        console.error('Failed to check page author permission:', e)
+      }
+    }
+
+    checkPermission()
+  }, [pageId, session?.user, isPageAuthorProp])
+
   // Fetch students when a class is selected (with annotation status for current page)
   useEffect(() => {
     if (!isTeacher || !selectedClass || !pageId) {
@@ -148,7 +180,15 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   // - 'my-view': No targeting (personal annotations)
   // - 'class-broadcast': targetType='class', targetId=classId
   // - 'student-view': targetType='student', targetId=studentId
+  // - 'page-broadcast': targetType='page', targetId=pageId (public annotations)
   const syncOptions: SyncedUserDataOptions = useMemo(() => {
+    // Page authors can broadcast to all visitors
+    if (viewMode === 'page-broadcast') {
+      const opts = { targetType: 'page' as const, targetId: pageId }
+      log('syncOptions computed for page-broadcast:', opts)
+      return opts
+    }
+
     if (!isTeacher) return {}
 
     if (viewMode === 'class-broadcast' && selectedClass) {
@@ -163,7 +203,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     }
     log('syncOptions computed for my-view: {}')
     return {} // my-view: personal annotations
-  }, [isTeacher, viewMode, selectedClass, selectedStudent])
+  }, [isTeacher, viewMode, selectedClass, selectedStudent, pageId])
 
   // Create a stable key for targeting to detect changes
   const targetingKey = `${syncOptions.targetType ?? ''}-${syncOptions.targetId ?? ''}`
@@ -328,6 +368,7 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
 
   // Active layer key - determines which layer the canvas is drawing to
   const activeLayerKey = useMemo(() => {
+    if (viewMode === 'page-broadcast') return 'page-broadcast'
     if (isTeacher && viewMode === 'class-broadcast') return 'class-broadcast'
     if (isTeacher && viewMode === 'student-view') return 'student-feedback'
     return 'my-annotations'
@@ -366,6 +407,13 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     toggleLayerVisibility('student-feedback')
   }, [toggleLayerVisibility, studentFeedbackVisible])
 
+  // Page broadcast visibility (for page authors)
+  const pageBroadcastVisible = isLayerVisible('page-broadcast')
+  const togglePageBroadcastVisibility = useCallback(() => {
+    log('togglePageBroadcastVisibility called, current:', pageBroadcastVisible)
+    toggleLayerVisibility('page-broadcast')
+  }, [toggleLayerVisibility, pageBroadcastVisible])
+
   // Check which layers have content
   const hasPersonalContent = shouldLoadPersonalAsReference &&
     personalAnnotationData?.canvasData &&
@@ -376,6 +424,9 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
   const hasIndividualContent = teacherIndividualFeedback !== null
   const hasClassSnapsContent = teacherClassSnaps.length > 0
   const hasIndividualSnapsContent = teacherIndividualSnapFeedback !== null
+
+  // Check if there are public annotations (from server or from current user's page broadcasts)
+  const hasPublicContent = publicAnnotations.length > 0
 
   // Use synced user data service for telemetry (lightweight, sampled)
   const emptyTelemetryData = useMemo(() => ({ samples: [], totalStrokeCount: 0, sessionCount: 0, firstSampleAt: 0 } as TelemetryData), [])
@@ -478,6 +529,20 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
     })
   }, [studentFeedbackData, studentFeedbackSyncOptions])
 
+  // Sync options for page-broadcast (public annotations)
+  const pageBroadcastSyncOptions: SyncedUserDataOptions = useMemo(() => {
+    return { targetType: 'page', targetId: pageId }
+  }, [pageId])
+
+  // Load page-broadcast data for reference layer when not actively editing
+  // This allows seeing saved page annotations even after switching modes
+  const { data: pageBroadcastData, updateData: updatePageBroadcastData } = useSyncedUserData<AnnotationData>(
+    pageId,
+    'annotations',
+    null,
+    pageBroadcastSyncOptions
+  )
+
   const [mode, setMode] = useState<AnnotationMode>('view')
   const [pageVersion, setPageVersion] = useState<string>('')
   const [hasAnnotations, setHasAnnotations] = useState(false)
@@ -515,6 +580,16 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       studentFeedbackData.canvasData.length > 0 &&
       studentFeedbackData.canvasData !== '[]')
   }, [studentFeedbackData, viewMode, hasAnnotations, studentForFeedback, classStudents])
+
+  // Track if page has page-broadcast annotations (using local state when actively editing)
+  const hasPageBroadcastAnnotations = useMemo(() => {
+    // When actively editing page broadcast, use local state
+    if (viewMode === 'page-broadcast') {
+      return hasAnnotations
+    }
+    // Otherwise check server-passed public annotations
+    return hasPublicContent
+  }, [viewMode, hasAnnotations, hasPublicContent])
 
   // Canvas ref needed by delete callbacks
   const canvasRef = useRef<SimpleCanvasHandle | null>(null)
@@ -576,6 +651,23 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
       s.id === studentForFeedback.id ? { ...s, hasAnnotationsOnPage: false } : s
     ))
   }, [isTeacher, studentForFeedback, updateStudentFeedbackData, viewMode])
+
+  // Delete page broadcast annotations (for page authors)
+  const deletePageBroadcastData = useCallback(async () => {
+    log('deletePageBroadcastData called', { viewMode })
+
+    // Clear via the page-broadcast data hook
+    if (updatePageBroadcastData) {
+      await updatePageBroadcastData({ canvasData: '', headingOffsets: {}, pageVersion: '' }, { immediate: true })
+    }
+
+    // If currently viewing page broadcast, also clear local state
+    if (viewMode === 'page-broadcast') {
+      setCanvasData('')
+      setHasAnnotations(false)
+      canvasRef.current?.clear()
+    }
+  }, [viewMode, updatePageBroadcastData])
 
   // Build list of available layers for the toolbar UI
   // This includes reference layers AND the currently active/editable layer
@@ -2203,6 +2295,95 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
               paperElement
             )
           })()}
+
+          {/* Public page annotations (green tint) - visible to everyone */}
+          {/* Don't show when user is actively editing page-broadcast (they see their own edits in the main layer) */}
+          {viewMode !== 'page-broadcast' && isLayerVisible('public') && (() => {
+            // Use synced pageBroadcastData (updates dynamically) or fall back to server-passed publicAnnotations
+            const syncedData = pageBroadcastData?.canvasData
+            if (syncedData && syncedData !== '[]') {
+              // Use dynamically synced data
+              const repositionedCanvasData = repositionTeacherAnnotations(
+                syncedData,
+                pageBroadcastData?.headingOffsets ?? {},
+                pageBroadcastData?.paddingLeft,
+                headingPositions,
+                currentPaddingLeft
+              )
+
+              return createPortal(
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: pageHeight,
+                    pointerEvents: 'none',
+                    zIndex: 6, // Below other reference layers
+                  }}
+                >
+                  <SimpleCanvas
+                    width={paperWidth}
+                    height={pageHeight}
+                    mode="view"
+                    initialData={repositionedCanvasData}
+                    headingPositions={headingPositions}
+                    zoom={zoom}
+                    readOnly
+                  />
+                </div>,
+                paperElement
+              )
+            }
+
+            // Fall back to server-passed publicAnnotations (for non-logged-in users or first load)
+            if (publicAnnotations.length === 0) return null
+
+            return publicAnnotations.map((annotation, index) => {
+              const layerAnnotationData = annotation.data as AnnotationData | null
+              if (!layerAnnotationData?.canvasData) return null
+
+              const repositionedCanvasData = repositionTeacherAnnotations(
+                layerAnnotationData.canvasData,
+                layerAnnotationData.headingOffsets,
+                layerAnnotationData.paddingLeft,
+                headingPositions,
+                currentPaddingLeft
+              )
+
+              return (
+                <div key={`public-${annotation.userId}-${index}`}>
+                  {createPortal(
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        height: pageHeight,
+                        pointerEvents: 'none',
+                        zIndex: 6, // Below other reference layers
+                      }}
+                    >
+                      <SimpleCanvas
+                        width={paperWidth}
+                        height={pageHeight}
+                        mode="view"
+                        initialData={repositionedCanvasData}
+                        headingPositions={headingPositions}
+                        zoom={zoom}
+                        readOnly
+                      />
+                    </div>,
+                    paperElement
+                  )}
+                </div>
+              )
+            })
+          })()}
         </>
       )}
 
@@ -2230,6 +2411,15 @@ export function AnnotationLayer({ pageId, content, children }: AnnotationLayerPr
         onMyAnnotationsDelete={handleClearPersonalAnnotations}
         // Broadcast controls for teachers
         isTeacher={isTeacher}
+        // Page author broadcast controls (checked server-side via prop)
+        isPageAuthor={isPageAuthor}
+        broadcastToPage={broadcastToPage}
+        onBroadcastToPageChange={setBroadcastToPage}
+        hasPageBroadcastAnnotations={hasPageBroadcastAnnotations}
+        onPageBroadcastDelete={deletePageBroadcastData}
+        pageBroadcastVisible={pageBroadcastVisible}
+        onPageBroadcastToggle={togglePageBroadcastVisibility}
+        // Class broadcast controls
         classBroadcastVisible={classBroadcastVisible}
         onClassBroadcastToggle={toggleClassBroadcastVisibility}
         onClassBroadcastDelete={deleteClassBroadcastData}

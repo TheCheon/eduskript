@@ -9,6 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -21,8 +22,8 @@ interface SyncItem {
   data: string
   version: number
   updatedAt: number
-  // Optional targeting for teacher broadcasts/feedback
-  targetType?: 'class' | 'student' | null
+  // Optional targeting for teacher broadcasts/feedback/public
+  targetType?: 'class' | 'student' | 'page' | null
   targetId?: string | null
 }
 
@@ -66,6 +67,55 @@ interface QuizSubmission {
   questionId: string
 }
 
+/**
+ * Check if user has author permission on a page (directly or via skript/collection)
+ */
+async function canCreatePageAnnotations(userId: string, pageId: string, isAdmin?: boolean): Promise<boolean> {
+  // Site admins can always create page annotations
+  if (isAdmin) return true
+
+  // Check PageAuthor
+  const pageAuthor = await prisma.pageAuthor.findFirst({
+    where: { pageId, userId, permission: 'author' }
+  })
+  if (pageAuthor) return true
+
+  // Get the page with its skript
+  const page = await prisma.page.findUnique({
+    where: { id: pageId },
+    select: { skriptId: true }
+  })
+
+  if (!page?.skriptId) return false
+
+  // Check SkriptAuthor (inherits to pages)
+  const skriptAuthor = await prisma.skriptAuthor.findFirst({
+    where: { skriptId: page.skriptId, userId, permission: 'author' }
+  })
+  if (skriptAuthor) return true
+
+  // Check CollectionAuthor via CollectionSkript (inherits to skripts and pages)
+  const collectionSkripts = await prisma.collectionSkript.findMany({
+    where: { skriptId: page.skriptId },
+    select: { collectionId: true }
+  })
+  if (collectionSkripts.length > 0) {
+    const collectionIds = collectionSkripts.map(cs => cs.collectionId).filter((id): id is string => id !== null)
+    if (collectionIds.length > 0) {
+      const collectionAuthor = await prisma.collectionAuthor.findFirst({
+        where: {
+          collectionId: { in: collectionIds },
+          userId,
+          permission: 'author'
+        }
+      })
+      if (collectionAuthor) return true
+    }
+  }
+
+  return false
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -88,23 +138,40 @@ export async function POST(request: NextRequest) {
     const quizSubmissions: QuizSubmission[] = []
     const teacherBroadcasts: TeacherBroadcast[] = []
 
-    // For targeted items, validate teacher authorization upfront
+    // For targeted items, validate authorization upfront
     const isTeacher = session.user.accountType === 'teacher'
     const targetedItems = items.filter(item => item.targetType && item.targetId)
+    const pageTargetedItems = items.filter(item => item.targetType === 'page')
+    const classStudentTargetedItems = items.filter(item => item.targetType && item.targetType !== 'page' && item.targetId)
 
-    if (targetedItems.length > 0 && !isTeacher) {
+    // Class/student targeting requires teacher role
+    if (classStudentTargetedItems.length > 0 && !isTeacher) {
       return NextResponse.json(
-        { error: 'Only teachers can save targeted data' },
+        { error: 'Only teachers can save class/student targeted data' },
         { status: 403 }
       )
     }
 
-    // Validate teacher owns the classes/students for all targeted items
-    if (targetedItems.length > 0) {
-      const classTargets = targetedItems
+    // Page targeting requires author permission on the page
+    if (pageTargetedItems.length > 0) {
+      const isAdmin = session.user.isAdmin
+      for (const item of pageTargetedItems) {
+        const canCreate = await canCreatePageAnnotations(userId, item.itemId, isAdmin)
+        if (!canCreate) {
+          return NextResponse.json(
+            { error: 'You do not have author permission on this page' },
+            { status: 403 }
+          )
+        }
+      }
+    }
+
+    // Validate teacher owns the classes/students for all class/student targeted items
+    if (classStudentTargetedItems.length > 0) {
+      const classTargets = classStudentTargetedItems
         .filter(item => item.targetType === 'class')
         .map(item => item.targetId!)
-      const studentTargets = targetedItems
+      const studentTargets = classStudentTargetedItems
         .filter(item => item.targetType === 'student')
         .map(item => item.targetId!)
 
@@ -378,6 +445,198 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         console.error('[user-data/sync] Failed to publish broadcast events:', err)
         // Don't fail the sync if event publishing fails
+      }
+    }
+
+    // Invalidate ISR cache for page-targeted annotations
+    // This ensures public annotations are visible to other visitors
+    const pageAnnotationItems = items.filter(
+      item => item.targetType === 'page' && item.adapter === 'annotations' && synced.includes(`${item.adapter}:${item.itemId}`)
+    )
+
+    if (pageAnnotationItems.length > 0) {
+      console.log('[user-data/sync] Invalidating ISR cache for page annotations:', pageAnnotationItems.length)
+      try {
+        // Get all unique pageIds that were updated
+        const pageIds = [...new Set(pageAnnotationItems.map(item => item.itemId))]
+
+        // Look up page paths for cache invalidation
+        for (const pageId of pageIds) {
+          // First try to find it as a regular page
+          const page = await prisma.page.findUnique({
+            where: { id: pageId },
+            select: {
+              slug: true,
+              skript: {
+                select: {
+                  slug: true,
+                  collectionSkripts: {
+                    select: {
+                      collection: {
+                        select: {
+                          slug: true,
+                          authors: {
+                            select: {
+                              user: {
+                                select: { pageSlug: true }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          })
+
+          if (page?.skript) {
+            const skriptSlug = page.skript.slug
+            const contentPageSlug = page.slug
+
+            // Invalidate paths for all collections this skript is in
+            for (const cs of page.skript.collectionSkripts) {
+              if (!cs.collection) continue
+              const collectionSlug = cs.collection.slug
+
+              // Invalidate for all authors' domains
+              for (const author of cs.collection.authors) {
+                const userPageSlug = author.user.pageSlug
+                if (userPageSlug) {
+                  const path = `/${userPageSlug}/${collectionSlug}/${skriptSlug}/${contentPageSlug}`
+                  console.log('[user-data/sync] Revalidating path:', path)
+                  revalidatePath(path)
+                }
+              }
+            }
+
+            // Also check if page is accessible via any organization
+            // Get collection IDs from the skript
+            const collectionIds = page.skript.collectionSkripts
+              .filter(cs => cs.collection)
+              .map(cs => cs.collection!.slug)
+
+            if (collectionIds.length > 0) {
+              const orgLayouts = await prisma.orgPageLayout.findMany({
+                where: {
+                  items: {
+                    some: {
+                      OR: [
+                        { type: 'collection', contentId: { in: collectionIds } },
+                        { type: 'skript', contentId: page.skript.slug }
+                      ]
+                    }
+                  }
+                },
+                select: {
+                  organization: { select: { slug: true } }
+                }
+              })
+
+              for (const orgLayout of orgLayouts) {
+                // Invalidate org page paths for all collections
+                for (const cs of page.skript.collectionSkripts) {
+                  if (!cs.collection) continue
+                  const orgPath = `/org/${orgLayout.organization.slug}/${cs.collection.slug}/${skriptSlug}/${contentPageSlug}`
+                  console.log('[user-data/sync] Revalidating org path:', orgPath)
+                  revalidatePath(orgPath)
+                }
+              }
+            }
+            continue // Handled as regular page, skip front page check
+          }
+
+          // Not a regular page - check if it's a front page
+          const frontPage = await prisma.frontPage.findUnique({
+            where: { id: pageId },
+            select: {
+              userId: true,
+              organizationId: true,
+              skriptId: true,
+              user: { select: { pageSlug: true } },
+              organization: { select: { slug: true } },
+              skript: {
+                select: {
+                  slug: true,
+                  collectionSkripts: {
+                    select: {
+                      collection: {
+                        select: {
+                          slug: true,
+                          authors: {
+                            select: {
+                              user: { select: { pageSlug: true } }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          })
+
+          if (frontPage) {
+            // User front page: /{pageSlug}
+            if (frontPage.userId && frontPage.user?.pageSlug) {
+              const path = `/${frontPage.user.pageSlug}`
+              console.log('[user-data/sync] Revalidating user front page:', path)
+              revalidatePath(path)
+            }
+
+            // Organization front page: /org/{orgSlug}
+            if (frontPage.organizationId && frontPage.organization?.slug) {
+              const path = `/org/${frontPage.organization.slug}`
+              console.log('[user-data/sync] Revalidating org front page:', path)
+              revalidatePath(path)
+            }
+
+            // Skript front page: /{pageSlug}/{collectionSlug}/{skriptSlug}
+            if (frontPage.skriptId && frontPage.skript) {
+              const skriptSlug = frontPage.skript.slug
+              for (const cs of frontPage.skript.collectionSkripts) {
+                if (!cs.collection) continue
+                const collectionSlug = cs.collection.slug
+
+                // Invalidate for all authors' domains
+                for (const author of cs.collection.authors) {
+                  const userPageSlug = author.user.pageSlug
+                  if (userPageSlug) {
+                    const path = `/${userPageSlug}/${collectionSlug}/${skriptSlug}`
+                    console.log('[user-data/sync] Revalidating skript front page:', path)
+                    revalidatePath(path)
+                  }
+                }
+              }
+
+              // Also check orgs that have this skript in their layout
+              const orgLayouts = await prisma.orgPageLayout.findMany({
+                where: {
+                  items: {
+                    some: { type: 'skript', contentId: skriptSlug }
+                  }
+                },
+                select: {
+                  organization: { select: { slug: true } }
+                }
+              })
+
+              for (const orgLayout of orgLayouts) {
+                for (const cs of frontPage.skript.collectionSkripts) {
+                  if (!cs.collection) continue
+                  const orgPath = `/org/${orgLayout.organization.slug}/${cs.collection.slug}/${skriptSlug}`
+                  console.log('[user-data/sync] Revalidating org skript front page:', orgPath)
+                  revalidatePath(orgPath)
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[user-data/sync] Failed to invalidate ISR cache:', err)
+        // Don't fail the sync if cache invalidation fails
       }
     }
 

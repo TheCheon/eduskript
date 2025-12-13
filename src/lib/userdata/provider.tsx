@@ -183,9 +183,9 @@ export function useSyncStatus(): SyncStatus {
  * Options for useSyncedUserData hook
  */
 export interface SyncedUserDataOptions {
-  /** For teacher broadcasts: target type */
-  targetType?: 'class' | 'student' | null
-  /** For teacher broadcasts: target ID (classId or studentId) */
+  /** For broadcasts: target type */
+  targetType?: 'class' | 'student' | 'page' | null
+  /** For broadcasts: target ID (classId, studentId, or pageId for public) */
   targetId?: string | null
 }
 
@@ -203,7 +203,7 @@ export interface SyncedUserDataOptions {
 export interface UpdateDataOptions {
   immediate?: boolean
   // Optional targeting overrides - used when saving before switching targets
-  targetTypeOverride?: 'class' | 'student' | null
+  targetTypeOverride?: 'class' | 'student' | 'page' | null
   targetIdOverride?: string | null
 }
 
@@ -256,9 +256,10 @@ export function useSyncedUserData<T>(
           if (record) {
             setData(record.data)
             setIsSynced(record.savedToRemote)
-          } else if (isBroadcastMode) {
-            // In broadcast mode, also try server if no local data
+          } else if (isBroadcastMode && targetType !== 'page') {
+            // In broadcast mode (class/student), also try server if no local data
             // (in case teacher synced from another device)
+            // NOTE: Skip for targetType='page' - public annotations are passed via server props
             try {
               const response = await fetch(
                 `/api/user-data/${componentId}/${encodeURIComponent(pageId)}?targetType=${targetType}&targetId=${targetId}`

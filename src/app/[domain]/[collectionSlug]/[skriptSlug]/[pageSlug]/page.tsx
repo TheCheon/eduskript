@@ -10,6 +10,9 @@ import {
   getPublishedPage,
   getAllPublishedCollections,
 } from '@/lib/cached-queries'
+import { prisma } from '@/lib/prisma'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 interface PageProps {
   params: Promise<{
@@ -122,6 +125,52 @@ export default async function PublicPage({ params }: PageProps) {
 
   const { collection, skript, page, allPages } = content
 
+  // Fetch public annotations for this page (annotations broadcast to all visitors)
+  const publicAnnotations = await prisma.userData.findMany({
+    where: {
+      adapter: 'annotations',
+      itemId: page.id,
+      targetType: 'page',
+    },
+    select: {
+      data: true,
+      userId: true,
+      user: { select: { name: true } }
+    }
+  })
+
+  // Check if current user can create public annotations
+  // User must have author permission on page, skript, or collection
+  let isPageAuthor = false
+  const session = await getServerSession(authOptions)
+  if (session?.user?.id) {
+    const userId = session.user.id
+
+    // Check PageAuthor
+    const pageAuthor = await prisma.pageAuthor.findFirst({
+      where: { pageId: page.id, userId, permission: 'author' }
+    })
+    if (pageAuthor) {
+      isPageAuthor = true
+    } else {
+      // Check SkriptAuthor
+      const skriptAuthor = await prisma.skriptAuthor.findFirst({
+        where: { skriptId: skript.id, userId, permission: 'author' }
+      })
+      if (skriptAuthor) {
+        isPageAuthor = true
+      } else {
+        // Check CollectionAuthor
+        const collectionAuthor = await prisma.collectionAuthor.findFirst({
+          where: { collectionId: collection.id, userId, permission: 'author' }
+        })
+        if (collectionAuthor) {
+          isPageAuthor = true
+        }
+      }
+    }
+  }
+
   // Build site structure for navigation (only published pages)
   const siteStructure = [{
     id: collection.id,
@@ -185,7 +234,7 @@ export default async function PublicPage({ params }: PageProps) {
     >
       <div id="paper" className="paper-responsive py-24 bg-card dark:bg-slate-900/80 paper-shadow border border-border dark:border-white/10" style={{ maxWidth: 'min(1280px, calc(100vw - 48px))', marginLeft: 'auto', marginRight: 'auto' }}>
         <article className="prose-theme">
-          <AnnotationWrapper pageId={page.id} content={page.content}>
+          <AnnotationWrapper pageId={page.id} content={page.content} publicAnnotations={publicAnnotations} isPageAuthor={isPageAuthor}>
             <ServerMarkdownRenderer
               content={page.content}
               skriptId={skript.id}
