@@ -135,70 +135,61 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
       const viewportWidth = width * zoom
       const viewportHeight = height * zoom
 
-      // Create animation overlay container
-      const animOverlay = document.createElement('div')
-      animOverlay.style.position = 'fixed'
-      animOverlay.style.left = `${viewportLeft}px`
-      animOverlay.style.top = `${viewportTop}px`
-      animOverlay.style.width = `${viewportWidth}px`
-      animOverlay.style.height = `${viewportHeight}px`
-      animOverlay.style.pointerEvents = 'none'
-      animOverlay.style.zIndex = '10000'
+      // Create SVG animation overlay with rounded border
+      const animDuration = 0.5 // seconds
+      const borderWidth = 5
+      const cornerRadius = 8
 
-      // 4 border segments with CSS transitions (like CodePen approach)
-      const animDuration = 0.2 // seconds
-      const borderW = 6
+      // Calculate perimeter for stroke-dasharray (rounded rect formula)
+      const perimeter = 2 * (viewportWidth + viewportHeight - 2 * cornerRadius) + 2 * Math.PI * cornerRadius
 
-      // Top segment
-      const segTop = document.createElement('div')
-      segTop.style.cssText = `
-        position: absolute; top: -${borderW}px; left: 0;
-        width: 100%; height: ${borderW}px;
-        background: white; transform-origin: left;
-        transform: scaleX(0);
-        transition: transform ${animDuration / 4}s ease-out 0s;
+      // Determine stroke color based on theme
+      const isDark = document.documentElement.classList.contains('dark')
+      const strokeColor = isDark ? 'white' : 'black'
+
+      // Create SVG element
+      const svgNS = 'http://www.w3.org/2000/svg'
+      const svg = document.createElementNS(svgNS, 'svg')
+      svg.setAttribute('width', String(viewportWidth + borderWidth))
+      svg.setAttribute('height', String(viewportHeight + borderWidth))
+      svg.style.cssText = `
+        position: fixed;
+        left: ${viewportLeft - borderWidth / 2}px;
+        top: ${viewportTop - borderWidth / 2}px;
+        pointer-events: none;
+        z-index: 10000;
       `
 
-      // Right segment
-      const segRight = document.createElement('div')
-      segRight.style.cssText = `
-        position: absolute; top: 0; right: -${borderW}px;
-        width: ${borderW}px; height: 100%;
-        background: white; transform-origin: top;
-        transform: scaleY(0);
-        transition: transform ${animDuration / 4}s ease-out ${animDuration / 4}s;
-      `
+      // Create rounded rect for the border
+      const rect = document.createElementNS(svgNS, 'rect')
+      rect.setAttribute('x', String(borderWidth / 2))
+      rect.setAttribute('y', String(borderWidth / 2))
+      rect.setAttribute('width', String(viewportWidth))
+      rect.setAttribute('height', String(viewportHeight))
+      rect.setAttribute('rx', String(cornerRadius))
+      rect.setAttribute('ry', String(cornerRadius))
+      rect.setAttribute('fill', 'none')
+      rect.setAttribute('stroke', strokeColor)
+      rect.setAttribute('stroke-width', String(borderWidth))
+      // Use CSS properties for smooth animation (not SVG attributes)
+      rect.style.strokeDasharray = String(perimeter)
+      rect.style.strokeDashoffset = String(perimeter)
+      rect.style.transition = `stroke-dashoffset ${animDuration}s ease-out`
 
-      // Bottom segment
-      const segBottom = document.createElement('div')
-      segBottom.style.cssText = `
-        position: absolute; bottom: -${borderW}px; right: 0;
-        width: 100%; height: ${borderW}px;
-        background: white; transform-origin: right;
-        transform: scaleX(0);
-        transition: transform ${animDuration / 4}s ease-out ${animDuration / 2}s;
-      `
-
-      // Left segment
-      const segLeft = document.createElement('div')
-      segLeft.style.cssText = `
-        position: absolute; bottom: 0; left: -${borderW}px;
-        width: ${borderW}px; height: 100%;
-        background: white; transform-origin: bottom;
-        transform: scaleY(0);
-        transition: transform ${animDuration / 4}s ease-out ${animDuration * 3 / 4}s;
-      `
-
-      animOverlay.append(segTop, segRight, segBottom, segLeft)
-      document.body.appendChild(animOverlay)
+      svg.appendChild(rect)
+      document.body.appendChild(svg)
 
       // Trigger animation on next frame
       requestAnimationFrame(() => {
-        segTop.style.transform = 'scaleX(1)'
-        segRight.style.transform = 'scaleY(1)'
-        segBottom.style.transform = 'scaleX(1)'
-        segLeft.style.transform = 'scaleY(1)'
+        rect.style.strokeDashoffset = '0'
       })
+
+      // Store reference for cleanup
+      const animOverlay = svg
+
+      // Wait for animation to complete before starting capture
+      // This ensures smooth animation without main thread blocking
+      await new Promise(resolve => setTimeout(resolve, animDuration * 1000))
 
       // Create capture wrapper - position at selection location, style override handles capture
       const wrapper = document.createElement('div')
