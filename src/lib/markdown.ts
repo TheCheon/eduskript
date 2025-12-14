@@ -1,12 +1,32 @@
 /**
- * Markdown utility functions
+ * Markdown & Slug Utility Functions
  *
- * Note: MDX compilation is now handled by mdx-compiler.ts
- * This file only contains utility functions for text processing.
+ * Text processing utilities for markdown content and URL-safe slug generation.
+ * The full markdown rendering pipeline is in mdx-compiler.ts and the
+ * markdown-renderer.tsx component.
+ *
+ * ## Slug System
+ *
+ * Eduskript uses "slugs" as URL-safe identifiers throughout:
+ * - **pageSlug**: User's public page URL (e.g., /john-doe)
+ * - **Collection slug**: Collection URL segment
+ * - **Skript slug**: Skript URL segment
+ *
+ * Full URL format: /{pageSlug}/{collectionSlug}/{skriptSlug}/{pageSlug}
+ *
+ * ## Reserved Slugs
+ *
+ * Some slugs are reserved because they conflict with system routes.
+ * Attempting to create a user, collection, or skript with a reserved
+ * slug will be rejected. See RESERVED_SLUGS for the full list.
+ *
+ * @see src/lib/mdx-compiler.ts for full markdown compilation
+ * @see src/components/markdown/markdown-renderer.tsx for React rendering
  */
 
 /**
- * Generate an excerpt from markdown content
+ * Generate an excerpt from markdown content.
+ * Strips markdown syntax and truncates at word boundary.
  */
 export function generateExcerpt(content: string, maxLength: number = 160): string {
   // Remove markdown syntax for excerpt
@@ -31,7 +51,12 @@ export function generateExcerpt(content: string, maxLength: number = 160): strin
 }
 
 /**
- * Generate a URL-friendly slug from a title
+ * Generate a URL-friendly slug from a title.
+ *
+ * Transforms: "My Collection Title!" → "my-collection-title"
+ *
+ * Note: This function does NOT check for reserved slugs or uniqueness.
+ * Callers should use isReservedSlug() and check database uniqueness.
  */
 export function generateSlug(title: string): string {
   return title
@@ -45,6 +70,9 @@ export function generateSlug(title: string): string {
 /**
  * Reserved slugs that conflict with system routes.
  * These cannot be used for collections, skripts, or user page slugs.
+ *
+ * If you add a new top-level route to the app, add it here to prevent
+ * users from creating content that would shadow it.
  */
 export const RESERVED_SLUGS = [
   'api',

@@ -1,3 +1,56 @@
+/**
+ * Authentication Configuration
+ *
+ * Eduskript has two distinct authentication flows with different privacy models:
+ *
+ * ## Teacher Authentication
+ *
+ * Teachers can sign up/sign in via:
+ * 1. **Email/Password** (credentials) - from main site (/auth/login, /auth/register)
+ * 2. **OAuth** (GitHub, Azure AD) - from main site
+ *
+ * Teacher accounts:
+ * - Store real email addresses
+ * - Get a public page (pageSlug)
+ * - Can create content (collections, skripts, pages)
+ * - Auto-join organizations by email domain
+ *
+ * ## Student Authentication
+ *
+ * Students sign in ONLY via OAuth, from a teacher's page (e.g., /teacher-slug).
+ * We detect student signups by checking the callback URL:
+ *
+ * ```
+ * OAuth initiated from:
+ *   /auth/login     → Teacher (main site)
+ *   /teacher-slug   → Student (teacher's page)
+ * ```
+ *
+ * Student accounts:
+ * - NO email storage (privacy requirement)
+ * - Identified by OAuth provider (oauthProvider + oauthProviderId)
+ * - Get a studentPseudonym for teacher matching
+ * - Cannot create content, only consume and annotate
+ *
+ * ## JWT Token Fields
+ *
+ * The session token includes:
+ * - `id`: User ID
+ * - `email`: Real email (teachers) or fake email (students)
+ * - `accountType`: 'teacher' | 'student'
+ * - `pageSlug`: Public page URL (teachers only)
+ * - `isAdmin`: Site administrator flag
+ * - `studentPseudonym`: Hash for teacher matching (students only)
+ *
+ * ## Why JWT Instead of Database Sessions?
+ *
+ * We use JWT strategy because the PrismaAdapter is incompatible with the
+ * CredentialsProvider (NextAuth limitation). JWT also provides better
+ * performance for serverless deployments.
+ *
+ * @see src/lib/privacy-adapter.ts for the student privacy implementation
+ */
+
 import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GithubProvider from 'next-auth/providers/github'

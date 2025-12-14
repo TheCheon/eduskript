@@ -1,3 +1,55 @@
+/**
+ * File Storage System
+ *
+ * Content-addressed storage with automatic deduplication. Files are stored
+ * in S3 using their SHA256 hash as the key, so identical files share storage.
+ *
+ * ## Architecture
+ *
+ * ```
+ * ┌─────────────────────────────────────────────────────────────────────┐
+ * │ Database (Prisma)                                                   │
+ * │ ┌──────────────────────────┐  ┌──────────────────────────────────┐ │
+ * │ │ File                     │  │ File (same content)              │ │
+ * │ │ - id: "file-1"           │  │ - id: "file-2"                   │ │
+ * │ │ - name: "image.png"      │  │ - name: "copy.png"               │ │
+ * │ │ - hash: "abc123..."      │──│ - hash: "abc123..." (same!)      │ │
+ * │ │ - skriptId: "skript-A"   │  │ - skriptId: "skript-B"           │ │
+ * │ └──────────────────────────┘  └──────────────────────────────────┘ │
+ * │              │                              │                       │
+ * │              └──────────┬───────────────────┘                       │
+ * │                         ▼                                           │
+ * │              ┌──────────────────────┐                               │
+ * │              │ S3: files/abc123.png │ ← Single copy in storage      │
+ * │              └──────────────────────┘                               │
+ * └─────────────────────────────────────────────────────────────────────┘
+ * ```
+ *
+ * ## Key Behaviors
+ *
+ * 1. **Deduplication**: Before uploading, we check if the hash already exists
+ *    in S3. If it does, we create the database record without uploading.
+ *
+ * 2. **Reference Counting**: Files are only deleted from S3 when no database
+ *    records reference their hash anymore.
+ *
+ * 3. **Hierarchical Structure**: Files can be organized in directories within
+ *    a skript. Directories are File records with `isDirectory: true`.
+ *
+ * 4. **Public Access**: Files in published skripts are publicly accessible
+ *    via presigned URLs. Unpublished skripts require authentication.
+ *
+ * ## Security
+ *
+ * - Filenames are sanitized to prevent path traversal attacks
+ * - File types are validated against an allowlist
+ * - Size limits prevent denial-of-service via large uploads
+ * - Hash-based keys make URLs unguessable
+ *
+ * @see src/app/api/upload/route.ts for the upload endpoint
+ * @see src/app/api/files/[id]/route.ts for file serving
+ */
+
 import * as crypto from 'crypto'
 import { prisma } from './prisma'
 import {
@@ -9,7 +61,7 @@ import {
   teacherFileExists,
 } from './s3'
 
-// File storage configuration - exported for use in upload handlers
+// File storage configuration - exported for pre-validation in upload handlers
 export const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '10485760') // 10MB default
 export const ALLOWED_TYPES = (process.env.ALLOWED_FILE_TYPES || 'jpg,jpeg,png,gif,webp,svg,pdf,doc,docx,txt,md,zip,mp4,mp3,wav,ogg,webm,csv,json,xml,html,css,js,ts,py,java,cpp,c,h,hpp,rs,go,php,rb,sh,yml,yaml,excalidraw,db,sqlite').split(',')
 

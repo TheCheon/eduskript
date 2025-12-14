@@ -1,7 +1,54 @@
 /**
- * Privacy-preserving adapter wrapper for NextAuth
- * For students: NEVER stores emails, only OAuth provider info
- * For teachers: Stores emails normally
+ * Privacy-Preserving NextAuth Adapter
+ *
+ * Wraps the standard Prisma adapter to handle student privacy requirements.
+ * Eduskript needs to identify students across sessions without storing their
+ * personal information (email addresses).
+ *
+ * ## Two Account Types
+ *
+ * **Teachers** (accountType: 'teacher'):
+ * - Full email storage for login, collaboration, and communication
+ * - Normal NextAuth behavior via PrismaAdapter
+ * - Get a public page (pageSlug) for their content
+ * - Auto-join organizations by email domain
+ *
+ * **Students** (accountType: 'student'):
+ * - NO email stored in database (privacy requirement)
+ * - Identified by OAuth provider info (oauthProvider + oauthProviderId)
+ * - Get a studentPseudonym: deterministic hash of their email
+ *   (allows teachers to match students without knowing their email)
+ * - Anonymous display name generated randomly
+ * - No public page
+ *
+ * ## How Student Identification Works
+ *
+ * ```
+ * Student email: "alice@school.edu"
+ *                      ↓
+ *              generatePseudonym()
+ *                      ↓
+ * studentPseudonym: "9a8b7c6d..."  ← Stored in DB (irreversible hash)
+ *
+ * Teacher pre-authorizes: "alice@school.edu"
+ *                      ↓
+ *              generatePseudonym()
+ *                      ↓
+ * PreAuthorizedStudent.pseudonym: "9a8b7c6d..."  ← Matches the student!
+ * ```
+ *
+ * The pseudonym allows teachers to pre-authorize students by email, and when
+ * the student signs up, they can be matched without ever storing the email.
+ *
+ * ## Privacy Guarantees
+ *
+ * 1. Student emails are NEVER stored in the database
+ * 2. Pseudonyms are one-way hashes (cannot recover email from pseudonym)
+ * 3. OAuth profile images are passed through but not persisted
+ * 4. Students choose whether to reveal identity to specific teachers
+ *
+ * @see src/lib/privacy/pseudonym.ts for the hashing algorithm
+ * @see src/lib/auth.ts for how isStudentSignup is determined
  */
 
 import type { Adapter, AdapterUser, AdapterAccount } from 'next-auth/adapters'
