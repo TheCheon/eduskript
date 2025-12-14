@@ -14,7 +14,7 @@ import { repositionStrokes } from '@/lib/annotations/reposition-strokes'
 import { useLayout } from '@/contexts/layout-context'
 import { useTeacherClass } from '@/contexts/teacher-class-context'
 import { useTeacherBroadcast } from '@/hooks/use-teacher-broadcast'
-import { useStrokeAnimation, parseStrokes, type AnimatedStroke } from '@/hooks/use-stroke-animation'
+import { parseStrokes, type AnimatedStroke } from '@/hooks/use-stroke-animation'
 import { useSession } from 'next-auth/react'
 import { SnapOverlay, type Snap } from './snap-overlay'
 import { SnapsDisplay } from './snaps-display'
@@ -23,8 +23,9 @@ import { createLogger } from '@/lib/logger'
 const log = createLogger('annotations:layer')
 
 /**
- * Component for rendering an animated reference layer
- * Uses the useStrokeAnimation hook to animate stroke opacity changes
+ * CSS-based animated reference layer
+ * Uses a separate overlay canvas for new strokes with CSS opacity transition (GPU accelerated)
+ * More performant than per-stroke canvas animation - no React re-renders during animation
  */
 const AnimatedReferenceLayer = memo(function AnimatedReferenceLayer({
   canvasData,
@@ -43,14 +44,88 @@ const AnimatedReferenceLayer = memo(function AnimatedReferenceLayer({
   zIndex?: number
   className?: string
 }) {
-  // Parse strokes from data - memoized to prevent recreation on every render
-  const strokes = useMemo(() => parseStrokes(canvasData), [canvasData])
+  // Parse strokes from data
+  const allStrokes = useMemo(() => parseStrokes(canvasData), [canvasData])
 
-  // Use animation hook for per-stroke fade effects (1s fade-in for broadcast strokes)
-  const { strokesToRender, opacities } = useStrokeAnimation(strokes, 1000)
+  // Track which strokes are "established" (already animated in)
+  const [establishedIds, setEstablishedIds] = useState<Set<string>>(new Set())
+  const hasInitializedRef = useRef(false)
+  const hasStabilizedRef = useRef(false)  // True after first render with newStrokes.length === 0
+  const overlayRef = useRef<HTMLDivElement>(null)
 
-  // Serialize strokes back to JSON for SimpleCanvas - memoized to prevent unnecessary re-parses
-  const dataToRender = useMemo(() => JSON.stringify(strokesToRender), [strokesToRender])
+  // Separate strokes into established vs new
+  const { establishedStrokes, newStrokes } = useMemo(() => {
+    const established: typeof allStrokes = []
+    const newOnes: typeof allStrokes = []
+
+    allStrokes.forEach(stroke => {
+      if (establishedIds.has(stroke.id)) {
+        established.push(stroke)
+      } else {
+        newOnes.push(stroke)
+      }
+    })
+
+    return { establishedStrokes: established, newStrokes: newOnes }
+  }, [allStrokes, establishedIds])
+
+  // Handle initial load and sync establishedIds with current strokes
+  useEffect(() => {
+    const currentIds = new Set(allStrokes.map(s => s.id))
+
+    if (!hasInitializedRef.current) {
+      // First load - mark all current strokes as established (even if empty)
+      hasInitializedRef.current = true
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: sync state with incoming prop
+      setEstablishedIds(currentIds)
+    } else {
+      // Sync: update establishedIds to match current strokes
+      // This handles both additions (via handleTransitionEnd) and deletions
+      setEstablishedIds(prev => {
+        const filtered = new Set([...prev].filter(id => currentIds.has(id)))
+        // Only update if something was actually removed
+        if (filtered.size !== prev.size) {
+          return filtered
+        }
+        return prev
+      })
+    }
+  }, [allStrokes])
+
+  // When new strokes arrive (after initial load), trigger fade-in via DOM
+  useEffect(() => {
+    // Mark as stabilized once we've seen newStrokes become empty
+    // (happens after initialization moves all strokes to established)
+    if (newStrokes.length === 0) {
+      hasStabilizedRef.current = true
+      return
+    }
+
+    // Only animate if we've stabilized (prevents animation on initial mount)
+    if (!hasStabilizedRef.current || !overlayRef.current) return
+
+    // Double RAF ensures browser has painted at opacity 0 before triggering transition
+    const el = overlayRef.current
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        el.style.opacity = '1'
+      })
+    })
+  }, [newStrokes.length])
+
+  // After animation completes, merge new strokes into established
+  const handleTransitionEnd = useCallback(() => {
+    if (newStrokes.length > 0) {
+      setEstablishedIds(prev => {
+        const next = new Set(prev)
+        newStrokes.forEach(s => next.add(s.id))
+        return next
+      })
+    }
+  }, [newStrokes])
+
+  const establishedData = useMemo(() => JSON.stringify(establishedStrokes), [establishedStrokes])
+  const newData = useMemo(() => JSON.stringify(newStrokes), [newStrokes])
 
   return (
     <div
@@ -66,16 +141,41 @@ const AnimatedReferenceLayer = memo(function AnimatedReferenceLayer({
         zIndex,
       }}
     >
+      {/* Main canvas with established strokes - key forces remount when strokes change */}
       <SimpleCanvas
+        key={establishedData}
         width={paperWidth}
         height={pageHeight}
         mode="view"
-        initialData={dataToRender}
+        initialData={establishedData}
         headingPositions={headingPositions}
         zoom={zoom}
         readOnly
-        strokeOpacities={opacities}
       />
+      {/* Overlay canvas for new strokes with CSS fade-in */}
+      {newStrokes.length > 0 && (
+        <div
+          ref={overlayRef}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            opacity: 0,
+            transition: 'opacity 300ms ease-out',
+          }}
+          onTransitionEnd={handleTransitionEnd}
+        >
+          <SimpleCanvas
+            width={paperWidth}
+            height={pageHeight}
+            mode="view"
+            initialData={newData}
+            headingPositions={headingPositions}
+            zoom={zoom}
+            readOnly
+          />
+        </div>
+      )}
     </div>
   )
 })
@@ -1132,6 +1232,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
 
   // Keep refs in sync with state (for use in callbacks to avoid stale closures)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/immutability -- Intentional: sync ref with prop for callbacks
     canvasDataRef.current = canvasData
   }, [canvasData])
 
@@ -1515,6 +1616,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   }, [updateAnnotationData, viewMode, syncOptions, targetingKey])
 
   // Keep ref in sync for use in effects that can't depend on the function directly
+  // eslint-disable-next-line react-hooks/immutability -- Intentional: sync ref with callback for effects
   performSaveWithOptionsRef.current = performSaveWithOptions
 
   // performSave is just a wrapper that calls performSaveWithOptions without overrides
@@ -2279,7 +2381,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
             if (!isLayerVisible(layerId)) return null
 
             const layerAnnotationData = classAnnotation.data as AnnotationData | null
-            if (!layerAnnotationData?.canvasData) return null
+            if (!layerAnnotationData?.canvasData || layerAnnotationData.canvasData === '[]') return null
 
             const repositionedCanvasData = repositionTeacherAnnotations(
               layerAnnotationData.canvasData,
@@ -2309,7 +2411,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
           {/* Individual feedback annotations (orange tint) - for students */}
           {isStudent && teacherIndividualFeedback && isLayerVisible('individual') && (() => {
             const layerAnnotationData = teacherIndividualFeedback.data as AnnotationData | null
-            if (!layerAnnotationData?.canvasData) return null
+            if (!layerAnnotationData?.canvasData || layerAnnotationData.canvasData === '[]') return null
 
             const repositionedCanvasData = repositionTeacherAnnotations(
               layerAnnotationData.canvasData,
@@ -2365,7 +2467,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
 
             return publicAnnotations.map((annotation, index) => {
               const layerAnnotationData = annotation.data as AnnotationData | null
-              if (!layerAnnotationData?.canvasData) return null
+              if (!layerAnnotationData?.canvasData || layerAnnotationData.canvasData === '[]') return null
 
               const repositionedCanvasData = repositionTeacherAnnotations(
                 layerAnnotationData.canvasData,

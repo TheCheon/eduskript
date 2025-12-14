@@ -64,7 +64,6 @@ interface SimpleCanvasProps {
   zoom?: number
   headingPositions?: HeadingPosition[]
   readOnly?: boolean  // When true, disables all interaction
-  strokeOpacities?: Map<string, number>  // Per-stroke opacity overrides for animations (stroke id → opacity 0-1)
 }
 
 export interface SimpleCanvasHandle {
@@ -73,7 +72,7 @@ export interface SimpleCanvasHandle {
 }
 
 export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
-  ({ width, height, mode, onUpdate, initialData, strokeWidth = 2, strokeColor = '#000000', stylusModeActive = false, onStylusDetected, onNonStylusInput, onPenStateChange, onDrawStart, onTelemetry, zoom = 1.0, headingPositions = [], readOnly = false, strokeOpacities }, ref) => {
+  ({ width, height, mode, onUpdate, initialData, strokeWidth = 2, strokeColor = '#000000', stylusModeActive = false, onStylusDetected, onNonStylusInput, onPenStateChange, onDrawStart, onTelemetry, zoom = 1.0, headingPositions = [], readOnly = false }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const isDrawingRef = useRef(false)
     const [isPenDrawing, setIsPenDrawing] = useState(false) // Track if pen is actively drawing
@@ -242,11 +241,8 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
         // Check if this stroke is marked for deletion
         const isMarkedForDeletion = strokesMarkedForDeletionRef.current.has(index)
 
-        // Get per-stroke opacity override (for fade animations), default to 1
-        const strokeOpacity = strokeOpacities?.get(path.id) ?? 1
-
-        // Set opacity: combine stroke opacity with deletion marking
-        ctx.globalAlpha = isMarkedForDeletion ? strokeOpacity * 0.3 : strokeOpacity
+        // Set opacity (reduced if marked for deletion)
+        ctx.globalAlpha = isMarkedForDeletion ? 0.3 : 1
 
         ctx.strokeStyle = path.color
         ctx.lineCap = 'round'
@@ -328,7 +324,7 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
 
       // Reset globalAlpha
       ctx.globalAlpha = 1.0
-    }, [smoothPoints, applyPressureFloor, strokeOpacities])
+    }, [smoothPoints, applyPressureFloor])
 
     // Throttled redraw for eraser using RAF to avoid redrawing every single move
     const scheduleEraserRedraw = useCallback(() => {
@@ -457,13 +453,6 @@ export const SimpleCanvas = forwardRef<SimpleCanvasHandle, SimpleCanvasProps>(
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [initialData])
-
-    // Redraw when strokeOpacities change (for per-stroke fade animations)
-    useEffect(() => {
-      if (strokeOpacities && strokeOpacities.size > 0) {
-        redrawCanvas()
-      }
-    }, [strokeOpacities, redrawCanvas])
 
     const startDrawing = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
       // Detect stylus input first

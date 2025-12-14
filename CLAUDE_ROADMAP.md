@@ -10,7 +10,6 @@
 ## 🎯 Priority List
 
 - fade in of annotations without flickering
-- updating broadcast annotations without flickering
 
 **LMS Features:**
 - **Interactive Quizzes** - In-lesson quizzes with progress tracking. there is already a <Question> component.
