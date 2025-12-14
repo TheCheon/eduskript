@@ -310,7 +310,6 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   // Fetch students when a class is selected (with annotation status for current page)
   useEffect(() => {
     if (!isTeacher || !selectedClass || !pageId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentionally clear when class is deselected
       setClassStudents([])
       return
     }
@@ -431,7 +430,6 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
         try {
           const parsed = JSON.parse(stored)
           if (typeof parsed === 'object') {
-            // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional one-time init from localStorage
             setLayerVisibility(parsed)
           }
         } catch {
@@ -447,7 +445,6 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     if (isTeacher && prevViewModeRef.current === 'my-view' && viewMode !== 'my-view') {
       // Teacher just switched from personal to class/student view
       // Auto-hide personal reference layer (controls button state in broadcast mode)
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: sync layer visibility when broadcast target changes
       setLayerVisibility(prev => {
         const next = { ...prev, personal: false }
         if (typeof window !== 'undefined') {
@@ -463,7 +460,6 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
 
       // Teacher just switched from individual student to entire class
       // Auto-hide student feedback layer (unless manually toggled before)
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: sync layer visibility when broadcast target changes
       setLayerVisibility(prev => {
         const next = { ...prev, 'student-feedback': false }
         if (typeof window !== 'undefined') {
@@ -778,7 +774,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
         c.id === selectedClass.id ? { ...c, hasAnnotationsOnPage: false } : c
       ))
     }
-  }, [isTeacher, selectedClass, updateClassBroadcastData, viewMode, classBroadcastData?.canvasData?.length])
+  }, [isTeacher, selectedClass, updateClassBroadcastData, viewMode])
 
   // Delete student feedback annotations specifically
   // Works for both selected student and last selected student (in class-broadcast mode)
@@ -962,7 +958,6 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       try {
         const parsed = JSON.parse(savedColors)
         if (Array.isArray(parsed) && parsed.length === 3) {
-          // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional one-time init from localStorage
           setPenColors(parsed as [string, string, string])
         }
       } catch (e) {
@@ -1095,7 +1090,6 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   useEffect(() => {
     const paper = document.getElementById('paper')
     if (paper) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Getting DOM element
       setPaperElement(paper)
 
       setPaperWidth(paper.getBoundingClientRect().width)
@@ -1298,7 +1292,6 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     prevSyncOptionsRef.current = syncOptions
 
     // Clear local canvas state to allow new data to load
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: reset state when targeting changes
     setCanvasData('')
     setHasAnnotations(false)
     setStoredHeadingOffsets({})
@@ -1320,7 +1313,6 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
         const strokes: StrokeData[] = JSON.parse(annotationData.canvasData)
 
         if (strokes.length > 0) {
-          // eslint-disable-next-line react-hooks/set-state-in-effect -- Loading stored state
           setHasAnnotations(true)
           setCanvasData(annotationData.canvasData)
           setStoredHeadingOffsets(annotationData.headingOffsets || {})
@@ -1338,7 +1330,6 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       const currentOffsets = Object.fromEntries(
         headingPositions.map(h => [h.sectionId, h.offsetY])
       )
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Initializing state
       setStoredHeadingOffsets(currentOffsets)
     }
   }, [headingPositions, storedHeadingOffsets])

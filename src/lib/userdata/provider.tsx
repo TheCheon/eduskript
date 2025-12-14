@@ -375,7 +375,8 @@ export function useSyncedUserData<T>(
         throw error
       }
     },
-    [pageId, componentId, isAuthenticated, targetType, targetId, isBroadcastMode]
+    // Note: isBroadcastMode is derived from targetType && targetId, so not needed in deps
+    [pageId, componentId, isAuthenticated, targetType, targetId]
   )
 
   return {

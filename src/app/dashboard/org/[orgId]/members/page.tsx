@@ -86,6 +86,8 @@ export default function OrgMembersPage({ params }: { params: Promise<{ orgId: st
   const [selectedMember, setSelectedMember] = useState<OrgMember | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState<'teachers' | 'students'>('teachers')
+  // Trigger for refetching members (increment to refetch)
+  const [refetchTrigger, setRefetchTrigger] = useState(0)
 
   // Form states
   const [addFormData, setAddFormData] = useState({
@@ -99,34 +101,38 @@ export default function OrgMembersPage({ params }: { params: Promise<{ orgId: st
     requirePasswordReset: true,
   })
 
-  // Fetch members
-  const fetchMembers = async () => {
-    try {
-      setLoading(true)
-      const response = await fetch(`/api/organizations/${orgId}/members`)
-      const data = await response.json()
-
-      if (!response.ok) {
-        if (response.status === 403) {
-          router.push('/dashboard')
-          return
-        }
-        throw new Error(data.error || 'Failed to fetch members')
-      }
-
-      setMembers(data.members)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    } finally {
-      setLoading(false)
-    }
-  }
-
+  // Fetch members from the API
+  // Uses refetchTrigger to allow manual refetching after mutations
   useEffect(() => {
-    if (session) {
-      fetchMembers()
+    if (!session) return
+
+    const fetchMembers = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch(`/api/organizations/${orgId}/members`)
+        const data = await response.json()
+
+        if (!response.ok) {
+          if (response.status === 403) {
+            router.push('/dashboard')
+            return
+          }
+          throw new Error(data.error || 'Failed to fetch members')
+        }
+
+        setMembers(data.members)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred')
+      } finally {
+        setLoading(false)
+      }
     }
-  }, [session, orgId])
+
+    fetchMembers()
+  }, [session, orgId, router, refetchTrigger])
+
+  // Helper to trigger a refetch
+  const refetchMembers = () => setRefetchTrigger(prev => prev + 1)
 
   // Add member
   const handleAddMember = async (e: React.FormEvent) => {
@@ -153,7 +159,7 @@ export default function OrgMembersPage({ params }: { params: Promise<{ orgId: st
       setSuccess('Member added successfully')
       setShowAddDialog(false)
       setAddFormData({ email: '', role: 'member' })
-      fetchMembers()
+      refetchMembers()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     }
@@ -178,7 +184,7 @@ export default function OrgMembersPage({ params }: { params: Promise<{ orgId: st
       }
 
       setSuccess('Role updated successfully')
-      fetchMembers()
+      refetchMembers()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     }
@@ -205,7 +211,7 @@ export default function OrgMembersPage({ params }: { params: Promise<{ orgId: st
       }
 
       setSuccess('Member removed successfully')
-      fetchMembers()
+      refetchMembers()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     }
