@@ -10,7 +10,7 @@ import { useSyncedUserData, useUserDataContext, type SyncedUserDataOptions } fro
 import type { AnnotationData, StrokeTelemetry, TelemetryData } from '@/lib/userdata/types'
 import type { SnapsData } from '@/lib/userdata/adapters'
 import { generateContentHash, type HeadingPosition, type StrokeData } from '@/lib/indexeddb/annotations'
-import { repositionStrokes } from '@/lib/annotations/reposition-strokes'
+import { repositionStrokes, repositionSnaps } from '@/lib/annotations/reposition-strokes'
 import { useLayout } from '@/contexts/layout-context'
 import { useTeacherClass } from '@/contexts/teacher-class-context'
 import { useTeacherBroadcast } from '@/hooks/use-teacher-broadcast'
@@ -1345,45 +1345,60 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
 
   // Apply repositioning when heading positions or padding change (only if needed)
   useEffect(() => {
-    if (!canvasData || headingPositions.length === 0 || Object.keys(storedHeadingOffsets).length === 0) return
+    if (headingPositions.length === 0 || Object.keys(storedHeadingOffsets).length === 0) return
 
-    try {
-      const strokes: StrokeData[] = JSON.parse(canvasData)
-      if (strokes.length === 0) return
+    // Check if repositioning is needed
+    const currentOffsets = Object.fromEntries(
+      headingPositions.map(h => [h.sectionId, h.offsetY])
+    )
 
-      // Check if repositioning is needed
-      const currentOffsets = Object.fromEntries(
-        headingPositions.map(h => [h.sectionId, h.offsetY])
-      )
+    // Only reposition if stored offsets differ from current offsets OR padding changed
+    const needsVerticalReposition = Object.keys(storedHeadingOffsets).some(
+      key => storedHeadingOffsets[key] !== currentOffsets[key]
+    )
+    const needsHorizontalReposition = storedPaddingLeft !== undefined &&
+      Math.abs(currentPaddingLeft - storedPaddingLeft) > 1 // Allow 1px tolerance
 
-      // Only reposition if stored offsets differ from current offsets OR padding changed
-      const needsVerticalReposition = Object.keys(storedHeadingOffsets).some(
-        key => storedHeadingOffsets[key] !== currentOffsets[key]
-      )
-      const needsHorizontalReposition = storedPaddingLeft !== undefined &&
-        Math.abs(currentPaddingLeft - storedPaddingLeft) > 1 // Allow 1px tolerance
+    if (!needsVerticalReposition && !needsHorizontalReposition) return
 
-      if (needsVerticalReposition || needsHorizontalReposition) {
-        const result = repositionStrokes(
-          strokes,
-          headingPositions,
-          storedHeadingOffsets,
-          currentPaddingLeft,
-          storedPaddingLeft
-        )
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- Repositioning stored data
-        setCanvasData(JSON.stringify(result.strokes))
-
-        setOrphanedStrokesCount(result.orphanedCount)
-        // Update stored values so we don't reposition again
-
-        setStoredHeadingOffsets(currentOffsets)
-        setStoredPaddingLeft(currentPaddingLeft)
+    // Reposition strokes if we have any
+    if (canvasData) {
+      try {
+        const strokes: StrokeData[] = JSON.parse(canvasData)
+        if (strokes.length > 0) {
+          const result = repositionStrokes(
+            strokes,
+            headingPositions,
+            storedHeadingOffsets,
+            currentPaddingLeft,
+            storedPaddingLeft
+          )
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- Repositioning stored data
+          setCanvasData(JSON.stringify(result.strokes))
+          setOrphanedStrokesCount(result.orphanedCount)
+        }
+      } catch {
+        // Ignore stroke repositioning errors
       }
-    } catch {
-      // Ignore repositioning errors
     }
-  }, [headingPositions, storedHeadingOffsets, canvasData, currentPaddingLeft, storedPaddingLeft])
+
+    // Reposition snaps if we have any
+    if (snaps.length > 0) {
+      const snapResult = repositionSnaps(
+        snaps,
+        headingPositions,
+        storedHeadingOffsets,
+        currentPaddingLeft,
+        storedPaddingLeft
+      )
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Repositioning stored data
+      updateSnapsData({ snaps: snapResult.snaps })
+    }
+
+    // Update stored values so we don't reposition again
+    setStoredHeadingOffsets(currentOffsets)
+    setStoredPaddingLeft(currentPaddingLeft)
+  }, [headingPositions, storedHeadingOffsets, canvasData, currentPaddingLeft, storedPaddingLeft, snaps, updateSnapsData])
 
   // Helper function to recalculate heading positions and paper dimensions
   const recalculateHeadingPositions = useCallback(() => {

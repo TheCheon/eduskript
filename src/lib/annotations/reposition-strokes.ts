@@ -177,3 +177,79 @@ export function repositionStrokes(
 
   return { strokes: repositioned, orphanedCount }
 }
+
+/**
+ * Basic snap data for repositioning (no section metadata needed)
+ */
+export interface SnapForReposition {
+  id: string
+  name: string
+  imageUrl: string
+  top: number
+  left: number
+  width: number
+  height: number
+}
+
+export interface RepositionSnapsResult {
+  snaps: SnapForReposition[]
+}
+
+/**
+ * Repositions snaps based on new heading positions and padding changes
+ * Determines section membership at runtime from snap's top position
+ */
+export function repositionSnaps(
+  snaps: SnapForReposition[],
+  currentHeadingPositions: HeadingPosition[],
+  oldHeadingOffsets: Record<string, number>,
+  currentPaddingLeft?: number,
+  oldPaddingLeft?: number
+): RepositionSnapsResult {
+  const deltaX = (currentPaddingLeft !== undefined && oldPaddingLeft !== undefined)
+    ? currentPaddingLeft - oldPaddingLeft
+    : 0
+
+  // Sort old offsets to find sections by position
+  const oldPositions = Object.entries(oldHeadingOffsets)
+    .map(([sectionId, offsetY]) => ({ sectionId, offsetY }))
+    .sort((a, b) => a.offsetY - b.offsetY)
+
+  const repositioned: SnapForReposition[] = snaps.map(snap => {
+    // Determine section from snap's top position using OLD heading positions
+    let sectionId: string | null = null
+    for (let i = oldPositions.length - 1; i >= 0; i--) {
+      if (snap.top >= oldPositions[i].offsetY) {
+        sectionId = oldPositions[i].sectionId
+        break
+      }
+    }
+
+    if (!sectionId) {
+      // Snap is above all headings, keep as-is
+      return snap
+    }
+
+    // Find current position of this section
+    const currentHeading = currentHeadingPositions.find(h => h.sectionId === sectionId)
+    if (!currentHeading) {
+      // Section deleted, keep as-is
+      return snap
+    }
+
+    const oldOffsetY = oldHeadingOffsets[sectionId]
+    const deltaY = currentHeading.offsetY - oldOffsetY
+
+    if (deltaY === 0 && deltaX === 0) {
+      return snap
+    }
+
+    return {
+      ...snap,
+      top: snap.top + deltaY,
+      left: snap.left + deltaX,
+    }
+  })
+
+  return { snaps: repositioned }
+}

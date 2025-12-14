@@ -592,7 +592,7 @@ export function SnapOverlay({ onCapture, onCancel, nextSnapNumber, zoom }: SnapO
         top: snapTop,
         left: snapLeft,
         width,
-        height
+        height,
       }
 
       onCapture(snap)
