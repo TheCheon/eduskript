@@ -104,6 +104,16 @@ export interface PythonFile {
 export type HighlightColor = 'red' | 'yellow' | 'green' | 'blue'
 
 /**
+ * Comment on a code highlight
+ */
+export interface HighlightComment {
+  id: string                // Unique identifier (nanoid)
+  text: string              // Comment content
+  authorId?: string         // User ID (empty in local mode, filled when broadcast)
+  createdAt: number         // Timestamp
+}
+
+/**
  * Individual code highlight
  */
 export interface CodeHighlight {
@@ -113,6 +123,8 @@ export interface CodeHighlight {
   to: number                // End character offset
   color: HighlightColor     // Highlight color
   createdAt: number         // Timestamp for ordering
+  authorId?: string         // User ID who created this (empty in local mode)
+  comments?: HighlightComment[]  // Multiple comments from different users
 }
 
 /**

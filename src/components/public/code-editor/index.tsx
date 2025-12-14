@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useLayoutEffect, useRef, useState, useCallback, memo } from 'react'
+import { nanoid } from 'nanoid'
 import { createPortal } from 'react-dom'
 import { useTheme } from 'next-themes'
 import { EditorView, keymap } from '@codemirror/view'
@@ -15,15 +16,16 @@ import { basicSetup } from 'codemirror'
 import { autocompletion } from '@codemirror/autocomplete'
 import { pythonCompletions } from './python-completions'
 import { Button } from '@/components/ui/button'
-import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText, ZoomIn, ZoomOut, Save, History, Highlighter } from 'lucide-react'
+import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText, ZoomIn, ZoomOut, Save, History, Highlighter, MessageSquare } from 'lucide-react'
 import { useUserData, useCreateVersion, useVersionHistory, useRestoreVersion, useDeleteVersion, useUpdateVersionLabel } from '@/lib/userdata/hooks'
-import type { CodeEditorData, CodeHighlight, HighlightColor } from '@/lib/userdata/types'
+import type { CodeEditorData, CodeHighlight, HighlightColor, HighlightComment } from '@/lib/userdata/types'
 import {
   codeHighlighting,
   addHighlight,
   removeHighlight,
   setHighlights as setHighlightsEffect,
   extractHighlights,
+  highlightField,
 } from './highlight-extension'
 import {
   RunState,
@@ -168,6 +170,16 @@ export const CodeEditor = memo(function CodeEditor({
   const [highlights, setHighlights] = useState<CodeHighlight[]>([])
   const [hoveredHighlightId, setHoveredHighlightId] = useState<string | null>(null)
   const [deleteButtonPosition, setDeleteButtonPosition] = useState<{ x: number; y: number } | null>(null)
+
+  // Comment popover state
+  const [commentingHighlightId, setCommentingHighlightId] = useState<string | null>(null)
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null) // null = adding new comment
+  const [commentPopoverPosition, setCommentPopoverPosition] = useState<{ x: number; y: number } | null>(null)
+  const [commentDraft, setCommentDraft] = useState('')
+  const commentInputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Comment indicator positions (for highlights with comments, shown even when not hovering)
+  const [commentIndicators, setCommentIndicators] = useState<Array<{ id: string; x: number; y: number }>>([])
 
   // Calculate visibility based on width and detect graphics modules (turtle or matplotlib) or SQL schema
   const currentCode = files[activeFileIndex]?.content || initialCode
@@ -333,6 +345,11 @@ export const CodeEditor = memo(function CodeEditor({
     createVersionSnapshotRef.current = createVersionSnapshot
   }, [createVersionSnapshot])
 
+  // Current user's author ID for highlights/comments
+  // In local mode, this is undefined (single user)
+  // When broadcasting, this will be the current user's ID from context
+  const currentAuthorId: string | undefined = undefined // TODO: get from user context when broadcasting
+
   // Highlight handlers
   const handleApplyHighlight = useCallback((color?: HighlightColor) => {
     const view = editorViewRef.current
@@ -349,10 +366,23 @@ export const CodeEditor = memo(function CodeEditor({
       selection: { anchor: to }
     })
 
-    // Extract all highlights from CodeMirror and save to state
-    const allHighlights = extractHighlights(view, activeFileIndex)
-    setHighlights(allHighlights)
-  }, [activeFileIndex, highlightColor])
+    // Extract highlights from CodeMirror and merge with existing metadata
+    const extracted = extractHighlights(view, activeFileIndex)
+    setHighlights(prev => {
+      // Create map of existing highlights for quick lookup
+      const existingMap = new Map(prev.map(h => [h.id, h]))
+      // Merge extracted with existing (preserve authorId, comments)
+      return extracted.map(h => {
+        const existing = existingMap.get(h.id)
+        if (existing) {
+          // Update position but keep metadata
+          return { ...existing, from: h.from, to: h.to }
+        }
+        // New highlight - set authorId
+        return { ...h, authorId: currentAuthorId }
+      })
+    })
+  }, [activeFileIndex, highlightColor, currentAuthorId])
 
   // Handle highlight button click
   const handleHighlightButtonClick = useCallback(() => {
@@ -447,29 +477,136 @@ export const CodeEditor = memo(function CodeEditor({
         selection: { anchor: to }
       })
 
-      // Extract and save highlights
-      const allHighlights = extractHighlights(view, activeFileIndex)
-      setHighlights(allHighlights)
+      // Extract highlights from CodeMirror and merge with existing metadata
+      const extracted = extractHighlights(view, activeFileIndex)
+      setHighlights(prev => {
+        const existingMap = new Map(prev.map(h => [h.id, h]))
+        return extracted.map(h => {
+          const existing = existingMap.get(h.id)
+          if (existing) {
+            return { ...existing, from: h.from, to: h.to }
+          }
+          return { ...h, authorId: currentAuthorId }
+        })
+      })
     }
 
     editor.addEventListener('mouseup', handleMouseUp)
     return () => editor.removeEventListener('mouseup', handleMouseUp)
-  }, [activeFileIndex])
+  }, [activeFileIndex, currentAuthorId])
 
-  // Handle delete highlight
+  // Handle delete highlight - only delete your own highlights
   const handleDeleteHighlight = useCallback((highlightId: string) => {
     const view = editorViewRef.current
     if (!view) return
+
+    // Check ownership before deleting
+    const highlight = highlights.find(h => h.id === highlightId)
+    if (highlight?.authorId !== currentAuthorId) return
 
     view.dispatch({
       effects: removeHighlight.of(highlightId)
     })
 
-    // Update state
+    // Update state - removes highlight and all its comments
     setHighlights(prev => prev.filter(h => h.id !== highlightId))
     setHoveredHighlightId(null)
     setDeleteButtonPosition(null)
+  }, [highlights, currentAuthorId])
+
+  // Handle open comment popover
+  const handleOpenComment = useCallback((highlightId: string) => {
+    const highlight = highlights.find(h => h.id === highlightId)
+    // Find YOUR comment (matching authorId, or undefined in local mode)
+    const myComment = highlight?.comments?.find(c => c.authorId === currentAuthorId)
+    setCommentDraft(myComment?.text || '')
+    setEditingCommentId(myComment?.id || null)
+    setCommentingHighlightId(highlightId)
+    // Position popover below the action buttons
+    if (deleteButtonPosition) {
+      setCommentPopoverPosition({
+        x: deleteButtonPosition.x - 100,
+        y: deleteButtonPosition.y + 28
+      })
+    }
+    // Focus input after render
+    setTimeout(() => commentInputRef.current?.focus(), 50)
+  }, [highlights, deleteButtonPosition, currentAuthorId])
+
+  // Handle save comment
+  const handleSaveComment = useCallback(() => {
+    if (!commentingHighlightId) return
+    const trimmedText = commentDraft.trim()
+
+    setHighlights(prev => prev.map(h => {
+      if (h.id !== commentingHighlightId) return h
+
+      const existingComments = h.comments || []
+      const myCommentIndex = existingComments.findIndex(c => c.authorId === currentAuthorId)
+
+      if (!trimmedText) {
+        // Delete my comment if empty
+        if (myCommentIndex >= 0) {
+          return { ...h, comments: existingComments.filter((_, i) => i !== myCommentIndex) }
+        }
+        return h
+      }
+
+      if (myCommentIndex >= 0) {
+        // Update my existing comment
+        return {
+          ...h,
+          comments: existingComments.map((c, i) =>
+            i === myCommentIndex ? { ...c, text: trimmedText } : c
+          )
+        }
+      } else {
+        // Add new comment
+        const newComment: HighlightComment = {
+          id: nanoid(),
+          text: trimmedText,
+          authorId: currentAuthorId,
+          createdAt: Date.now()
+        }
+        return { ...h, comments: [...existingComments, newComment] }
+      }
+    }))
+
+    setCommentingHighlightId(null)
+    setEditingCommentId(null)
+    setCommentPopoverPosition(null)
+    setCommentDraft('')
+  }, [commentingHighlightId, commentDraft, currentAuthorId])
+
+  // Handle cancel comment
+  const handleCancelComment = useCallback(() => {
+    setCommentingHighlightId(null)
+    setEditingCommentId(null)
+    setCommentPopoverPosition(null)
+    setCommentDraft('')
   }, [])
+
+  // Close comment popover on click outside
+  useEffect(() => {
+    if (!commentingHighlightId) return
+
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      // Check if click is inside the popover
+      if (target.closest('.fixed.z-\\[10000\\]')) return
+      handleCancelComment()
+    }
+
+    // Delay adding listener to avoid immediate trigger
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside)
+    }, 100)
+
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [commentingHighlightId, handleCancelComment])
 
   // Track hover over highlight spans for delete button
   useEffect(() => {
@@ -512,7 +649,7 @@ export const CodeEditor = memo(function CodeEditor({
         }
       } else if (hoveredHighlightId) {
         // Check if we're over the delete button (don't hide it if hovering the button)
-        const deleteBtn = (e.target as HTMLElement).closest('.highlight-delete-btn')
+        const deleteBtn = (e.target as HTMLElement).closest('.highlight-actions')
         if (!deleteBtn) {
           setHoveredHighlightId(null)
           setDeleteButtonPosition(null)
@@ -523,7 +660,7 @@ export const CodeEditor = memo(function CodeEditor({
     const handleMouseLeave = () => {
       // Small delay to allow moving to delete button
       setTimeout(() => {
-        const deleteBtn = document.querySelector('.highlight-delete-btn:hover')
+        const deleteBtn = document.querySelector('.highlight-actions:hover')
         if (!deleteBtn) {
           setHoveredHighlightId(null)
           setDeleteButtonPosition(null)
@@ -539,6 +676,50 @@ export const CodeEditor = memo(function CodeEditor({
       editor.removeEventListener('mouseleave', handleMouseLeave)
     }
   }, [hoveredHighlightId])
+
+  // Update comment indicator positions for highlights with comments
+  useEffect(() => {
+    const editor = editorRef.current
+    if (!editor) return
+
+    const updateIndicatorPositions = () => {
+      const highlightsWithComments = highlights.filter(h => h.comments && h.comments.length > 0)
+      const indicators: Array<{ id: string; x: number; y: number }> = []
+
+      for (const highlight of highlightsWithComments) {
+        // Find all spans for this highlight
+        const allSpans = editor.querySelectorAll(`[data-highlight-id="${highlight.id}"]`)
+        if (allSpans.length > 0) {
+          const rects = Array.from(allSpans).map(span => span.getBoundingClientRect())
+          const minTop = Math.min(...rects.map(r => r.top))
+          const firstLineRects = rects.filter(r => Math.abs(r.top - minTop) < 5)
+          const maxRight = Math.max(...firstLineRects.map(r => r.right))
+
+          indicators.push({
+            id: highlight.id,
+            x: maxRight - 4,
+            y: minTop - 4
+          })
+        }
+      }
+
+      setCommentIndicators(indicators)
+    }
+
+    // Update initially and on scroll
+    updateIndicatorPositions()
+
+    const scrollContainer = editor.querySelector('.cm-scroller')
+    scrollContainer?.addEventListener('scroll', updateIndicatorPositions)
+
+    // Also update on window resize
+    window.addEventListener('resize', updateIndicatorPositions)
+
+    return () => {
+      scrollContainer?.removeEventListener('scroll', updateIndicatorPositions)
+      window.removeEventListener('resize', updateIndicatorPositions)
+    }
+  }, [highlights])
 
   // Sync highlights from state to CodeMirror when switching files or after initial load
   useEffect(() => {
@@ -946,6 +1127,34 @@ export const CodeEditor = memo(function CodeEditor({
 
     // Add code highlighting extension
     extensions.push(...codeHighlighting())
+
+    // Sync highlight positions back to React state when document changes
+    extensions.push(
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged && update.state.field(highlightField).size > 0) {
+          // Extract current positions from CodeMirror decorations
+          const extracted = extractHighlights(update.view, activeFileIndex)
+          // Merge with existing metadata (authorId, comments)
+          setHighlights(prev => {
+            const existingMap = new Map(prev.map(h => [h.id, h]))
+            // Update positions for existing highlights, preserve metadata
+            const updated = extracted.map(h => {
+              const existing = existingMap.get(h.id)
+              if (existing) {
+                return { ...existing, from: h.from, to: h.to }
+              }
+              return { ...h, authorId: currentAuthorId }
+            })
+            // Check if anything actually changed to avoid unnecessary re-renders
+            const hasChanges = updated.some((h, i) => {
+              const old = prev.find(p => p.id === h.id)
+              return !old || old.from !== h.from || old.to !== h.to
+            })
+            return hasChanges ? updated : prev
+          })
+        }
+      })
+    )
 
     // Add update listener for auto-save
     extensions.push(
@@ -2410,29 +2619,125 @@ plots
         </div>
       )}
 
-      {/* Highlight Delete Button - Portal */}
-      {hoveredHighlightId && deleteButtonPosition && typeof document !== 'undefined' && createPortal(
-        <button
-          className="highlight-delete-btn fixed w-5 h-5 bg-background border border-border text-muted-foreground rounded-full flex items-center justify-center shadow-md hover:bg-muted hover:text-foreground transition-colors z-[9999] cursor-pointer"
+      {/* Persistent Comment Indicators - shown for highlights with comments */}
+      {commentIndicators.length > 0 && typeof document !== 'undefined' && createPortal(
+        <>
+          {commentIndicators
+            .filter(ind => ind.id !== hoveredHighlightId) // Don't show if already showing hover actions
+            .map(indicator => (
+              <div
+                key={indicator.id}
+                className="fixed w-3 h-3 bg-primary rounded-full flex items-center justify-center z-[9998] pointer-events-none"
+                style={{
+                  left: `${indicator.x}px`,
+                  top: `${indicator.y}px`,
+                }}
+              >
+                <MessageSquare className="w-2 h-2 text-primary-foreground" />
+              </div>
+            ))}
+        </>,
+        document.body
+      )}
+
+      {/* Highlight Action Buttons - Portal */}
+      {hoveredHighlightId && deleteButtonPosition && !commentingHighlightId && typeof document !== 'undefined' && createPortal(
+        <div
+          className="highlight-actions fixed flex items-center gap-1 z-[9999]"
           style={{
-            left: `${deleteButtonPosition.x}px`,
+            left: `${deleteButtonPosition.x - 24}px`, // Offset for both buttons
             top: `${deleteButtonPosition.y}px`,
           }}
-          onClick={() => handleDeleteHighlight(hoveredHighlightId)}
           onMouseLeave={() => {
             // Check if we're back over a highlight, otherwise hide
             setTimeout(() => {
               const highlightEl = document.querySelector('[data-highlight-id]:hover')
-              if (!highlightEl) {
+              const actionsEl = document.querySelector('.highlight-actions:hover')
+              if (!highlightEl && !actionsEl) {
                 setHoveredHighlightId(null)
                 setDeleteButtonPosition(null)
               }
             }, 50)
           }}
-          title="Remove highlight"
         >
-          <X className="w-3 h-3" />
-        </button>,
+          {/* Comment button */}
+          <button
+            className="relative w-5 h-5 bg-background border border-border text-muted-foreground rounded-full flex items-center justify-center shadow-md hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+            onClick={() => handleOpenComment(hoveredHighlightId)}
+            title={highlights.find(h => h.id === hoveredHighlightId)?.comments?.length ? "Edit comment" : "Add comment"}
+          >
+            <MessageSquare className="w-3 h-3" />
+            {/* Indicator dot if has comments */}
+            {(highlights.find(h => h.id === hoveredHighlightId)?.comments?.length ?? 0) > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-primary rounded-full" />
+            )}
+          </button>
+          {/* Delete button - only show for your own highlights */}
+          {highlights.find(h => h.id === hoveredHighlightId)?.authorId === currentAuthorId && (
+            <button
+              className="w-5 h-5 bg-background border border-border text-muted-foreground rounded-full flex items-center justify-center shadow-md hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+              onClick={() => handleDeleteHighlight(hoveredHighlightId)}
+              title="Remove highlight"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+          {/* Comments preview tooltip */}
+          {(highlights.find(h => h.id === hoveredHighlightId)?.comments?.length ?? 0) > 0 && (
+            <div className="absolute top-6 right-0 w-48 p-2 bg-background border border-border rounded shadow-lg text-xs max-h-32 overflow-y-auto space-y-2">
+              {highlights.find(h => h.id === hoveredHighlightId)?.comments?.map(comment => (
+                <div key={comment.id} className="text-muted-foreground whitespace-pre-wrap">
+                  {comment.text}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
+
+      {/* Comment Popover - Portal */}
+      {commentingHighlightId && commentPopoverPosition && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed z-[10000] bg-background border border-border rounded-lg shadow-lg p-2 w-64"
+          style={{
+            left: `${commentPopoverPosition.x}px`,
+            top: `${commentPopoverPosition.y}px`,
+          }}
+        >
+          <textarea
+            ref={commentInputRef}
+            className="w-full h-20 text-sm bg-muted/50 border border-border rounded p-2 resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+            placeholder="Add a comment..."
+            value={commentDraft}
+            onChange={(e) => setCommentDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault()
+                handleSaveComment()
+              } else if (e.key === 'Escape') {
+                handleCancelComment()
+              }
+            }}
+          />
+          <div className="flex justify-end gap-1 mt-2">
+            <button
+              className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              onClick={handleCancelComment}
+            >
+              Cancel
+            </button>
+            <button
+              className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
+              onClick={handleSaveComment}
+            >
+              Save
+            </button>
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-1">
+            {navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+Enter to save
+          </div>
+        </div>,
         document.body
       )}
     </div>
