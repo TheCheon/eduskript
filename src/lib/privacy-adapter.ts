@@ -47,6 +47,24 @@
  * 3. OAuth profile images are passed through but not persisted
  * 4. Students choose whether to reveal identity to specific teachers
  *
+ * ## Known Limitations
+ *
+ * 1. **Pseudonym collisions**: While SHA256 makes collisions extremely unlikely,
+ *    two different emails could theoretically produce the same pseudonym.
+ *    This would cause incorrect student matching but is practically impossible.
+ *
+ * 2. **OAuth provider dependency**: If a student's OAuth account is deleted or
+ *    changes (e.g., new Microsoft account), they lose access to their Eduskript
+ *    student account. There's no email-based recovery possible by design.
+ *
+ * 3. **No email verification for students**: Since we don't store student emails,
+ *    we can't verify that they actually control the email. This is acceptable
+ *    because student accounts have limited capabilities.
+ *
+ * 4. **Pre-authorization doesn't auto-enroll**: Students must manually accept
+ *    class invitations even if pre-authorized. This is intentional for consent
+ *    but adds friction to the onboarding flow.
+ *
  * @see src/lib/privacy/pseudonym.ts for the hashing algorithm
  * @see src/lib/auth.ts for how isStudentSignup is determined
  */
@@ -234,7 +252,10 @@ export function PrivacyAdapter(options: PrivacyAdapterOptions): Adapter {
 
         let createdUser
         try {
-          // Store anonymized display name
+          // Generate anonymized display name
+          // LIMITATION: This random string could theoretically collide, but it's
+          // just a display name (not an identifier) so duplicates are acceptable.
+          // A UUID-based approach would be more robust but less readable.
           const anonymousName = `Student ${Math.random().toString(36).substring(2, 6)}`
 
           // Generate pseudonym from email (for teacher matching) but DON'T store the email

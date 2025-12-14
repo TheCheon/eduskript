@@ -70,9 +70,17 @@ export const authOptions: NextAuthOptions = {
     ? PrivacyAdapter({
         prisma,
         isStudentSignup: async (email: string, context?: any) => {
-          // Check if OAuth was initiated from a teacher's page (student signup)
-          // We use the callback URL to determine this - if it starts with a teacher's pageSlug,
-          // then this is a student signing up on that teacher's page
+          // Detect student signup by checking the OAuth callback URL.
+          //
+          // SECURITY NOTE: This approach is somewhat fragile. The callback URL
+          // cookie could theoretically be manipulated by a user to sign up as
+          // the wrong account type. However:
+          // 1. Students signing up as teachers just get an empty teacher account
+          // 2. Teachers signing up as students lose access to their email (inconvenient but not harmful)
+          // 3. The cookie is httpOnly and set by NextAuth, not user-controllable in normal use
+          //
+          // A more robust approach would be to use OAuth state parameter or a
+          // server-side session to track the signup context.
           try {
             const cookieStore = await cookies()
             const callbackCookie = cookieStore.get('next-auth.callback-url')

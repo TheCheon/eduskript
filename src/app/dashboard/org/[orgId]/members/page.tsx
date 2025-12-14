@@ -86,7 +86,10 @@ export default function OrgMembersPage({ params }: { params: Promise<{ orgId: st
   const [selectedMember, setSelectedMember] = useState<OrgMember | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState<'teachers' | 'students'>('teachers')
-  // Trigger for refetching members (increment to refetch)
+  // WORKAROUND: Using a refetch trigger instead of a proper data fetching library.
+  // A better solution would be React Query or SWR which handle caching,
+  // deduplication, and background refetching. This pattern works but requires
+  // manually calling refetchMembers() after every mutation.
   const [refetchTrigger, setRefetchTrigger] = useState(0)
 
   // Form states

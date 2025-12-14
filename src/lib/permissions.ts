@@ -42,6 +42,19 @@
  * - Bob is a skript author → he can EDIT all pages in that skript
  * - Carol is a page viewer → she can only VIEW that specific page
  *
+ * ## Known Limitations
+ *
+ * 1. **O(n) lookups**: The check functions use Array.find() which is O(n).
+ *    For content with many authors, this could be slow. A Map-based approach
+ *    would be more efficient but adds complexity for typical use cases (<10 authors).
+ *
+ * 2. **Code duplication**: The three check functions share similar logic.
+ *    A generic permission checker could reduce duplication, but the current
+ *    approach is more readable and each level has subtle differences.
+ *
+ * 3. **No caching**: Permissions are recalculated on every check. For hot paths,
+ *    consider caching the result per request using React context or similar.
+ *
  * @see CLAUDE.md for the full permission model documentation
  */
 
@@ -226,7 +239,11 @@ export function getCollectionViewers(
 }
 
 /**
- * Get all users who can view a skript
+ * Get all users who can view a skript.
+ *
+ * Note: This deduplication is O(n²) due to nested findIndex.
+ * For large author lists, consider using a Set or Map.
+ * In practice, most content has <10 authors so this is fine.
  */
 export function getSkriptViewers(
   skriptAuthors: (SkriptAuthor & { user: Partial<User> })[],
@@ -234,12 +251,12 @@ export function getSkriptViewers(
 ): Partial<User>[] {
   const skriptUsers = skriptAuthors.map(author => author.user)
   const collectionUsers = collectionAuthors.map(author => author.user)
-  
-  // Combine and deduplicate
+
+  // Combine and deduplicate (O(n²) but acceptable for small lists)
   const allUsers = [...skriptUsers, ...collectionUsers]
-  const uniqueUsers = allUsers.filter((user, index, array) => 
+  const uniqueUsers = allUsers.filter((user, index, array) =>
     array.findIndex(u => u.id === user.id) === index
   )
-  
+
   return uniqueUsers
 }

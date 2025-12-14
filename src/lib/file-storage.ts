@@ -46,6 +46,22 @@
  * - Size limits prevent denial-of-service via large uploads
  * - Hash-based keys make URLs unguessable
  *
+ * ## Known Limitations
+ *
+ * 1. **Extension-based validation only**: We validate file type by extension,
+ *    not by inspecting file contents (magic bytes). A malicious user could
+ *    upload a .png that's actually a .exe. This is mitigated by the fact
+ *    that files are served with correct Content-Type headers.
+ *
+ * 2. **No virus scanning**: Uploaded files are not scanned for malware.
+ *    For high-security deployments, consider adding ClamAV integration.
+ *
+ * 3. **Orphaned S3 files**: If a database transaction fails after S3 upload,
+ *    the S3 file becomes orphaned. A cleanup job would help but isn't implemented.
+ *
+ * 4. **No rate limiting**: File uploads aren't rate-limited at this layer.
+ *    The API route should implement rate limiting to prevent abuse.
+ *
  * @see src/app/api/upload/route.ts for the upload endpoint
  * @see src/app/api/files/[id]/route.ts for file serving
  */
@@ -146,7 +162,15 @@ export function validateFile(filename: string, size: number): { valid: boolean; 
 }
 
 /**
- * Save file to S3 and database
+ * Save file to S3 and database.
+ *
+ * PERFORMANCE NOTE: We compute the SHA256 hash for every upload, even if a
+ * file with the same name already exists. A potential optimization would be
+ * to check for name conflicts before hashing, but this would require changing
+ * the overwrite logic. Current approach prioritizes correctness over speed.
+ *
+ * The hash computation is ~100-500ms for a 10MB file, which is acceptable
+ * for user-initiated uploads but could be optimized for batch imports.
  */
 export async function saveFile({
   buffer,
