@@ -7,7 +7,7 @@ import { UserDataProvider } from '@/lib/userdata/provider'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider refetchOnWindowFocus={false}>
+    <SessionProvider refetchOnWindowFocus={true}>
       <ThemeProvider
         attribute="class"
         defaultTheme="system"

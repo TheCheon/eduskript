@@ -172,6 +172,7 @@ export default async function OrgTeacherContentPage({ params, searchParams }: Pa
     select: {
       id: true,
       name: true,
+      pageSlug: true,
       pageName: true,
       pageDescription: true,
       pageIcon: true,
@@ -511,7 +512,7 @@ export default async function OrgTeacherContentPage({ params, searchParams }: Pa
 
   const teacherData = {
     name: teacher.name || 'Teacher',
-    pageSlug: teacher.pageName || pageSlug,
+    pageSlug: teacher.pageSlug || pageSlug,
     pageName: teacher.pageName || null,
     pageDescription: teacher.pageDescription || null,
     pageIcon: teacher.pageIcon || null,

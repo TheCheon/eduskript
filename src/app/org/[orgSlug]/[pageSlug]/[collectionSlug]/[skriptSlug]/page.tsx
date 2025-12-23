@@ -134,6 +134,7 @@ export default async function OrgTeacherSkriptPage({ params }: PageProps) {
     select: {
       id: true,
       name: true,
+      pageSlug: true,
       pageName: true,
       pageDescription: true,
       pageIcon: true,
@@ -206,7 +207,7 @@ export default async function OrgTeacherSkriptPage({ params }: PageProps) {
 
   const teacherData = {
     name: teacher.name || 'Teacher',
-    pageSlug: teacher.pageName || pageSlug,
+    pageSlug: teacher.pageSlug || pageSlug,
     pageName: teacher.pageName || null,
     pageDescription: teacher.pageDescription || null,
     pageIcon: teacher.pageIcon || null,
