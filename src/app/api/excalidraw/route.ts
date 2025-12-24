@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { saveFile } from '@/lib/file-storage'
+import { saveFile, getS3Key, getFileExtension } from '@/lib/file-storage'
+import { downloadTeacherFile } from '@/lib/s3'
 
 export async function POST(request: NextRequest) {
   try {
@@ -125,12 +126,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'File not found or access denied' }, { status: 403 })
     }
 
-    // Read the file content from disk
-    const { readFile } = await import('fs/promises')
-    const { join } = await import('path')
+    if (!file.hash) {
+      return NextResponse.json({ error: 'File has no content hash' }, { status: 500 })
+    }
 
-    const filePath = join(process.cwd(), 'uploads', 'skripts', skriptId, file.name)
-    const fileContent = await readFile(filePath, 'utf-8')
+    // Download from S3 using the content-addressed storage
+    const extension = getFileExtension(file.name)
+    if (!extension) {
+      return NextResponse.json({ error: 'File has no extension' }, { status: 500 })
+    }
+
+    const s3Key = getS3Key(file.hash, extension)
+    const fileBuffer = await downloadTeacherFile(s3Key)
+    const fileContent = fileBuffer.toString('utf-8')
 
     // Parse the Excalidraw JSON
     const excalidrawData = JSON.parse(fileContent)

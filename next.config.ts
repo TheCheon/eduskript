@@ -28,6 +28,10 @@ const nextConfig: NextConfig = {
         hostname: 'img.youtube.com',
         pathname: '/vi/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'eduskript.org',
+      },
     ],
   },
   // Allow larger body sizes for import API (default is 10MB)

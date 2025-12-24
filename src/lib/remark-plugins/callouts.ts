@@ -118,16 +118,34 @@ export const remarkCallouts: Plugin<[], Root> = function () {
 
       if (!keyword) return
 
-      // Keep only the title text (remove [!type] syntax)
-      firstChild.value = titleText
-
       // Resolve keyword to type (handle aliases)
       const calloutType = calloutTypes[keyword] || keyword
 
-      // Create span with title text (extract inline content from paragraph)
+      // Split content: title is only on the first line, rest goes to body
+      // Look for a break node in the title paragraph - content after it should be in body
+      const titleChildren: typeof titleParagraph.children = []
+      const bodyChildren: typeof titleParagraph.children = []
+      let foundBreak = false
+
+      // First, update the text node to remove [!type] syntax
+      firstChild.value = titleText
+
+      for (const child of titleParagraph.children) {
+        if (child.type === 'break') {
+          foundBreak = true
+          continue // Skip the break itself
+        }
+        if (!foundBreak) {
+          titleChildren.push(child)
+        } else {
+          bodyChildren.push(child)
+        }
+      }
+
+      // Create span with title text only
       const titleSpan = {
         type: 'element',
-        children: titleParagraph.children, // Extract inline content (text, strong, etc.)
+        children: titleChildren,
         data: {
           hName: 'span',
           hProperties: {
@@ -148,7 +166,17 @@ export const remarkCallouts: Plugin<[], Root> = function () {
         }
       }
 
+      // Remove the title paragraph from blockquote
       blockquote.children.shift()
+
+      // If there was content after a break in the title paragraph, prepend it as a new paragraph
+      if (bodyChildren.length > 0) {
+        const bodyParagraph = {
+          type: 'paragraph',
+          children: bodyChildren
+        }
+        blockquote.children.unshift(bodyParagraph as BlockContent)
+      }
 
       // Wrap remaining content in callout-content div
       const contentNode = {

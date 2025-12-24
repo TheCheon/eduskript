@@ -96,6 +96,9 @@ export async function PATCH(
         requireEmailDomain: true,
         billingPlan: true,
         updatedAt: true,
+        _count: {
+          select: { members: true },
+        },
       },
     })
 

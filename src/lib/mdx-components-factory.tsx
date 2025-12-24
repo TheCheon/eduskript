@@ -19,6 +19,7 @@ import { Question, Option } from '@/components/markdown/quiz'
 import { Callout } from '@/components/markdown/callout'
 import { CodeBlock } from '@/components/markdown/code-block'
 import { OurTeachers } from '@/components/markdown/our-teachers'
+import { DemoEditor } from '@/components/demo/demo-editor'
 
 // Simple hash function for generating stable IDs
 function hashCode(str: string): string {
@@ -144,6 +145,7 @@ interface CreateMDXComponentsOptions {
   onContentChange?: (newContent: string) => void
   content?: string  // For editor mode, to find/replace content
   organizationSlug?: string  // For organization pages (OurTeachers component)
+  onExcalidrawEdit?: (filename: string, fileId: string) => void  // Callback to edit Excalidraw drawings
 }
 
 /**
@@ -156,7 +158,7 @@ export function createMDXComponents(
   files: SkriptFilesData,
   options?: CreateMDXComponentsOptions
 ): Record<string, ComponentType<any>> {
-  const { pageId, onContentChange, content, organizationSlug } = options ?? {}
+  const { pageId, onContentChange, content, organizationSlug, onExcalidrawEdit } = options ?? {}
 
   // Image component - passes files through to child components
   function ImageComponent({ src, alt, title, style, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) {
@@ -183,6 +185,7 @@ export function createMDXComponents(
           wrap={dataWrap === 'true'}
           files={files}
           onWidthChange={onContentChange ? (markdown) => handleImageWidthChange(dataExcalidraw, markdown) : undefined}
+          onEdit={onExcalidrawEdit}
           sourceLineStart={sourceLineStart}
           sourceLineEnd={sourceLineEnd}
         />
@@ -332,6 +335,7 @@ export function createMDXComponents(
         wrap={dataWrap === 'true'}
         files={files}
         onWidthChange={onContentChange ? (markdown) => handleImageWidthChange(src, markdown) : undefined}
+        onEdit={onExcalidrawEdit}
         sourceLineStart={sourceLineStart}
         sourceLineEnd={sourceLineEnd}
       />
@@ -464,6 +468,7 @@ export function createMDXComponents(
           wrap={wrap}
           files={files}
           onWidthChange={onContentChange ? (markdown) => handleImageWidthChange(src, markdown) : undefined}
+          onEdit={onExcalidrawEdit}
           sourceLineStart={sourceLineStart}
           sourceLineEnd={sourceLineEnd}
         />
@@ -529,5 +534,8 @@ export function createMDXComponents(
     }) {
       return <OurTeachers orgSlug={organizationSlug} {...props} />
     },
+
+    // Demo/marketing components
+    DemoEditor,
   }
 }

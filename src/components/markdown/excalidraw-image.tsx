@@ -2,8 +2,9 @@
 
 import Image from 'next/image'
 import { useState, useCallback } from 'react'
+import { Pencil } from 'lucide-react'
 import type { SkriptFilesData } from '@/lib/skript-files'
-import { resolveExcalidraw } from '@/lib/skript-files'
+import { resolveExcalidraw, resolveFile } from '@/lib/skript-files'
 import { ResizableWrapper } from './resizable-wrapper'
 
 interface ExcalidrawImageProps {
@@ -11,6 +12,7 @@ interface ExcalidrawImageProps {
   alt?: string
   style?: React.CSSProperties
   onWidthChange?: (markdown: string) => void
+  onEdit?: (filename: string, fileId: string) => void  // Callback to open Excalidraw editor
   align?: 'left' | 'center' | 'right'
   wrap?: boolean
   // Files data for resolving URLs (serializable)
@@ -20,14 +22,18 @@ interface ExcalidrawImageProps {
   sourceLineEnd?: string
 }
 
-export function ExcalidrawImage({ src, alt, style, onWidthChange, align = 'center', wrap = false, files, sourceLineStart, sourceLineEnd }: ExcalidrawImageProps) {
+export function ExcalidrawImage({ src, alt, style, onWidthChange, onEdit, align = 'center', wrap = false, files, sourceLineStart, sourceLineEnd }: ExcalidrawImageProps) {
   const filename = src
   const caption = alt || ''
 
-  // Resolve light/dark URLs
+  // Resolve light/dark URLs and the original file ID
   const resolved = files ? resolveExcalidraw(files, src) : undefined
   const lightSrc = resolved?.lightUrl ?? ''
   const darkSrc = resolved?.darkUrl ?? ''
+
+  // Get the original .excalidraw file ID for editing
+  const excalidrawFile = files ? resolveFile(files, src) : undefined
+  const fileId = excalidrawFile?.id ?? ''
 
   const [lightLoaded, setLightLoaded] = useState(false)
   const [darkLoaded, setDarkLoaded] = useState(false)
@@ -74,9 +80,23 @@ export function ExcalidrawImage({ src, alt, style, onWidthChange, align = 'cente
       align={align}
       wrap={wrap}
       onLayoutChange={onWidthChange ? handleLayoutChange : undefined}
-      className="excalidraw-wrapper"
+      className="excalidraw-wrapper group/excalidraw"
       dataAttributes={dataAttributes}
     >
+      {/* Edit button overlay - only shown if onEdit is provided */}
+      {onEdit && fileId && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onEdit(filename, fileId)
+          }}
+          className="absolute top-2 left-2 z-20 p-2 rounded-md bg-background/80 backdrop-blur-sm border border-border shadow-sm opacity-0 group-hover/excalidraw:opacity-100 transition-opacity hover:bg-accent"
+          title="Edit drawing"
+        >
+          <Pencil className="w-4 h-4 text-orange-500" />
+        </button>
+      )}
+
       {/* Render both images, CSS controls visibility based on theme */}
       {lightSrc && (
         <Image

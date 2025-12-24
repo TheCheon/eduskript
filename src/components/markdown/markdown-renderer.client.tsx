@@ -13,10 +13,11 @@ interface MarkdownRendererProps {
   pageId?: string
   skriptId?: string
   onContentChange?: (newContent: string) => void
+  onExcalidrawEdit?: (filename: string, fileId: string) => void
 }
 
 // Inner component that does the actual rendering
-function MarkdownRendererInner({ content, fileList, videoList, pageId, onContentChange }: MarkdownRendererProps) {
+function MarkdownRendererInner({ content, fileList, videoList, pageId, onContentChange, onExcalidrawEdit }: MarkdownRendererProps) {
   // Create SkriptFiles from the file list
   const files: SkriptFilesData = useMemo(() => {
     if (fileList && fileList.length > 0) {
@@ -70,6 +71,7 @@ function MarkdownRendererInner({ content, fileList, videoList, pageId, onContent
         const components = createMDXComponents(files, {
           pageId,
           onContentChange,
+          onExcalidrawEdit,
           content: deferredContent,
         })
 
@@ -85,7 +87,7 @@ function MarkdownRendererInner({ content, fileList, videoList, pageId, onContent
     }
 
     processContent()
-  }, [deferredContent, files, pageId, onContentChange])
+  }, [deferredContent, files, pageId, onContentChange, onExcalidrawEdit])
 
   // Restore scroll position after DOM updates
   useLayoutEffect(() => {
