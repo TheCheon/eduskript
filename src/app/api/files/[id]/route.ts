@@ -54,6 +54,28 @@ export async function GET(
       const s3Key = getS3Key(svgFile.hash, extension)
       const s3Url = getTeacherFileUrl(s3Key)
 
+      // If proxy mode is requested, fetch and return content directly (for CORS/canvas capture)
+      if (proxyContent) {
+        try {
+          const s3Response = await fetch(s3Url)
+          if (!s3Response.ok) {
+            return NextResponse.json({ error: 'Failed to fetch from storage' }, { status: 502 })
+          }
+
+          const body = await s3Response.arrayBuffer()
+          return new NextResponse(body, {
+            status: 200,
+            headers: {
+              'Content-Type': 'image/svg+xml',
+              'Cache-Control': 'public, max-age=31536000, immutable',
+            }
+          })
+        } catch (fetchError) {
+          console.error('Failed to proxy SVG from S3:', fetchError)
+          return NextResponse.json({ error: 'Storage fetch failed' }, { status: 502 })
+        }
+      }
+
       // Redirect to S3 URL (public bucket, so direct access works)
       return NextResponse.redirect(s3Url, {
         status: 302,

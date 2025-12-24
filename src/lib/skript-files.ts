@@ -64,9 +64,15 @@ export function resolveExcalidraw(files: SkriptFilesData, filename: string): { l
   const darkFile = files.files[`${baseName}.excalidraw.dark.svg`]
 
   if (lightFile && darkFile) {
+    // Add proxy=true to serve through our API instead of redirecting to S3
+    // This avoids CORS issues when capturing screenshots (html2canvas)
+    const addProxy = (url: string) => {
+      const separator = url.includes('?') ? '&' : '?'
+      return `${url}${separator}proxy=true`
+    }
     return {
-      lightUrl: lightFile.url,
-      darkUrl: darkFile.url,
+      lightUrl: addProxy(lightFile.url),
+      darkUrl: addProxy(darkFile.url),
     }
   }
 

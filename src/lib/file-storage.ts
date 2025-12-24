@@ -474,7 +474,8 @@ export async function listFiles({
     contentType: file.contentType || undefined,
     createdAt: file.createdAt,
     updatedAt: file.updatedAt,
-    url: file.isDirectory ? undefined : `/api/files/${file.id}`
+    // Include updatedAt as cache-buster to ensure fresh content after file updates
+    url: file.isDirectory ? undefined : `/api/files/${file.id}?v=${file.updatedAt.getTime()}`
   }))
 }
 
@@ -530,7 +531,8 @@ export async function listAllFiles({
     contentType: file.contentType || undefined,
     createdAt: file.createdAt,
     updatedAt: file.updatedAt,
-    url: file.isDirectory ? undefined : `/api/files/${file.id}`
+    // Include updatedAt as cache-buster to ensure fresh content after file updates
+    url: file.isDirectory ? undefined : `/api/files/${file.id}?v=${file.updatedAt.getTime()}`
   }))
 }
 
