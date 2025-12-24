@@ -7,6 +7,7 @@ interface InteractivePreviewProps {
   onContentChange?: (newContent: string) => void
   fileList?: Array<{ id: string; name: string; url?: string; isDirectory?: boolean }>
   pageId?: string
+  onExcalidrawEdit?: (filename: string, fileId: string) => void
 }
 
 export function InteractivePreview({
@@ -14,6 +15,7 @@ export function InteractivePreview({
   onContentChange,
   fileList,
   pageId,
+  onExcalidrawEdit,
 }: InteractivePreviewProps) {
   // Filter out directories from the file list
   const filteredFileList = fileList?.filter(f => !f.isDirectory)
@@ -25,6 +27,7 @@ export function InteractivePreview({
         fileList={filteredFileList}
         pageId={pageId}
         onContentChange={onContentChange}
+        onExcalidrawEdit={onExcalidrawEdit}
       />
     </div>
   )

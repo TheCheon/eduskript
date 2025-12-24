@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -75,7 +75,7 @@ export function ExcalidrawEditor({
     }
   }, [open, initialData])
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!excalidrawAPI || !drawingName.trim()) {
       alert.showError('Please enter a drawing name')
       return
@@ -141,7 +141,27 @@ export function ExcalidrawEditor({
     } finally {
       setIsSaving(false)
     }
-  }
+  }, [excalidrawAPI, drawingName, alert, onSave, onClose])
+
+  // Capture Ctrl+S to save the drawing instead of downloading the file
+  useEffect(() => {
+    if (!open) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        e.stopPropagation()
+        // Only save if we have an API and a drawing name
+        if (excalidrawAPI && drawingName.trim() && !isSaving) {
+          handleSave()
+        }
+      }
+    }
+
+    // Use capture phase to intercept before Excalidraw handles it
+    window.addEventListener('keydown', handleKeyDown, { capture: true })
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true })
+  }, [open, excalidrawAPI, drawingName, isSaving, handleSave])
 
   if (!mounted) {
     return null

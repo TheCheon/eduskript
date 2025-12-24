@@ -37,6 +37,7 @@ interface CodeMirrorEditorProps {
     url?: string
     isDirectory?: boolean
   }, position: number, screenX: number, screenY: number) => void
+  onExcalidrawEdit?: (filename: string, fileId: string) => void
 }
 
 const CodeMirrorEditor = function CodeMirrorEditor({
@@ -47,7 +48,8 @@ const CodeMirrorEditor = function CodeMirrorEditor({
   isReadOnly = false,
   fileList,
   onFileUpload,
-  onFileDrop
+  onFileDrop,
+  onExcalidrawEdit: onExcalidrawEditProp
 }: CodeMirrorEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
@@ -62,6 +64,11 @@ const CodeMirrorEditor = function CodeMirrorEditor({
   const [textareaContent, setTextareaContent] = useState(content || '')
   const [dragOver, setDragOver] = useState(false)
   const [excalidrawOpen, setExcalidrawOpen] = useState(false)
+  const [excalidrawInitialData, setExcalidrawInitialData] = useState<{
+    name: string
+    elements: readonly unknown[]
+    appState?: unknown
+  } | undefined>(undefined)
   const [showTextColorPicker, setShowTextColorPicker] = useState(false)
   const [showHighlightPicker, setShowHighlightPicker] = useState(false)
   const { resolvedTheme } = useTheme()
@@ -791,6 +798,35 @@ const CodeMirrorEditor = function CodeMirrorEditor({
     }
   }
 
+  // Handle editing an existing Excalidraw drawing (from preview or file browser)
+  const handleExcalidrawEdit = async (filename: string, fileId: string) => {
+    if (!skriptId) {
+      alert.showError('Cannot edit drawing: no skript context')
+      return
+    }
+
+    try {
+      // Fetch the excalidraw data from the API
+      const response = await fetch(`/api/excalidraw?fileId=${fileId}&skriptId=${skriptId}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch drawing data')
+      }
+
+      const data = await response.json()
+
+      // Set initial data and open editor
+      setExcalidrawInitialData({
+        name: data.name,
+        elements: data.data.elements || [],
+        appState: data.data.appState
+      })
+      setExcalidrawOpen(true)
+    } catch (error) {
+      console.error('Error loading drawing:', error)
+      alert.showError('Failed to load drawing for editing')
+    }
+  }
+
   // Formatting helpers
   const wrapSelection = (prefix: string, suffix: string = prefix) => {
     if (editorViewRef.current && !useSimpleEditor) {
@@ -1223,6 +1259,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
                 onContentChange={onChange}
                 fileList={fileList}
                 pageId={pageId}
+                onExcalidrawEdit={onExcalidrawEditProp ?? handleExcalidrawEdit}
               />
             </div>
           </div>
@@ -1233,9 +1270,13 @@ const CodeMirrorEditor = function CodeMirrorEditor({
       {skriptId && (
         <ExcalidrawEditor
           open={excalidrawOpen}
-          onClose={() => setExcalidrawOpen(false)}
+          onClose={() => {
+            setExcalidrawOpen(false)
+            setExcalidrawInitialData(undefined) // Clear initial data when closing
+          }}
           onSave={handleExcalidrawSave}
           skriptId={skriptId}
+          initialData={excalidrawInitialData}
         />
       )}
       {/* Custom Text Color Picker */}

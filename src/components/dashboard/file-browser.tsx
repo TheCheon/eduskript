@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
-import { Image as ImageIcon, Video, Music, FileText, Archive, File, Trash2, ExternalLink, Paintbrush, TextCursor, Database, FileCode, Link2 } from 'lucide-react'
+import { Image as ImageIcon, Video, Music, FileText, Archive, File, Trash2, ExternalLink, Pencil, TextCursor, Database, FileCode, Link2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
@@ -53,7 +53,7 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
   const getFileIcon = (filename: string) => {
     // Check if it's an Excalidraw file
     if (filename.endsWith('.excalidraw')) {
-      return <Paintbrush className="w-5 h-5 text-orange-500" />
+      return <Pencil className="w-5 h-5 text-orange-500" />
     }
 
     const extension = filename.split('.').pop()?.toLowerCase()
@@ -107,8 +107,8 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
   const getDisplayFiles = () => {
     return files.filter(f => {
       const filename = getFileName(f)
-      // Filter out .excalidraw files (they're internal, not for direct use)
-      if (filename.endsWith('.excalidraw')) return false
+      // Show .excalidraw files (they can be edited and used across skripts)
+      // But hide the auto-generated .light.svg and .dark.svg variants
       return !f.isDirectory && (f.uploadType === 'skript' || !f.uploadType) && shouldShowFile(filename)
     })
   }
@@ -356,7 +356,7 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
                           className="opacity-0 group-hover:opacity-100 p-1 text-orange-500 hover:text-orange-600 transition-opacity"
                           title="Edit drawing"
                         >
-                          <Paintbrush className="w-4 h-4" />
+                          <Pencil className="w-4 h-4" />
                         </button>
                       )}
                       {isDatabaseFile(getFileName(file)) && onExcalidrawEdit && (() => {
@@ -382,7 +382,7 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
                             className="opacity-0 group-hover:opacity-100 p-1 text-orange-500 hover:text-orange-600 transition-opacity"
                             title={schema ? "Edit schema" : "Create schema"}
                           >
-                            <Paintbrush className="w-4 h-4" />
+                            <Pencil className="w-4 h-4" />
                           </button>
                         )
                       })()}

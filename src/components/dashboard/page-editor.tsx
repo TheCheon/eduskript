@@ -14,7 +14,7 @@ import { CollapsibleDrawer } from '@/components/ui/collapsible-drawer'
 import { PublishToggle } from '@/components/dashboard/publish-toggle'
 import { VersionHistory } from '@/components/dashboard/version-history'
 import { ExcalidrawEditor } from '@/components/dashboard/excalidraw-editor'
-import { ArrowLeft, Save, History, Files, Eye, Image as ImageIcon, Link2, FileCode, ClipboardCopy, Check, Shield, Lock, Unlock } from 'lucide-react'
+import { ArrowLeft, Save, History, Files, Eye, Image as ImageIcon, Link2, FileCode, ClipboardCopy, Check, Shield, Lock, Unlock, Maximize2, Minimize2 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import {
@@ -86,6 +86,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
   const [teacherClasses, setTeacherClasses] = useState<Array<{ id: string; name: string }>>([])
   const [unlockedClassIds, setUnlockedClassIds] = useState<string[]>([])
   const [sebLinkCopied, setSebLinkCopied] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   // Shared file list state - updated for new file system
   const [fileList, setFileList] = useState<Array<{
@@ -505,17 +506,21 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
     }
   }, [hasUnsavedChanges, handleSave])
 
-  // Save with Ctrl+S
+  // Save with Ctrl+S and Escape to exit fullscreen
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
         handleSave()
       }
+      if (e.key === 'Escape' && isFullscreen) {
+        e.preventDefault()
+        setIsFullscreen(false)
+      }
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [handleSave])
+  }, [handleSave, isFullscreen])
 
   // Load version history on mount
   useEffect(() => {
@@ -523,11 +528,11 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
   }, [page.id, loadVersions])
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${isFullscreen ? 'fixed inset-0 z-50 bg-background p-6 overflow-auto' : ''}`}>
       {/* Header */}
       <div className="grid grid-cols-[auto_1fr_auto] gap-2 items-start">
         {/* Column 1: Back button */}
-        <Link href={`/dashboard/collections/${collection.slug}`} className="row-span-2 self-center">
+        <Link href={`/dashboard/collections/${collection.slug}`} className={`row-span-2 self-center ${isFullscreen ? 'hidden' : ''}`}>
           <Button variant="ghost" size="sm">
             <ArrowLeft className="w-4 h-4" />
           </Button>
@@ -582,7 +587,14 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
               <div className="absolute top-1 right-1 w-2 h-2 bg-warning rounded-full" />
             )}
           </Button>
-          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen editor'}
+          >
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </Button>
         </div>
 
         {/* Column 2 Row 2: Description */}
@@ -611,7 +623,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
       </div>
 
       {/* Page Type & Exam Settings */}
-      <div className="flex items-start gap-4 p-4 border rounded-lg bg-muted/30">
+      <div className={`flex items-start gap-4 p-4 border rounded-lg bg-muted/30 ${isFullscreen ? 'hidden' : ''}`}>
         <div className="flex items-center gap-2">
           <Label htmlFor="page-type" className="text-sm font-medium whitespace-nowrap">
             Page Type
@@ -706,7 +718,8 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
         )}
       </div>
 
-      {/* Skript Files - Collapsible Drawer */}
+      {/* Skript Files - Collapsible Drawer (hidden in fullscreen) */}
+      {!isFullscreen && (
       <CollapsibleDrawer
         title="Skript Files"
         icon={<Files className="w-5 h-5" />}
@@ -727,15 +740,18 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
           onExcalidrawEdit={handleExcalidrawEdit}
         />
       </CollapsibleDrawer>
+      )}
 
       {/* Content Editor - Full width */}
-      <Card>
+      <Card className={isFullscreen ? 'border-0 shadow-none flex-1' : ''}>
+        {!isFullscreen && (
         <CardHeader>
           <CardTitle>Content</CardTitle>
           <CardDescription>
             Write your content using the markdown editor. Drag files from the Files drawer to insert them. Ctrl+S to save.
           </CardDescription>
         </CardHeader>
+        )}
         <CardContent>
           <MarkdownEditor
             content={content}
@@ -768,7 +784,8 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
         </CardContent>
       </Card>
 
-      {/* Version History - Collapsible Drawer */}
+      {/* Version History - Collapsible Drawer (hidden in fullscreen) */}
+      {!isFullscreen && (
       <CollapsibleDrawer
         title={
           <div className="flex items-center gap-2">
@@ -790,6 +807,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
           onRestoreVersion={handleRestoreVersion}
         />
       </CollapsibleDrawer>
+      )}
 
       {/* Excalidraw Editor Modal */}
       {excalidrawEditFile && (

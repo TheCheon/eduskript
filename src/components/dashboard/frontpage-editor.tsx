@@ -8,9 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
 import { MarkdownEditor } from '@/components/dashboard/markdown-editor'
+import { FileBrowser } from '@/components/dashboard/file-browser'
+import { ExcalidrawEditor } from '@/components/dashboard/excalidraw-editor'
 import { CollapsibleDrawer } from '@/components/ui/collapsible-drawer'
 import { PublishToggle } from '@/components/dashboard/publish-toggle'
-import { ArrowLeft, Save, History, Eye } from 'lucide-react'
+import { ArrowLeft, Save, History, Eye, Files } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 interface FrontPageVersion {
@@ -34,6 +36,7 @@ interface FrontPageEditorProps {
     id: string
     content: string
     isPublished: boolean
+    fileSkriptId?: string | null
   } | null
   skript?: {
     id: string
@@ -65,10 +68,37 @@ export function FrontPageEditor({
   const [versions, setVersions] = useState<FrontPageVersion[]>([])
   const [frontPageId, setFrontPageId] = useState(frontPage?.id || null)
   const [isPublished, setIsPublished] = useState(frontPage?.isPublished || false)
+  const [fileSkriptId, setFileSkriptId] = useState<string | null>(frontPage?.fileSkriptId || null)
   const contentRef = useRef(content)
   const router = useRouter()
   const { data: session } = useSession()
   const alert = useAlertDialog()
+
+  // File list state for file browser
+  const [fileList, setFileList] = useState<Array<{
+    id: string
+    name: string
+    size?: number
+    url?: string
+    isDirectory?: boolean
+    contentType?: string
+    createdAt: Date
+    updatedAt: Date
+  }>>([])
+  const [fileListLoading, setFileListLoading] = useState(false)
+
+  // Excalidraw editor state
+  const [excalidrawOpen, setExcalidrawOpen] = useState(false)
+  const [excalidrawInitialData, setExcalidrawInitialData] = useState<{
+    name: string
+    elements: readonly unknown[]
+    appState?: unknown
+  } | undefined>(undefined)
+
+  // Effective skript ID for file storage:
+  // - Skript FrontPages use their skript's files
+  // - User/Org FrontPages use their dedicated fileSkriptId
+  const effectiveSkriptId = type === 'skript' ? skript?.id : fileSkriptId
 
   // Update ref when content changes
   useEffect(() => {
@@ -78,6 +108,194 @@ export function FrontPageEditor({
   const handleContentChange = (newContent: string) => {
     setContent(newContent)
     setHasUnsavedChanges(true)
+  }
+
+  // Fetch file list from API
+  const refreshFileList = useCallback(async () => {
+    if (!effectiveSkriptId) return
+
+    setFileListLoading(true)
+    try {
+      const response = await fetch(`/api/upload?skriptId=${effectiveSkriptId}`)
+      if (response.ok) {
+        const data = await response.json()
+        setFileList(data.files || [])
+      }
+    } catch (error) {
+      console.error('Error fetching file list:', error)
+    } finally {
+      setFileListLoading(false)
+    }
+  }, [effectiveSkriptId])
+
+  // Fetch file list on mount and when skriptId changes
+  useEffect(() => {
+    if (effectiveSkriptId) {
+      refreshFileList()
+    }
+  }, [effectiveSkriptId, refreshFileList])
+
+  // Handle file insertion into content
+  const handleFileInsert = (file: {
+    id: string
+    name: string
+    url?: string
+    isDirectory?: boolean
+    position?: number
+  }, insertionType: 'embed' | 'link' | 'sql-editor' = 'embed') => {
+    if (file.isDirectory) return
+
+    let insertText = ''
+    const extension = file.name.split('.').pop()?.toLowerCase()
+
+    if (['sqlite', 'db'].includes(extension || '')) {
+      if (insertionType === 'sql-editor') {
+        insertText = `\`\`\`sql editor db="${file.name}"\nSELECT * FROM table_name LIMIT 10;\n\`\`\``
+      } else {
+        insertText = `[${file.name}](${file.url || file.name})`
+      }
+    } else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension || '')) {
+      if (insertionType === 'embed') {
+        const altText = file.name.replace(/\.[^/.]+$/, '')
+        insertText = `![${altText}](${file.name})`
+      } else {
+        insertText = `[${file.name}](${file.url || file.name})`
+      }
+    } else if (extension === 'excalidraw') {
+      insertText = `![](${file.name})`
+    } else if (['mp4', 'avi', 'mov', 'wmv'].includes(extension || '')) {
+      insertText = `<video controls>\n  <source src="${file.url || file.name}" type="video/${extension}">\n  Your browser does not support the video tag.\n</video>`
+    } else if (['mp3', 'wav', 'ogg'].includes(extension || '')) {
+      insertText = `<audio controls>\n  <source src="${file.url || file.name}" type="audio/${extension}">\n  Your browser does not support the audio tag.\n</audio>`
+    } else {
+      insertText = `[${file.name}](${file.url || file.name})`
+    }
+
+    if (file.position !== undefined) {
+      setContent((prev: string) => prev.slice(0, file.position) + insertText + prev.slice(file.position))
+    } else {
+      setContent((prev: string) => prev + '\n\n' + insertText)
+    }
+    setHasUnsavedChanges(true)
+  }
+
+  // Handle file renames - update content references
+  const handleFileRenamed = (oldFilename: string, newFilename: string) => {
+    const updatedContent = content
+      .replace(
+        new RegExp(`!\\[([^\\]]*)\\]\\(${oldFilename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'),
+        `![$1](${newFilename})`
+      )
+      .replace(
+        new RegExp(`\\[([^\\]]*)\\]\\(${oldFilename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'),
+        `[$1](${newFilename})`
+      )
+
+    if (updatedContent !== content) {
+      setContent(updatedContent)
+      setHasUnsavedChanges(true)
+    }
+  }
+
+  // Ensure file storage exists for user/org FrontPages
+  const [isCreatingFileStorage, setIsCreatingFileStorage] = useState(false)
+  const ensureFileStorage = async () => {
+    if (!frontPageId) {
+      alert.showError('Please save the front page first before adding files')
+      return
+    }
+
+    setIsCreatingFileStorage(true)
+    try {
+      const response = await fetch(`/api/frontpage/${frontPageId}/ensure-file-storage`, {
+        method: 'POST'
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setFileSkriptId(data.fileSkriptId)
+        // Refresh file list with the new skript
+        if (data.fileSkriptId) {
+          const filesResponse = await fetch(`/api/upload?skriptId=${data.fileSkriptId}`)
+          if (filesResponse.ok) {
+            const filesData = await filesResponse.json()
+            setFileList(filesData.files || [])
+          }
+        }
+      } else {
+        const data = await response.json()
+        alert.showError(data.error || 'Failed to enable file storage')
+      }
+    } catch (error) {
+      console.error('Error ensuring file storage:', error)
+      alert.showError('Failed to enable file storage')
+    } finally {
+      setIsCreatingFileStorage(false)
+    }
+  }
+
+  // Handle Excalidraw save (for both new and existing drawings)
+  const handleExcalidrawSave = async (name: string, excalidrawData: string, lightSvg: string, darkSvg: string) => {
+    if (!effectiveSkriptId) {
+      alert.showError('No file storage available')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/excalidraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          excalidrawData,
+          lightSvg,
+          darkSvg,
+          skriptId: effectiveSkriptId,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to save drawing')
+      }
+
+      // Refresh file list
+      refreshFileList()
+    } catch (error) {
+      console.error('Error saving drawing:', error)
+      alert.showError('Failed to save drawing')
+    }
+  }
+
+  // Handle editing an existing Excalidraw drawing (from preview)
+  const handleExcalidrawEdit = async (filename: string, fileId: string) => {
+    if (!effectiveSkriptId) {
+      alert.showError('Cannot edit drawing: no file storage')
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/excalidraw?fileId=${fileId}&skriptId=${effectiveSkriptId}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch drawing data')
+      }
+
+      const data = await response.json()
+
+      setExcalidrawInitialData({
+        name: data.name,
+        elements: data.data.elements || [],
+        appState: data.data.appState
+      })
+      setExcalidrawOpen(true)
+    } catch (error) {
+      console.error('Error loading drawing:', error)
+      alert.showError('Failed to load drawing for editing')
+    }
+  }
+
+  // Adapter for FileBrowser which uses file object
+  const handleFileBrowserExcalidrawEdit = (file: { id: string; name: string }) => {
+    handleExcalidrawEdit(file.name, file.id)
   }
 
   // Determine the API endpoint based on type
@@ -306,12 +524,62 @@ export function FrontPageEditor({
         </div>
       </div>
 
+      {/* Files Section */}
+      {effectiveSkriptId ? (
+        <CollapsibleDrawer
+          title="Files"
+          icon={<Files className="w-5 h-5" />}
+          defaultOpen={false}
+        >
+          <FileBrowser
+            skriptId={effectiveSkriptId}
+            files={fileList}
+            loading={fileListLoading}
+            onFileSelect={(file) => {
+              handleFileInsert(file)
+              refreshFileList()
+            }}
+            onUploadComplete={refreshFileList}
+            onFileRenamed={handleFileRenamed}
+            onExcalidrawEdit={handleFileBrowserExcalidrawEdit}
+          />
+        </CollapsibleDrawer>
+      ) : type !== 'skript' && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Files className="w-5 h-5" />
+              Files
+            </CardTitle>
+            <CardDescription>
+              Enable file storage to upload and embed images in your front page.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              onClick={ensureFileStorage}
+              disabled={isCreatingFileStorage || !frontPageId}
+              variant="outline"
+              size="sm"
+            >
+              {isCreatingFileStorage ? 'Enabling...' : 'Enable File Storage'}
+            </Button>
+            {!frontPageId && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Save the front page first to enable file storage.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Content Editor */}
       <Card>
         <CardHeader>
           <CardTitle>Content</CardTitle>
           <CardDescription>
-            Write your front page content using markdown. Ctrl+S to save.
+            Write your front page content using markdown.
+            {effectiveSkriptId ? ' Drag files from the Files drawer to insert them.' : ''} Ctrl+S to save.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -319,10 +587,12 @@ export function FrontPageEditor({
             content={content}
             onChange={handleContentChange}
             onSave={handleSave}
-            skriptId={skript?.id}
+            skriptId={effectiveSkriptId || undefined}
             domain={(session?.user as { pageSlug?: string })?.pageSlug || undefined}
-            fileList={[]}
-            fileListLoading={false}
+            fileList={fileList}
+            fileListLoading={fileListLoading}
+            onFileUpload={refreshFileList}
+            onExcalidrawEdit={handleExcalidrawEdit}
           />
         </CardContent>
       </Card>
@@ -367,6 +637,20 @@ export function FrontPageEditor({
             ))}
           </div>
         </CollapsibleDrawer>
+      )}
+
+      {/* Excalidraw Editor Modal */}
+      {effectiveSkriptId && (
+        <ExcalidrawEditor
+          open={excalidrawOpen}
+          onClose={() => {
+            setExcalidrawOpen(false)
+            setExcalidrawInitialData(undefined)
+          }}
+          onSave={handleExcalidrawSave}
+          skriptId={effectiveSkriptId}
+          initialData={excalidrawInitialData}
+        />
       )}
 
       <AlertDialogModal
