@@ -221,19 +221,33 @@ export default async function SkriptPreviewPage({ params }: SkriptPreviewProps) 
       }
     })
 
-    // Fetch public annotations for this skript front page
-    const publicAnnotations = frontPage ? await prisma.userData.findMany({
-      where: {
-        adapter: 'annotations',
-        itemId: frontPage.id,
-        targetType: 'page',
-      },
-      select: {
-        data: true,
-        userId: true,
-        user: { select: { name: true } }
-      }
-    }) : []
+    // Fetch public annotations and snaps for this skript front page
+    const [publicAnnotations, publicSnaps] = frontPage ? await Promise.all([
+      prisma.userData.findMany({
+        where: {
+          adapter: 'annotations',
+          itemId: frontPage.id,
+          targetType: 'page',
+        },
+        select: {
+          data: true,
+          userId: true,
+          user: { select: { name: true } }
+        }
+      }),
+      prisma.userData.findMany({
+        where: {
+          adapter: 'snaps',
+          itemId: frontPage.id,
+          targetType: 'page',
+        },
+        select: {
+          data: true,
+          userId: true,
+          user: { select: { name: true } }
+        }
+      })
+    ]) : [[], []]
 
     // Skript authors can create public annotations
     const isPageAuthor = isAuthor
@@ -304,7 +318,7 @@ export default async function SkriptPreviewPage({ params }: SkriptPreviewProps) 
             {/* Frontpage content or empty state for authors */}
             {frontPage?.content ? (
               <article className="prose-theme">
-                <AnnotationWrapper pageId={frontPage.id} content={frontPage.content} publicAnnotations={publicAnnotations} isPageAuthor={isPageAuthor}>
+                <AnnotationWrapper pageId={frontPage.id} content={frontPage.content} publicAnnotations={publicAnnotations} publicSnaps={publicSnaps} isPageAuthor={isPageAuthor}>
                   <ServerMarkdownRenderer
                     content={frontPage.content}
                     skriptId={skript.id}

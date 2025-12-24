@@ -180,19 +180,33 @@ export default async function OrgSkriptPage({ params }: SkriptPageProps) {
     }
   })
 
-  // Fetch public annotations for this skript front page
-  const publicAnnotations = frontPage ? await prisma.userData.findMany({
-    where: {
-      adapter: 'annotations',
-      itemId: frontPage.id,
-      targetType: 'page',
-    },
-    select: {
-      data: true,
-      userId: true,
-      user: { select: { name: true } }
-    }
-  }) : []
+  // Fetch public annotations and snaps for this skript front page
+  const [publicAnnotations, publicSnaps] = frontPage ? await Promise.all([
+    prisma.userData.findMany({
+      where: {
+        adapter: 'annotations',
+        itemId: frontPage.id,
+        targetType: 'page',
+      },
+      select: {
+        data: true,
+        userId: true,
+        user: { select: { name: true } }
+      }
+    }),
+    prisma.userData.findMany({
+      where: {
+        adapter: 'snaps',
+        itemId: frontPage.id,
+        targetType: 'page',
+      },
+      select: {
+        data: true,
+        userId: true,
+        user: { select: { name: true } }
+      }
+    })
+  ]) : [[], []]
 
   // Org admins can create public annotations on skript front pages
   const isPageAuthor = isAdmin
@@ -251,7 +265,7 @@ export default async function OrgSkriptPage({ params }: SkriptPageProps) {
 
           {frontPage?.content ? (
             <article className="prose-theme">
-              <AnnotationWrapper pageId={frontPage.id} content={frontPage.content} publicAnnotations={publicAnnotations} isPageAuthor={isPageAuthor}>
+              <AnnotationWrapper pageId={frontPage.id} content={frontPage.content} publicAnnotations={publicAnnotations} publicSnaps={publicSnaps} isPageAuthor={isPageAuthor}>
                 <ServerMarkdownRenderer
                   content={frontPage.content}
                   skriptId={skript.id}

@@ -141,19 +141,33 @@ export default async function OrgTeacherPage({ params }: OrgTeacherPageProps) {
     }
   })
 
-  // Fetch public annotations for this front page
-  const publicAnnotations = frontPage ? await prisma.userData.findMany({
-    where: {
-      adapter: 'annotations',
-      itemId: frontPage.id,
-      targetType: 'page',
-    },
-    select: {
-      data: true,
-      userId: true,
-      user: { select: { name: true } }
-    }
-  }) : []
+  // Fetch public annotations and snaps for this front page
+  const [publicAnnotations, publicSnaps] = frontPage ? await Promise.all([
+    prisma.userData.findMany({
+      where: {
+        adapter: 'annotations',
+        itemId: frontPage.id,
+        targetType: 'page',
+      },
+      select: {
+        data: true,
+        userId: true,
+        user: { select: { name: true } }
+      }
+    }),
+    prisma.userData.findMany({
+      where: {
+        adapter: 'snaps',
+        itemId: frontPage.id,
+        targetType: 'page',
+      },
+      select: {
+        data: true,
+        userId: true,
+        user: { select: { name: true } }
+      }
+    })
+  ]) : [[], []]
 
   // Owner can create public annotations on their own front page
   const isPageAuthor = isOwner
@@ -302,7 +316,7 @@ export default async function OrgTeacherPage({ params }: OrgTeacherPageProps) {
         {/* Frontpage content or empty state for owners */}
         {frontPage?.content ? (
           <article className="prose-theme">
-            <AnnotationWrapper pageId={frontPage.id} content={frontPage.content} publicAnnotations={publicAnnotations} isPageAuthor={isPageAuthor}>
+            <AnnotationWrapper pageId={frontPage.id} content={frontPage.content} publicAnnotations={publicAnnotations} publicSnaps={publicSnaps} isPageAuthor={isPageAuthor}>
               <ServerMarkdownRenderer
                 content={frontPage.content}
                 pageId={frontPage.id}

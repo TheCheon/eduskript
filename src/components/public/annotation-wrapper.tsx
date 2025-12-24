@@ -12,12 +12,21 @@ export interface PublicAnnotation {
   user: { name: string | null }
 }
 
+/** Public snap data passed from server (same structure as annotations) */
+export interface PublicSnap {
+  data: Prisma.JsonValue
+  userId: string
+  user: { name: string | null }
+}
+
 interface AnnotationWrapperProps {
   pageId: string
   content: string
   children: ReactNode
   /** Pre-fetched public annotations (from server) */
   publicAnnotations?: PublicAnnotation[]
+  /** Pre-fetched public snaps (from server) */
+  publicSnaps?: PublicSnap[]
   /** Whether current user can create public annotations */
   isPageAuthor?: boolean
   /** Whether user is a student in an exam session (for SEB mode where NextAuth session isn't available) */
@@ -33,10 +42,10 @@ interface AnnotationWrapperProps {
  * Without it, each code editor and annotation layer would make separate API calls.
  * With the provider, all consumers share a single data source.
  */
-export function AnnotationWrapper({ pageId, content, children, publicAnnotations, isPageAuthor, isExamStudent }: AnnotationWrapperProps) {
+export function AnnotationWrapper({ pageId, content, children, publicAnnotations, publicSnaps, isPageAuthor, isExamStudent }: AnnotationWrapperProps) {
   return (
     <TeacherBroadcastProvider pageId={pageId}>
-      <AnnotationLayer pageId={pageId} content={content} publicAnnotations={publicAnnotations} isPageAuthor={isPageAuthor} isExamStudent={isExamStudent}>
+      <AnnotationLayer pageId={pageId} content={content} publicAnnotations={publicAnnotations} publicSnaps={publicSnaps} isPageAuthor={isPageAuthor} isExamStudent={isExamStudent}>
         {children}
       </AnnotationLayer>
     </TeacherBroadcastProvider>

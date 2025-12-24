@@ -465,19 +465,33 @@ export default async function OrgTeacherContentPage({ params, searchParams }: Pa
     redirect(startSessionUrl)
   }
 
-  // Fetch public annotations
-  const publicAnnotations = await prisma.userData.findMany({
-    where: {
-      adapter: 'annotations',
-      itemId: page.id,
-      targetType: 'page',
-    },
-    select: {
-      data: true,
-      userId: true,
-      user: { select: { name: true } }
-    }
-  })
+  // Fetch public annotations and snaps
+  const [publicAnnotations, publicSnaps] = await Promise.all([
+    prisma.userData.findMany({
+      where: {
+        adapter: 'annotations',
+        itemId: page.id,
+        targetType: 'page',
+      },
+      select: {
+        data: true,
+        userId: true,
+        user: { select: { name: true } }
+      }
+    }),
+    prisma.userData.findMany({
+      where: {
+        adapter: 'snaps',
+        itemId: page.id,
+        targetType: 'page',
+      },
+      select: {
+        data: true,
+        userId: true,
+        user: { select: { name: true } }
+      }
+    })
+  ])
 
   // Check if current user can create public annotations
   let isPageAuthor = false
@@ -530,7 +544,7 @@ export default async function OrgTeacherContentPage({ params, searchParams }: Pa
   const examContent = (
     <div id="paper" className="paper-responsive py-24 bg-card dark:bg-slate-900/80 paper-shadow border border-border dark:border-white/10">
       <article className="prose-theme">
-        <AnnotationWrapper pageId={page.id} content={page.content} publicAnnotations={publicAnnotations} isPageAuthor={isPageAuthor} isExamStudent={isExamStudent}>
+        <AnnotationWrapper pageId={page.id} content={page.content} publicAnnotations={publicAnnotations} publicSnaps={publicSnaps} isPageAuthor={isPageAuthor} isExamStudent={isExamStudent}>
           <ServerMarkdownRenderer
             content={page.content}
             skriptId={skript.id}

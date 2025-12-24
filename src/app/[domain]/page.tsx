@@ -91,22 +91,42 @@ export default async function DomainIndex({ params }: DomainIndexProps) {
     where: {
       userId: teacher.id,
       ...(isOwner ? {} : { isPublished: true })
+    },
+    select: {
+      id: true,
+      content: true,
+      isPublished: true,
+      fileSkriptId: true,
     }
   })
 
-  // Fetch public annotations for this front page
-  const publicAnnotations = frontPage ? await prisma.userData.findMany({
-    where: {
-      adapter: 'annotations',
-      itemId: frontPage.id,
-      targetType: 'page',
-    },
-    select: {
-      data: true,
-      userId: true,
-      user: { select: { name: true } }
-    }
-  }) : []
+  // Fetch public annotations and snaps for this front page
+  const [publicAnnotations, publicSnaps] = frontPage ? await Promise.all([
+    prisma.userData.findMany({
+      where: {
+        adapter: 'annotations',
+        itemId: frontPage.id,
+        targetType: 'page',
+      },
+      select: {
+        data: true,
+        userId: true,
+        user: { select: { name: true } }
+      }
+    }),
+    prisma.userData.findMany({
+      where: {
+        adapter: 'snaps',
+        itemId: frontPage.id,
+        targetType: 'page',
+      },
+      select: {
+        data: true,
+        userId: true,
+        user: { select: { name: true } }
+      }
+    })
+  ]) : [[], []]
 
   // Owner can create public annotations on their own front page
   const isPageAuthor = isOwner
@@ -158,10 +178,11 @@ export default async function DomainIndex({ params }: DomainIndexProps) {
         {/* Frontpage content or empty state for owners */}
         {frontPage?.content ? (
           <article className="prose-theme">
-            <AnnotationWrapper pageId={frontPage.id} content={frontPage.content} publicAnnotations={publicAnnotations} isPageAuthor={isPageAuthor}>
+            <AnnotationWrapper pageId={frontPage.id} content={frontPage.content} publicAnnotations={publicAnnotations} publicSnaps={publicSnaps} isPageAuthor={isPageAuthor}>
               <ServerMarkdownRenderer
                 content={frontPage.content}
                 pageId={frontPage.id}
+                skriptId={frontPage.fileSkriptId || undefined}
               />
             </AnnotationWrapper>
           </article>
