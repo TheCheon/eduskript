@@ -41,6 +41,7 @@ interface ExcalidrawEditorProps {
     name: string
     elements: readonly unknown[]
     appState?: unknown
+    files?: Record<string, unknown>  // Embedded images/files
   }
 }
 
@@ -87,7 +88,10 @@ export function ExcalidrawEditor({
       const elements = excalidrawAPI.getSceneElements()
       const appState = excalidrawAPI.getAppState()
 
-      // Create the Excalidraw data object
+      // Get embedded files (images, etc.)
+      const files = excalidrawAPI.getFiles()
+
+      // Create the Excalidraw data object (including embedded files)
       const excalidrawData = {
         type: 'excalidraw',
         version: 2,
@@ -97,6 +101,7 @@ export function ExcalidrawEditor({
           viewBackgroundColor: appState.viewBackgroundColor,
           gridSize: appState.gridSize,
         },
+        files: files,  // Include embedded images
       }
 
       // Export to SVG for both light and dark themes
@@ -205,6 +210,7 @@ export function ExcalidrawEditor({
               initialData={(initialData ? {
                 elements: initialData.elements,
                 appState: initialData.appState,
+                files: initialData.files,  // Include embedded images
               } : undefined) as never}
               theme={isDark ? 'dark' : 'light'}
             />
