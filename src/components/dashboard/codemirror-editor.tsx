@@ -68,6 +68,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
     name: string
     elements: readonly unknown[]
     appState?: unknown
+    files?: Record<string, unknown>  // Embedded images
   } | undefined>(undefined)
   const [showTextColorPicker, setShowTextColorPicker] = useState(false)
   const [showHighlightPicker, setShowHighlightPicker] = useState(false)
@@ -203,7 +204,10 @@ const CodeMirrorEditor = function CodeMirrorEditor({
     }
     const extension = fileName.split('.').pop()?.toLowerCase()
     
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension || '')) {
+    if (['sqlite', 'db'].includes(extension || '')) {
+      // Database file - insert SQL editor block
+      insertText = `\`\`\`sql editor db="${fileName}"\n-- Show all tables in the database\nSELECT name FROM sqlite_master WHERE type='table' ORDER BY name;\n\`\`\``
+    } else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension || '')) {
       // Image - use regular markdown syntax with just filename for path resolution
       const altText = fileName.replace(/\.[^/.]+$/, '')
       insertText = `![${altText}](${fileName})`
@@ -818,7 +822,8 @@ const CodeMirrorEditor = function CodeMirrorEditor({
       setExcalidrawInitialData({
         name: data.name,
         elements: data.data.elements || [],
-        appState: data.data.appState
+        appState: data.data.appState,
+        files: data.data.files  // Include embedded images
       })
       setExcalidrawOpen(true)
     } catch (error) {

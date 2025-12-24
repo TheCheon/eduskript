@@ -93,6 +93,7 @@ export function FrontPageEditor({
     name: string
     elements: readonly unknown[]
     appState?: unknown
+    files?: Record<string, unknown>  // Embedded images
   } | undefined>(undefined)
 
   // Effective skript ID for file storage:
@@ -150,7 +151,8 @@ export function FrontPageEditor({
 
     if (['sqlite', 'db'].includes(extension || '')) {
       if (insertionType === 'sql-editor') {
-        insertText = `\`\`\`sql editor db="${file.name}"\nSELECT * FROM table_name LIMIT 10;\n\`\`\``
+        // Start with a query to show all tables - helps users discover the schema
+        insertText = `\`\`\`sql editor db="${file.name}"\n-- Show all tables in the database\nSELECT name FROM sqlite_master WHERE type='table' ORDER BY name;\n\`\`\``
       } else {
         insertText = `[${file.name}](${file.url || file.name})`
       }
@@ -266,15 +268,33 @@ export function FrontPageEditor({
     }
   }
 
-  // Handle editing an existing Excalidraw drawing (from preview)
-  const handleExcalidrawEdit = async (filename: string, fileId: string) => {
-    if (!effectiveSkriptId) {
+  // Handle editing an existing Excalidraw drawing or creating a new one
+  const handleExcalidrawEdit = async (file: { id: string; name: string; url?: string; skriptId?: string }) => {
+    const targetSkriptId = file.skriptId || effectiveSkriptId
+    if (!targetSkriptId) {
       alert.showError('Cannot edit drawing: no file storage')
       return
     }
 
     try {
-      const response = await fetch(`/api/excalidraw?fileId=${fileId}&skriptId=${effectiveSkriptId}`)
+      // If file ID is empty, it's a new file - open editor with empty data
+      if (!file.id) {
+        setExcalidrawInitialData({
+          name: file.name,
+          elements: [],
+          appState: undefined
+        })
+        setExcalidrawOpen(true)
+        return
+      }
+
+      // Fetch the existing .excalidraw file data with cache busting
+      // Use proxy=true to avoid CORS issues with S3 redirects
+      const baseUrl = file.url || `/api/files/${file.id}`
+      const separator = baseUrl.includes('?') ? '&' : '?'
+      const fileUrl = `${baseUrl}${separator}proxy=true&v=${Date.now()}`
+      const response = await fetch(fileUrl)
+
       if (!response.ok) {
         throw new Error('Failed to fetch drawing data')
       }
@@ -282,9 +302,10 @@ export function FrontPageEditor({
       const data = await response.json()
 
       setExcalidrawInitialData({
-        name: data.name,
-        elements: data.data.elements || [],
-        appState: data.data.appState
+        name: file.name,
+        elements: data.elements || [],
+        appState: data.appState,
+        files: data.files  // Include embedded images
       })
       setExcalidrawOpen(true)
     } catch (error) {
@@ -293,9 +314,12 @@ export function FrontPageEditor({
     }
   }
 
-  // Adapter for FileBrowser which uses file object
-  const handleFileBrowserExcalidrawEdit = (file: { id: string; name: string }) => {
-    handleExcalidrawEdit(file.name, file.id)
+  // Adapter for FileBrowser which uses file object (directly compatible now)
+  const handleFileBrowserExcalidrawEdit = handleExcalidrawEdit
+
+  // Adapter for MarkdownEditor which uses (filename, fileId) signature
+  const handleMarkdownEditorExcalidrawEdit = (filename: string, fileId: string) => {
+    handleExcalidrawEdit({ id: fileId, name: filename })
   }
 
   // Determine the API endpoint based on type
@@ -592,7 +616,7 @@ export function FrontPageEditor({
             fileList={fileList}
             fileListLoading={fileListLoading}
             onFileUpload={refreshFileList}
-            onExcalidrawEdit={handleExcalidrawEdit}
+            onExcalidrawEdit={handleMarkdownEditorExcalidrawEdit}
           />
         </CardContent>
       </Card>

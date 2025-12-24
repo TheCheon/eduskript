@@ -120,6 +120,7 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
     excalidrawData?: {
       elements: readonly unknown[]
       appState?: unknown
+      files?: Record<string, unknown>  // Embedded images
     } | null
     skriptId?: string
   } | null>(null)
@@ -201,7 +202,8 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
       if (insertionType === 'sql-editor') {
         // SQL Editor block with database reference
         // Use the full filename (human-readable)
-        insertText = `\`\`\`sql editor db="${file.name}"\nSELECT * FROM table_name LIMIT 10;\n\`\`\``
+        // Start with a query to show all tables - helps users discover the schema
+        insertText = `\`\`\`sql editor db="${file.name}"\n-- Show all tables in the database\nSELECT name FROM sqlite_master WHERE type='table' ORDER BY name;\n\`\`\``
       } else {
         // Link to database file
         insertText = `[${file.name}](${file.url || file.name})`
@@ -282,8 +284,10 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
       }
 
       // Fetch the existing .excalidraw file data with cache busting
+      // Use proxy=true to avoid CORS issues with S3 redirects
       const baseUrl = file.url || `/api/files/${file.id}`
-      const fileUrl = `${baseUrl}?v=${Date.now()}`
+      const separator = baseUrl.includes('?') ? '&' : '?'
+      const fileUrl = `${baseUrl}${separator}proxy=true&v=${Date.now()}`
       const response = await fetch(fileUrl)
 
       if (response.ok) {
@@ -822,7 +826,8 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
           initialData={{
             name: excalidrawEditFile.name.replace('.excalidraw', ''),
             elements: excalidrawEditFile.excalidrawData?.elements || [],
-            appState: excalidrawEditFile.excalidrawData?.appState
+            appState: excalidrawEditFile.excalidrawData?.appState,
+            files: excalidrawEditFile.excalidrawData?.files  // Include embedded images
           }}
         />
       )}
