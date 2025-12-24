@@ -585,6 +585,23 @@ article.prose-theme > div > :first-child {
   display: block !important;
 }
 
+/* SQL schema images - theme-aware display */
+.sql-schema-light {
+  display: block !important;
+}
+
+.sql-schema-dark {
+  display: none !important;
+}
+
+.dark .sql-schema-light {
+  display: none !important;
+}
+
+.dark .sql-schema-dark {
+  display: block !important;
+}
+
 /* Canvas section wrapper */
 .canvas-section-wrapper {
   position: relative;

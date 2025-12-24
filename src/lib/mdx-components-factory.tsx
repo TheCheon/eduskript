@@ -257,24 +257,37 @@ export function createMDXComponents(
     // Resolve database file URL
     let dbUrl: string | undefined
     let schemaImageUrl: string | undefined
+    let schemaImageDarkUrl: string | undefined
 
     if (db && language === 'sql') {
       // Try to find file with this name (with or without extension)
       const dbBasename = db.replace(/\.(sqlite|db)$/i, '')
       const dbFile = resolveFile(files, db) || resolveFile(files, `${dbBasename}.db`) || resolveFile(files, `${dbBasename}.sqlite`)
-      dbUrl = dbFile?.url
+      // Add proxy=true to avoid CORS issues (S3 redirect fails cross-origin fetch)
+      if (dbFile?.url) {
+        const separator = dbFile.url.includes('?') ? '&' : '?'
+        dbUrl = `${dbFile.url}${separator}proxy=true`
+      }
 
-      // Auto-detect schema image
+      // Auto-detect schema image (Excalidraw with light/dark variants)
       if (!schemaImage && db) {
         // Pattern: database-schema.excalidraw
         const excalidraw = resolveExcalidraw(files, `${dbBasename}-schema.excalidraw`)
         if (excalidraw) {
-          // For now, pass the light URL - component can handle theme switching
           schemaImageUrl = excalidraw.lightUrl
+          schemaImageDarkUrl = excalidraw.darkUrl
         }
       } else if (schemaImage) {
-        const schemaFile = resolveFile(files, `${schemaImage}.svg`) || resolveFile(files, schemaImage)
-        schemaImageUrl = schemaFile?.url
+        // Manual schema-image attribute - try to find Excalidraw or plain SVG
+        const excalidraw = resolveExcalidraw(files, `${schemaImage}.excalidraw`)
+        if (excalidraw) {
+          schemaImageUrl = excalidraw.lightUrl
+          schemaImageDarkUrl = excalidraw.darkUrl
+        } else {
+          // Fallback to plain SVG (no dark variant)
+          const schemaFile = resolveFile(files, `${schemaImage}.svg`) || resolveFile(files, schemaImage)
+          schemaImageUrl = schemaFile?.url
+        }
       }
     }
 
@@ -289,6 +302,7 @@ export function createMDXComponents(
           showCanvas={showCanvas !== 'false'}
           db={dbUrl}
           schemaImage={schemaImageUrl}
+          schemaImageDark={schemaImageDarkUrl}
           singleFile={single === 'true'}
         />
       </div>

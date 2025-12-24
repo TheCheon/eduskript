@@ -54,7 +54,8 @@ interface CodeEditorProps {
   initialCode?: string
   showCanvas?: boolean
   db?: string // Path to SQL database for SQL language
-  schemaImage?: string // Optional schema image for SQL
+  schemaImage?: string // Optional schema image for SQL (light theme)
+  schemaImageDark?: string // Optional schema image for SQL (dark theme)
   singleFile?: boolean // Hide file tabs for simple single-file examples
 }
 
@@ -74,6 +75,7 @@ export const CodeEditor = memo(function CodeEditor({
   showCanvas = true,
   db = '/sql/netflixdb.sqlite',
   schemaImage,
+  schemaImageDark,
   singleFile = false
 }: CodeEditorProps) {
   const { resolvedTheme } = useTheme()
@@ -230,7 +232,7 @@ export const CodeEditor = memo(function CodeEditor({
   const [outputPanelHeight, setOutputPanelHeight] = useState(220) // default height in pixels
   const [isDraggingHorizontalSplitter, setIsDraggingHorizontalSplitter] = useState(false)
   const MIN_OUTPUT_HEIGHT = 0 // allow collapsing completely
-  const MAX_OUTPUT_HEIGHT = 400 // maximum output panel height
+  const MAX_OUTPUT_HEIGHT = 800 // maximum output panel height (generous to allow large result sets)
 
   // Run button success flash state
   const [showSuccessFlash, setShowSuccessFlash] = useState(false)
@@ -325,8 +327,8 @@ export const CodeEditor = memo(function CodeEditor({
   const currentCode = files[activeFileIndex]?.content || initialCode
   const hasTurtleModule = language === 'python' && /import\s+turtle|from\s+turtle/.test(currentCode)
   const hasMatplotlib = language === 'python' && /import\s+matplotlib|from\s+matplotlib/.test(currentCode)
-  // SQL schema: provided via schemaImage prop (auto-detected in markdown renderer)
-  const hasSqlSchema = language === 'sql' && !!schemaImage
+  // SQL schema: provided via schemaImage/schemaImageDark props (auto-detected in markdown renderer)
+  const hasSqlSchema = language === 'sql' && !!(schemaImage || schemaImageDark)
   const hasGraphics = hasTurtleModule || hasMatplotlib || hasSqlSchema
   const showEditor = containerRef.current ? (editorWidth / 100) * containerRef.current.offsetWidth >= MIN_VISIBLE_WIDTH : true
   const showGraphics = containerRef.current ? ((100 - editorWidth) / 100) * containerRef.current.offsetWidth >= MIN_VISIBLE_WIDTH : true
@@ -1161,9 +1163,12 @@ export const CodeEditor = memo(function CodeEditor({
   // Display schema image in graphics pane for SQL mode (if provided)
   // Note: Schemas are now Excalidraw drawings stored with databases in the file system
   // Users create schemas via the "Create Schema" button in the file browser
+  // Supports theme-aware rendering with light/dark variants
   useEffect(() => {
-    if (language === 'sql' && mounted && canvasRef.current && schemaImage) {
-      // Check if schema image exists
+    const hasSchema = schemaImage || schemaImageDark
+    if (language === 'sql' && mounted && canvasRef.current && hasSchema) {
+      // Check if at least one schema image exists
+      const testSrc = schemaImage || schemaImageDark
       const img = new Image()
       img.onload = () => {
         const canvas = canvasRef.current
@@ -1171,18 +1176,31 @@ export const CodeEditor = memo(function CodeEditor({
 
         canvas.innerHTML = '' // Clear any existing content
 
-        // Create and append the schema image
-        const schemaImg = document.createElement('img')
-        schemaImg.src = schemaImage
-        schemaImg.alt = 'Database Schema'
-        schemaImg.style.width = '100%'
-        schemaImg.style.height = 'auto'
-        schemaImg.style.display = 'block'
-        schemaImg.style.pointerEvents = 'none' // Prevent image from capturing drag events
-        schemaImg.draggable = false // Disable browser's default image drag
-        schemaImg.className = 'sql-schema-image'
+        // Create light theme image (visible in light mode, hidden in dark)
+        if (schemaImage) {
+          const lightImg = document.createElement('img')
+          lightImg.src = schemaImage
+          lightImg.alt = 'Database Schema'
+          lightImg.style.width = '100%'
+          lightImg.style.height = 'auto'
+          lightImg.style.pointerEvents = 'none'
+          lightImg.draggable = false
+          lightImg.className = 'sql-schema-image sql-schema-light'
+          canvas.appendChild(lightImg)
+        }
 
-        canvas.appendChild(schemaImg)
+        // Create dark theme image (hidden in light mode, visible in dark)
+        if (schemaImageDark) {
+          const darkImg = document.createElement('img')
+          darkImg.src = schemaImageDark
+          darkImg.alt = 'Database Schema'
+          darkImg.style.width = '100%'
+          darkImg.style.height = 'auto'
+          darkImg.style.pointerEvents = 'none'
+          darkImg.draggable = false
+          darkImg.className = 'sql-schema-image sql-schema-dark'
+          canvas.appendChild(darkImg)
+        }
 
         // Make the graphics pane visible (only set width on first show)
         setCanvasVisible(prev => {
@@ -1199,9 +1217,9 @@ export const CodeEditor = memo(function CodeEditor({
         setCanvasVisible(false)
       }
 
-      img.src = schemaImage
+      img.src = testSrc!
     }
-  }, [language, schemaImage, mounted])
+  }, [language, schemaImage, schemaImageDark, mounted])
 
   // Lazy load Pyodide on first run
   const ensurePyodideLoaded = async () => {
@@ -1713,14 +1731,19 @@ export const CodeEditor = memo(function CodeEditor({
     setOutput([]) // Clear previous output
 
     try {
-      // Ensure database is loaded
+      // Ensure database is configured
       if (!db) {
         addOutput('No database configured for this SQL editor', OutputLevel.ERROR)
+        setRunState(RunState.STOPPED)
         return
       }
 
       // Dynamic import to avoid SSR issues
-      const { executeSqlQuery } = await import('@/lib/sql-executor.client')
+      const { executeSqlQuery, loadDatabase } = await import('@/lib/sql-executor.client')
+
+      // Ensure database is loaded before executing query
+      await loadDatabase(db)
+
       const result = await executeSqlQuery(query, db)
 
       if (result.success && result.results) {
@@ -1745,6 +1768,9 @@ export const CodeEditor = memo(function CodeEditor({
             timestamp: Date.now()
           }])
         }
+        // Show output panel
+        setPanelVisible(true)
+        setActivePanel('output')
       } else {
         addOutput(result.error || 'Unknown error occurred', OutputLevel.ERROR)
       }
@@ -2634,19 +2660,19 @@ plots
 
                   {/* SQL Results Table */}
                   {entry.sqlResults && entry.sqlResults.length > 0 && (
-                    <div className="mt-2 overflow-x-auto">
+                    <div className="mt-1 overflow-x-auto">
                       {entry.sqlResults.map((resultSet, rsIndex) => (
-                        <div key={rsIndex} className="mb-4">
-                          <div className="text-xs text-muted-foreground mb-1">
+                        <div key={rsIndex} className="mb-2">
+                          <div className="text-[10px] text-muted-foreground mb-0.5">
                             {resultSet.values.length} row{resultSet.values.length !== 1 ? 's' : ''}
                           </div>
-                          <table className="min-w-full border-collapse border border-border text-xs">
+                          <table className="min-w-full border-collapse border border-border text-[11px]">
                             <thead className="bg-muted">
                               <tr>
                                 {resultSet.columns.map((column, colIdx) => (
                                   <th
                                     key={colIdx}
-                                    className="border border-border px-2 py-1 text-left font-semibold"
+                                    className="border border-border px-1.5 py-0.5 text-left font-semibold"
                                   >
                                     {column}
                                   </th>
@@ -2659,7 +2685,7 @@ plots
                                   {row.map((cell, cellIdx) => (
                                     <td
                                       key={cellIdx}
-                                      className="border border-border px-2 py-1"
+                                      className="border border-border px-1.5 py-0.5"
                                     >
                                       {cell === null ? (
                                         <span className="text-muted-foreground italic">NULL</span>
