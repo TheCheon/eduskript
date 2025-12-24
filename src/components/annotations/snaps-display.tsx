@@ -21,7 +21,7 @@ export interface StudentWorkSnap extends Snap {
 
 // Position override type
 export type SnapPositionOverrides = Record<string, { top: number; left: number; width: number; height: number }>
-export type SnapOverridesData = { classSnaps: SnapPositionOverrides; feedbackSnaps: SnapPositionOverrides; studentWorkSnaps?: SnapPositionOverrides }
+export type SnapOverridesData = { classSnaps: SnapPositionOverrides; feedbackSnaps: SnapPositionOverrides; publicSnaps?: SnapPositionOverrides; studentWorkSnaps?: SnapPositionOverrides }
 
 interface SnapsDisplayProps {
   snaps: Snap[]
@@ -31,9 +31,11 @@ interface SnapsDisplayProps {
   teacherSnaps?: TeacherSnap[]
   studentWorkSnaps?: StudentWorkSnap[]
   snapOverrides?: SnapOverridesData | null
-  onTeacherSnapOverride?: (snapId: string, layerType: 'class' | 'individual', position: { top: number; left: number; width: number; height: number }) => void
+  onTeacherSnapOverride?: (snapId: string, layerType: 'class' | 'individual' | 'public', position: { top: number; left: number; width: number; height: number }) => void
   onStudentWorkSnapOverride?: (snapId: string, position: { top: number; left: number; width: number; height: number }) => void
   zoom: number
+  paperWidth: number // Paper width in pixels for drag delta conversion
+  initialLoadComplete?: boolean // Whether all annotation/snap data has loaded (for unified fade-in)
 }
 
 const DEBUG_STATE = false
@@ -45,12 +47,14 @@ const StudentWorkSnapItem = memo(function StudentWorkSnapItem({
   onExpand,
   overridePosition,
   onPositionChange,
+  paperWidth,
 }: {
   snap: StudentWorkSnap
   zoom: number
   onExpand: (id: string) => void
   overridePosition?: { top: number; left: number; width: number; height: number }
   onPositionChange?: (position: { top: number; left: number; width: number; height: number }) => void
+  paperWidth: number
 }) {
   if (DEBUG_STATE) console.log(`[StudentWorkSnapItem ${snap.id.slice(-4)}] Render`)
 
@@ -240,7 +244,7 @@ const StudentWorkSnapItem = memo(function StudentWorkSnapItem({
   return (
     <div
       ref={elementRef}
-      className="absolute z-40 bg-card border-2 border-purple-500 shadow-lg rounded-lg overflow-hidden group student-work-snap-fade-in"
+      className="absolute z-50 bg-card border-2 border-purple-500 shadow-lg rounded-lg overflow-hidden group student-work-snap-fade-in"
       style={{
         top: position.top,
         left: position.left,
@@ -303,12 +307,14 @@ const TeacherSnapItem = memo(function TeacherSnapItem({
   onExpand,
   overridePosition,
   onPositionChange,
+  paperWidth,
 }: {
   snap: TeacherSnap
   zoom: number
   onExpand: (id: string) => void
   overridePosition?: { top: number; left: number; width: number; height: number }
   onPositionChange?: (position: { top: number; left: number; width: number; height: number }) => void
+  paperWidth: number
 }) {
   if (DEBUG_STATE) console.log(`[TeacherSnapItem ${snap.id.slice(-4)}] Render`)
 
@@ -498,7 +504,7 @@ const TeacherSnapItem = memo(function TeacherSnapItem({
   return (
     <div
       ref={elementRef}
-      className="absolute z-40 bg-card border-2 border-blue-500 shadow-lg rounded-lg overflow-hidden group teacher-snap-fade-in"
+      className="absolute z-50 bg-card border-2 border-blue-500 shadow-lg rounded-lg overflow-hidden group teacher-snap-fade-in"
       style={{
         top: position.top,
         left: position.left,
@@ -564,6 +570,7 @@ const SnapItem = memo(function SnapItem({
   onExpand,
   zoom,
   allSnaps,
+  paperWidth,
 }: {
   snap: Snap
   isNew: boolean
@@ -573,6 +580,7 @@ const SnapItem = memo(function SnapItem({
   onExpand: (id: string) => void
   zoom: number
   allSnaps: Snap[]
+  paperWidth: number
 }) {
   if (DEBUG_STATE) console.log(`[SnapItem ${snap.id.slice(-4)}] Render - top:${snap.top.toFixed(0)} left:${snap.left.toFixed(0)}`)
 
@@ -673,7 +681,7 @@ const SnapItem = memo(function SnapItem({
       element.style.cursor = ''
 
       if (state.isDragging) {
-        // Calculate final position
+        // Calculate final position (both in pixels)
         const finalTop = state.startTop + state.currentY
         const finalLeft = state.startLeft + state.currentX
 
@@ -768,7 +776,7 @@ const SnapItem = memo(function SnapItem({
   return (
     <div
       ref={elementRef}
-      className="absolute z-40 bg-background border-2 border-primary shadow-lg rounded-lg overflow-hidden group"
+      className="absolute z-50 bg-background border-2 border-primary shadow-lg rounded-lg overflow-hidden group"
       style={{
         top: snap.top,
         left: snap.left,
@@ -862,7 +870,7 @@ const SnapItem = memo(function SnapItem({
   )
 })
 
-export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps, teacherSnaps = [], studentWorkSnaps = [], snapOverrides, onTeacherSnapOverride, onStudentWorkSnapOverride, zoom }: SnapsDisplayProps) {
+export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps, teacherSnaps = [], studentWorkSnaps = [], snapOverrides, onTeacherSnapOverride, onStudentWorkSnapOverride, zoom, paperWidth, initialLoadComplete = true }: SnapsDisplayProps) {
   if (DEBUG_STATE) console.log(`[SnapsDisplay] Render - ${snaps.length} snaps, ${teacherSnaps.length} teacher snaps, ${studentWorkSnaps.length} student work snaps`)
 
   const [expandedSnapIndex, setExpandedSnapIndex] = useState<number | null>(null)
@@ -926,56 +934,66 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
 
   return (
     <>
-      {/* Student's own snaps */}
-      {snaps.map((snap) => (
-        <SnapItem
-          key={snap.id}
-          snap={snap}
-          isNew={newSnapIds.has(snap.id)}
-          onRemove={onRemoveSnap}
-          onRename={onRenameSnap}
-          onReorder={onReorderSnaps}
-          onExpand={handleExpand}
-          zoom={zoom}
-          allSnaps={snaps}
-        />
-      ))}
+      {/* All snaps wrapped in unified fade-in container */}
+      {/* Waits for initialLoadComplete to prevent multiple redraws during initial page load */}
+      {/* Uses CSS animation that plays on mount for smooth fade-in */}
+      {initialLoadComplete && (
+        <div className="annotation-content-wrapper">
+          {/* Student's own snaps */}
+          {snaps.map((snap) => (
+            <SnapItem
+              key={snap.id}
+              snap={snap}
+              isNew={newSnapIds.has(snap.id)}
+              onRemove={onRemoveSnap}
+              onRename={onRenameSnap}
+              onReorder={onReorderSnaps}
+              onExpand={handleExpand}
+              zoom={zoom}
+              allSnaps={snaps}
+              paperWidth={paperWidth}
+            />
+          ))}
+          {/* Teacher snaps (read-only, moveable) */}
+        {teacherSnaps.map((snap) => {
+          // Determine which override map to use based on layer type
+          const isClassSnap = snap.layerId.startsWith('class-')
+          const isPublicSnap = snap.layerId === 'public'
+          const overrideKey = isPublicSnap ? 'publicSnaps' : isClassSnap ? 'classSnaps' : 'feedbackSnaps'
+          const layerType = isPublicSnap ? 'public' : isClassSnap ? 'class' : 'individual' as const
+          const overridePosition = snapOverrides?.[overrideKey]?.[snap.id]
 
-      {/* Teacher snaps (read-only, moveable) */}
-      {teacherSnaps.map((snap) => {
-        // Determine which override map to use based on layer type
-        const isClassSnap = snap.layerId.startsWith('class-')
-        const overrideKey = isClassSnap ? 'classSnaps' : 'feedbackSnaps'
-        const layerType = isClassSnap ? 'class' : 'individual' as const
-        const overridePosition = snapOverrides?.[overrideKey]?.[snap.id]
+          return (
+            <TeacherSnapItem
+              key={snap.id}
+              snap={snap}
+              zoom={zoom}
+              onExpand={handleTeacherSnapExpand}
+              overridePosition={overridePosition}
+              onPositionChange={onTeacherSnapOverride ? (pos) => onTeacherSnapOverride(snap.id, layerType, pos) : undefined}
+              paperWidth={paperWidth}
+            />
+          )
+        })}
 
-        return (
-          <TeacherSnapItem
-            key={snap.id}
-            snap={snap}
-            zoom={zoom}
-            onExpand={handleTeacherSnapExpand}
-            overridePosition={overridePosition}
-            onPositionChange={onTeacherSnapOverride ? (pos) => onTeacherSnapOverride(snap.id, layerType, pos) : undefined}
-          />
-        )
-      })}
+        {/* Student work snaps (moveable by teachers viewing student's work) */}
+        {studentWorkSnaps.map((snap) => {
+          const overridePosition = snapOverrides?.studentWorkSnaps?.[snap.id]
 
-      {/* Student work snaps (moveable by teachers viewing student's work) */}
-      {studentWorkSnaps.map((snap) => {
-        const overridePosition = snapOverrides?.studentWorkSnaps?.[snap.id]
-
-        return (
-          <StudentWorkSnapItem
-            key={snap.id}
-            snap={snap}
-            zoom={zoom}
-            onExpand={handleStudentWorkSnapExpand}
-            overridePosition={overridePosition}
-            onPositionChange={onStudentWorkSnapOverride ? (pos) => onStudentWorkSnapOverride(snap.id, pos) : undefined}
-          />
-        )
-      })}
+          return (
+            <StudentWorkSnapItem
+              key={snap.id}
+              snap={snap}
+              zoom={zoom}
+              onExpand={handleStudentWorkSnapExpand}
+              overridePosition={overridePosition}
+              onPositionChange={onStudentWorkSnapOverride ? (pos) => onStudentWorkSnapOverride(snap.id, pos) : undefined}
+              paperWidth={paperWidth}
+            />
+          )
+        })}
+        </div>
+      )}
 
       {/* Expanded snap modal */}
       {expandedSnapIndex !== null && (

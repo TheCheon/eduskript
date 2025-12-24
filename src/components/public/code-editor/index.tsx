@@ -2202,7 +2202,7 @@ plots
   return (
     <div
       ref={wrapperRef}
-      className="flex flex-col w-full border rounded-lg overflow-hidden bg-background relative"
+      className="flex flex-col w-full border rounded-lg overflow-hidden bg-background relative z-0"
       style={{ height: fullscreen ? '100vh' : `${manualHeight ?? totalHeight}px` }}
       data-dynamic-height="true"
     >

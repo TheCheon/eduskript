@@ -426,6 +426,14 @@ article.prose-theme > div > :first-child {
 .prose-theme h6 a:hover {
   text-decoration: none !important;
   color: inherit !important;
+  opacity: 1 !important;
+}
+
+/* H1 hover: very subtle color shift while staying opaque */
+.prose-theme h1:hover,
+.prose-theme h1:hover * {
+  opacity: 0.85 !important;
+  transition: opacity 0.15s ease;
 }
 
 /* Heading link specifics */
@@ -438,6 +446,7 @@ article.prose-theme > div > :first-child {
 .prose-theme h1,
 .prose-theme h1 * {
   color: hsl(var(--prose-headings)) !important;
+  transition: color 0.15s ease;
 }
 
 /* Add # suffix on hover for all headings except h1 (which has rainbow effect) */
@@ -599,7 +608,7 @@ article.prose-theme > div > :first-child {
 
 /* Shared fade-in duration - change this one value to adjust all fade-in speeds */
 :root {
-  --annotation-fade-duration: 200ms;
+  --annotation-fade-duration: 500ms;
 }
 
 /* Fade-in animation for loaded annotations */
@@ -626,7 +635,32 @@ article.prose-theme > div > :first-child {
   }
 }
 
-/* Fade-in for reference/broadcast layers (annotations from others) */
+/* Unified fade-in for all annotation/snap content
+ * All content starts hidden, then fades in together once data is loaded
+ * This prevents multiple redraws and provides a smooth single fade-in after SSR
+ * Uses animation (not transition) because elements are conditionally rendered
+ * position: absolute + inset:0 ensures it covers the parent and affects absolute children */
+.annotation-content-wrapper {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: annotationFadeIn var(--annotation-fade-duration) ease-out forwards;
+}
+
+/* Allow pointer events on interactive children within the wrapper */
+.annotation-content-wrapper > * {
+  pointer-events: auto;
+}
+
+/* Hide annotation layer when toggled off (after initial fade-in completes) */
+.annotation-content-wrapper.annotation-layer-hidden {
+  opacity: 0 !important;
+  transition: opacity 0.15s ease-in-out;
+}
+
+/* Fade-in for reference/broadcast layers (annotations from others)
+ * Note: These now use the unified wrapper, but keep class for when elements
+ * are added dynamically after initial load (e.g., switching layers) */
 .reference-layer-fade-in {
   animation: annotationFadeIn var(--annotation-fade-duration) ease-out;
 }
@@ -1148,8 +1182,8 @@ body>div[style*="display: inline-block"]>div[style*="resize: both"] {
 .prose-theme h1.color-title::before {
   content: attr(data-heading-text);
   position: absolute;
-  right: 1px;
-  top: 1px;
+  right: 2px;
+  top: 2px;
   width: 100%;
   text-align: center;
   z-index: -1;

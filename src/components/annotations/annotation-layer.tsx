@@ -223,10 +223,7 @@ const AnimatedReferenceLayer = memo(function AnimatedReferenceLayer({
       className={className}
       style={{
         position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
+        inset: 0,
         height: pageHeight,
         pointerEvents: 'none',
         zIndex,
@@ -324,7 +321,7 @@ function repositionTeacherAnnotations(
   }
 }
 
-import type { PublicAnnotation } from '@/components/public/annotation-wrapper'
+import type { PublicAnnotation, PublicSnap } from '@/components/public/annotation-wrapper'
 
 /** Pre-fetched public annotation for rendering */
 interface AnnotationLayerProps {
@@ -333,13 +330,15 @@ interface AnnotationLayerProps {
   children: React.ReactNode
   /** Public annotations fetched from server (for all visitors) */
   publicAnnotations?: PublicAnnotation[]
+  /** Public snaps fetched from server (for all visitors) */
+  publicSnaps?: PublicSnap[]
   /** Whether current user can create public annotations (checked server-side) */
   isPageAuthor?: boolean
   /** Whether user is a student in an exam session (for SEB mode where NextAuth session isn't available) */
   isExamStudent?: boolean
 }
 
-export function AnnotationLayer({ pageId, content, children, publicAnnotations = [], isPageAuthor: isPageAuthorProp = false, isExamStudent = false }: AnnotationLayerProps) {
+export function AnnotationLayer({ pageId, content, children, publicAnnotations = [], publicSnaps = [], isPageAuthor: isPageAuthorProp = false, isExamStudent = false }: AnnotationLayerProps) {
   const { sidebarWidth, viewportWidth, viewportHeight } = useLayout()
   const { data: session } = useSession()
   const { selectedClass, setSelectedClass, selectedStudent, setSelectedStudent, broadcastToPage, setBroadcastToPage, viewMode, isTeacher } = useTeacherClass()
@@ -703,8 +702,8 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   const hasClassSnapsContent = teacherClassSnaps.length > 0
   const hasIndividualSnapsContent = teacherIndividualSnapFeedback !== null
 
-  // Check if there are public annotations (from server or from current user's page broadcasts)
-  const hasPublicContent = publicAnnotations.length > 0
+  // Check if there are public annotations or snaps (from server or from current user's page broadcasts)
+  const hasPublicContent = publicAnnotations.length > 0 || publicSnaps.length > 0
 
   // Use synced user data service for telemetry (lightweight, sampled)
   const emptyTelemetryData = useMemo(() => ({ samples: [], totalStrokeCount: 0, sessionCount: 0, firstSampleAt: 0 } as TelemetryData), [])
@@ -1154,6 +1153,8 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       left: snapData.left,
       width: snapData.width,
       height: snapData.height,
+      sectionId: snapData.sectionId,
+      sectionOffsetY: snapData.sectionOffsetY,
     }))
   }, [snapsData?.snaps])
 
@@ -1196,10 +1197,32 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     }))
   }, [isStudent, teacherIndividualSnapFeedback, isLayerVisible])
 
-  // Combine all teacher snaps for students
+  // Extract public snaps (from server-passed publicSnaps prop)
+  // These are visible to all visitors when the 'public' layer is visible
+  // Don't show when user is actively editing page-broadcast (they see their own edits in the main snaps list)
+  const publicSnapsData = useMemo(() => {
+    if (viewMode === 'page-broadcast') return [] // Author is editing, don't show server-passed snaps
+    if (!isLayerVisible('public')) return []
+    if (!publicSnaps.length) return []
+
+    return publicSnaps.flatMap(publicSnap => {
+      const snapsData = publicSnap.data as { snaps?: Snap[] } | null
+      if (!snapsData?.snaps) return []
+
+      return snapsData.snaps.map(snap => ({
+        ...snap,
+        id: `public-${publicSnap.userId}-${snap.id}`, // Make IDs unique across users
+        layerId: 'public',
+        layerName: publicSnap.user.name || 'Author',
+        isTeacherSnap: true as const, // Display like teacher snaps (read-only for visitors)
+      }))
+    })
+  }, [publicSnaps, isLayerVisible, viewMode])
+
+  // Combine all teacher snaps for students (including public snaps for all visitors)
   const allTeacherSnaps = useMemo(() => {
-    return [...teacherClassSnapsData, ...teacherIndividualSnapsData]
-  }, [teacherClassSnapsData, teacherIndividualSnapsData])
+    return [...teacherClassSnapsData, ...teacherIndividualSnapsData, ...publicSnapsData]
+  }, [teacherClassSnapsData, teacherIndividualSnapsData, publicSnapsData])
 
   // Extract student work snaps for teachers viewing student's work
   const studentWorkSnapsData: StudentWorkSnap[] = useMemo(() => {
@@ -1216,45 +1239,70 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     }))
   }, [isTeacher, studentForFeedback, studentWorkData, isLayerVisible])
 
-  // Student position overrides for teacher snaps (persisted via useSyncedUserData)
+  // Position overrides for teacher/public snaps (persisted via useSyncedUserData for all users)
+  // Students can reposition class/individual feedback snaps, all users can reposition public snaps
   type SnapPositionOverrides = Record<string, { top: number; left: number; width: number; height: number }>
-  type SnapOverridesData = { classSnaps: SnapPositionOverrides; feedbackSnaps: SnapPositionOverrides; studentWorkSnaps?: SnapPositionOverrides }
-  const emptySnapOverrides = useMemo(() => ({ classSnaps: {}, feedbackSnaps: {} } as SnapOverridesData), [])
-  const { data: studentSnapOverrides, updateData: updateSnapOverrides } = useSyncedUserData<SnapOverridesData>(
-    isStudent ? pageId : '__skip__',
+  type SnapOverridesData = { classSnaps: SnapPositionOverrides; feedbackSnaps: SnapPositionOverrides; publicSnaps?: SnapPositionOverrides; studentWorkSnaps?: SnapPositionOverrides }
+  const emptySnapOverrides = useMemo(() => ({ classSnaps: {}, feedbackSnaps: {}, publicSnaps: {} } as SnapOverridesData), [])
+  const { data: userSnapOverrides, updateData: updateSnapOverrides, isLoading: snapOverridesLoading } = useSyncedUserData<SnapOverridesData>(
+    pageId, // Persist for all users (not just students) so public snap overrides work
     'snap-overrides',
     emptySnapOverrides
   )
 
+  // Track initial load completion for unified fade-in of all annotation/snap content
+  // We want to wait for all essential data to load before showing anything to prevent layout shift
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false)
+  const initialLoadTriggeredRef = useRef(false)
+
+  // Determine when initial load is complete (all essential data loaded)
+  // This prevents multiple redraws during initial page load - one smooth fade-in after SSR
+  useEffect(() => {
+    if (initialLoadTriggeredRef.current) return
+
+    // Wait for annotation, snap, and snap override loading to complete
+    const isReady = !annotationLoading && !snapsLoading && !snapOverridesLoading
+
+    if (isReady) {
+      initialLoadTriggeredRef.current = true
+      // Small delay to ensure all data is processed before showing
+      const timer = setTimeout(() => {
+        setInitialLoadComplete(true)
+      }, 50)
+      return () => clearTimeout(timer)
+    }
+  }, [annotationLoading, snapsLoading, snapOverridesLoading])
+
   // Teacher-side overrides for viewing student work snaps (local state, session only)
   const [teacherSnapOverrides, setTeacherSnapOverrides] = useState<SnapPositionOverrides>({})
 
-  // Combined snap overrides - students use persisted overrides, teachers use local state for student work snaps
+  // Combined snap overrides - all users have persisted overrides, teachers also have local state for student work snaps
   const snapOverrides = useMemo(() => {
-    const base = studentSnapOverrides ?? { classSnaps: {}, feedbackSnaps: {} }
+    const base = userSnapOverrides ?? { classSnaps: {}, feedbackSnaps: {}, publicSnaps: {} }
     if (isTeacher) {
       return { ...base, studentWorkSnaps: teacherSnapOverrides }
     }
     return base
-  }, [studentSnapOverrides, teacherSnapOverrides, isTeacher])
+  }, [userSnapOverrides, teacherSnapOverrides, isTeacher])
 
-  // Callback for when student moves/resizes a teacher snap
+  // Callback for when user moves/resizes a teacher or public snap
   const handleTeacherSnapOverride = useCallback((
     snapId: string,
-    layerType: 'class' | 'individual',
+    layerType: 'class' | 'individual' | 'public',
     position: { top: number; left: number; width: number; height: number }
   ) => {
-    const key = layerType === 'class' ? 'classSnaps' : 'feedbackSnaps'
-    const currentOverrides = studentSnapOverrides ?? { classSnaps: {}, feedbackSnaps: {} }
+    const key = layerType === 'class' ? 'classSnaps' : layerType === 'public' ? 'publicSnaps' : 'feedbackSnaps'
+    const currentOverrides = userSnapOverrides ?? { classSnaps: {}, feedbackSnaps: {}, publicSnaps: {} }
     updateSnapOverrides({
       classSnaps: currentOverrides.classSnaps ?? {},
       feedbackSnaps: currentOverrides.feedbackSnaps ?? {},
+      publicSnaps: currentOverrides.publicSnaps ?? {},
       [key]: {
         ...(currentOverrides[key] ?? {}),
         [snapId]: position
       }
     })
-  }, [studentSnapOverrides, updateSnapOverrides])
+  }, [userSnapOverrides, updateSnapOverrides])
 
   // Callback for when teacher moves/resizes a student work snap
   const handleStudentWorkSnapOverride = useCallback((
@@ -1274,8 +1322,6 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   // Paper element for portal (canvas renders directly into #paper)
   const [paperElement, setPaperElement] = useState<HTMLElement | null>(null)
 
-  // Main element for snaps portal (snaps need to overflow paper boundaries)
-  const [mainElement, setMainElement] = useState<HTMLElement | null>(null)
 
   const [paperWidth, setPaperWidth] = useState(1024) // Fixed paper width (matches .paper-responsive)
 
@@ -1291,12 +1337,8 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       // Ensure paper has position:relative for absolute canvas positioning
       paper.style.position = 'relative'
 
-      // Also get main element for snaps portal (snaps need to overflow paper)
-      const main = paper.closest('main')
-      if (main) {
-        setMainElement(main)
-        main.style.position = 'relative'
-      }
+      // Allow snaps to overflow paper boundaries
+      paper.style.overflow = 'visible'
     }
   }, [viewportWidth])
 
@@ -2489,15 +2531,10 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       </div>
 
       {/* Canvas portaled directly into #paper - always matches paper bounds */}
-      {paperElement && pageHeight > 0 && createPortal(
+      {paperElement && pageHeight > 0 && initialLoadComplete && createPortal(
         <div
+          className={`annotation-content-wrapper ${!activeLayerVisible ? 'annotation-layer-hidden' : ''}`}
           style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            // Width is determined by left:0 + right:0, not explicit value
             height: pageHeight,
             // Always capture events when in draw/erase mode or stylus mode
             pointerEvents: (mode !== 'view' || stylusModeActive) ? 'auto' : 'none',
@@ -2505,9 +2542,6 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
             // When pen is not drawing, allow touch scrolling
             touchAction: penActive ? 'none' : 'auto',
             zIndex: 40, // Above code editor buttons (z-30), below snap overlay (z-10000)
-            // Hide when my annotations visibility is toggled off
-            opacity: activeLayerVisible ? 1 : 0,
-            transition: 'opacity 0.15s ease-in-out'
           }}
         >
           <SimpleCanvas
@@ -2535,7 +2569,8 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       {/* Reference annotation layers - read-only overlays */}
       {/* Note: Don't condition on teacherAnnotationsLoading - use SWR pattern to keep showing */}
       {/* stale data while loading. Each layer checks its own data existence. */}
-      {paperElement && pageHeight > 0 && (
+      {/* Wait for initialLoadComplete to prevent multiple redraws during initial page load */}
+      {paperElement && pageHeight > 0 && initialLoadComplete && (
         <>
           {/* Teacher's personal annotations as reference (when broadcasting to class/student) */}
           {hasPersonalContent && isLayerVisible('personal') && (() => {
@@ -2549,7 +2584,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
 
             return createPortal(
               <div
-                className="reference-layer-fade-in"
+                className="reference-layer"
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -2593,7 +2628,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
 
             return createPortal(
               <div
-                className="reference-layer-fade-in"
+                className="reference-layer"
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -2637,7 +2672,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
 
             return createPortal(
               <div
-                className="reference-layer-fade-in"
+                className="reference-layer"
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -2681,7 +2716,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
 
             return createPortal(
               <div
-                className="reference-layer-fade-in"
+                className="reference-layer"
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -2793,58 +2828,60 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
 
           {/* Public page annotations - visible to everyone */}
           {/* Don't show when user is actively editing page-broadcast (they see their own edits in the main layer) */}
-          {viewMode !== 'page-broadcast' && isLayerVisible('public') && (() => {
-            // Use synced pageBroadcastData (updates dynamically) or fall back to server-passed publicAnnotations
-            const syncedData = pageBroadcastData?.canvasData
-            if (syncedData && syncedData !== '[]') {
-              // Use dynamically synced data
-              const repositionedCanvasData = repositionTeacherAnnotations(
-                syncedData,
-                pageBroadcastData?.headingOffsets ?? {},
-                pageBroadcastData?.paddingLeft,
-                headingPositions,
-                currentPaddingLeft
-              )
+          {/* Wait for initialLoadComplete to prevent double render (SSR fallback → synced data) */}
+          {/* Wrapped in a single fade-in container to prevent flicker when switching data sources */}
+          {viewMode !== 'page-broadcast' && isLayerVisible('public') && initialLoadComplete && createPortal(
+            <div className="annotation-content-wrapper" style={{ zIndex: 36 }}>
+              {(() => {
+                // Use synced pageBroadcastData (updates dynamically) or fall back to server-passed publicAnnotations
+                const syncedData = pageBroadcastData?.canvasData
+                if (syncedData && syncedData !== '[]') {
+                  // Use dynamically synced data
+                  const repositionedCanvasData = repositionTeacherAnnotations(
+                    syncedData,
+                    pageBroadcastData?.headingOffsets ?? {},
+                    pageBroadcastData?.paddingLeft,
+                    headingPositions,
+                    currentPaddingLeft
+                  )
 
-              return createPortal(
-                <AnimatedReferenceLayer
-                  canvasData={repositionedCanvasData}
-                  paperWidth={paperWidth}
-                  pageHeight={pageHeight}
-                  headingPositions={headingPositions}
-                  zoom={zoom}
-                  zIndex={36} // Public annotations - lowest layer, above code editor buttons (z-30)
-                  badge={{
-                    layerId: 'public',
-                    layerName: 'Public',
-                    layerColor: 'green',
-                    icon: <Globe className="w-3 h-3" />
-                  }}
-                  showBadge={showLayerBadges}
-                />,
-                paperElement
-              )
-            }
-
-            // Fall back to server-passed publicAnnotations (for non-logged-in users or first load)
-            if (publicAnnotations.length === 0) return null
-
-            return publicAnnotations.map((annotation, index) => {
-              const layerAnnotationData = annotation.data as AnnotationData | null
-              if (!layerAnnotationData?.canvasData || layerAnnotationData.canvasData === '[]') return null
-
-              const repositionedCanvasData = repositionTeacherAnnotations(
-                layerAnnotationData.canvasData,
-                layerAnnotationData.headingOffsets,
-                layerAnnotationData.paddingLeft,
-                headingPositions,
-                currentPaddingLeft
-              )
-
-              return (
-                <div key={`public-${annotation.userId}-${index}`}>
-                  {createPortal(
+                  return (
                     <AnimatedReferenceLayer
+                      canvasData={repositionedCanvasData}
+                      paperWidth={paperWidth}
+                      pageHeight={pageHeight}
+                      headingPositions={headingPositions}
+                      zoom={zoom}
+                      zIndex={36} // Public annotations - lowest layer, above code editor buttons (z-30)
+                      badge={{
+                        layerId: 'public',
+                        layerName: 'Public',
+                        layerColor: 'green',
+                        icon: <Globe className="w-3 h-3" />
+                      }}
+                      showBadge={showLayerBadges}
+                    />
+                  )
+                }
+
+                // Fall back to server-passed publicAnnotations (for non-logged-in users or first load)
+                if (publicAnnotations.length === 0) return null
+
+                return publicAnnotations.map((annotation, index) => {
+                  const layerAnnotationData = annotation.data as AnnotationData | null
+                  if (!layerAnnotationData?.canvasData || layerAnnotationData.canvasData === '[]') return null
+
+                  const repositionedCanvasData = repositionTeacherAnnotations(
+                    layerAnnotationData.canvasData,
+                    layerAnnotationData.headingOffsets,
+                    layerAnnotationData.paddingLeft,
+                    headingPositions,
+                    currentPaddingLeft
+                  )
+
+                  return (
+                    <AnimatedReferenceLayer
+                      key={`public-${annotation.userId}-${index}`}
                       canvasData={repositionedCanvasData}
                       paperWidth={paperWidth}
                       pageHeight={pageHeight}
@@ -2858,13 +2895,13 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
                         icon: <Globe className="w-3 h-3" />
                       }}
                       showBadge={showLayerBadges}
-                    />,
-                    paperElement
-                  )}
-                </div>
-              )
-            })
-          })()}
+                    />
+                  )
+                })
+              })()}
+            </div>,
+            paperElement
+          )}
         </>
       )}
 
@@ -2929,11 +2966,12 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
           onCancel={() => setMode('view')}
           nextSnapNumber={snaps.length + 1}
           zoom={zoom}
+          headingPositions={headingPositions}
         />
       )}
 
-      {/* Snaps display - portaled into main so snaps can overflow paper boundaries */}
-      {mainElement && createPortal(
+      {/* Snaps display - portaled into paper (overflow:visible allows snaps to extend beyond) */}
+      {paperElement && createPortal(
         <SnapsDisplay
           snaps={snaps}
           onRemoveSnap={handleRemoveSnap}
@@ -2945,8 +2983,10 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
           onTeacherSnapOverride={handleTeacherSnapOverride}
           onStudentWorkSnapOverride={isTeacher ? handleStudentWorkSnapOverride : undefined}
           zoom={zoom}
+          paperWidth={paperWidth}
+          initialLoadComplete={initialLoadComplete}
         />,
-        mainElement
+        paperElement
       )}
     </>
   )
