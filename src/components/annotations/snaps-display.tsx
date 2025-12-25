@@ -938,7 +938,7 @@ export function SnapsDisplay({ snaps, onRemoveSnap, onRenameSnap, onReorderSnaps
       {/* Waits for initialLoadComplete to prevent multiple redraws during initial page load */}
       {/* Uses CSS animation that plays on mount for smooth fade-in */}
       {initialLoadComplete && (
-        <div className="annotation-content-wrapper">
+        <div className="annotation-content-wrapper" style={{ zIndex: 45 }}>
           {/* Student's own snaps */}
           {snaps.map((snap) => (
             <SnapItem
