@@ -26,6 +26,16 @@ html.dark {
   color-scheme: dark;
 }
 
+/* Text selection styling */
+::selection {
+  background-color: hsl(var(--primary) / 0.3);
+  color: inherit;
+}
+
+.dark ::selection {
+  background-color: hsl(var(--primary) / 0.4);
+}
+
 /* Enable native scroll - zoom is handled via CSS transform */
 html,
 body {
