@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { ChevronDown, ChevronRight, Menu, X, Home, ChevronLeft, NotebookPen } from 'lucide-react'
+import { ChevronDown, ChevronRight, Menu, X, ChevronLeft, NotebookPen } from 'lucide-react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { ReadingProgress } from './reading-progress'
@@ -299,27 +299,37 @@ export function PublicSiteLayout({
             {isSidebarCollapsed ? (
               /* Collapsed sidebar header */
               <div className="flex flex-col items-center gap-2">
-                {/* Icon: custom URL, default NotebookPen, or letter placeholder */}
-                {teacher.pageIcon === 'default' ? (
-                  <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-                    <NotebookPen className="w-6 h-6 text-muted-foreground" />
-                  </div>
-                ) : teacher.pageIcon ? (
-                  <div className="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-background">
-                    <Image
-                      src={teacher.pageIcon}
-                      alt="Page icon"
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-                ) : (
-                  <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-                    <span className="text-muted-foreground text-lg font-heading">
-                      {(teacher.pageName || teacher.name || 'P').charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                )}
+                {/* Icon: custom URL, default NotebookPen, or letter placeholder - clickable as home link */}
+                <button
+                  onClick={() => {
+                    const homeUrl = basePrefix.replace(/\/c$/, '')
+                    router.push(homeUrl)
+                    setIsSidebarOpen(false)
+                  }}
+                  className="cursor-pointer"
+                  title="Go to homepage"
+                >
+                  {teacher.pageIcon === 'default' ? (
+                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                      <NotebookPen className="w-6 h-6 text-muted-foreground" />
+                    </div>
+                  ) : teacher.pageIcon ? (
+                    <div className="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-background">
+                      <Image
+                        src={teacher.pageIcon}
+                        alt="Page icon"
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                      <span className="text-muted-foreground text-lg font-heading">
+                        {(teacher.pageName || teacher.name || 'P').charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                </button>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -335,8 +345,16 @@ export function PublicSiteLayout({
             ) : (
               /* Expanded sidebar header */
               <>
-                {/* Row 1: Icon + Page name */}
-                <div className="flex items-center justify-center gap-3">
+                {/* Row 1: Icon + Page name - clickable as home link */}
+                <button
+                  onClick={() => {
+                    const homeUrl = basePrefix.replace(/\/c$/, '')
+                    router.push(homeUrl)
+                    setIsSidebarOpen(false)
+                  }}
+                  className="flex items-center justify-center gap-3 cursor-pointer w-full"
+                  title="Go to homepage"
+                >
                   {/* Icon: custom URL, default NotebookPen, or letter placeholder */}
                   {teacher.pageIcon === 'default' ? (
                     <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
@@ -361,7 +379,7 @@ export function PublicSiteLayout({
                   <div className="text-2xl font-bold text-foreground truncate font-heading">
                     {teacher.pageName || teacher.name || 'Untitled Page'}
                   </div>
-                </div>
+                </button>
 
                 {/* Row 2: Description (if exists) */}
                 {teacher.pageDescription && (
@@ -395,31 +413,8 @@ export function PublicSiteLayout({
           {/* Navigation */}
           <div className="flex-1 p-4 pr-2 flex flex-col overflow-y-scroll [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&:hover::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
             {isSidebarCollapsed ? (
-              /* Simplified navigation when collapsed - just show essential icons */
-              <nav className="space-y-2">
-                {(() => {
-                  const showHomeButton = sidebarBehavior === 'contextual' && siteStructure.length === 1
-                  
-                  return (
-                    <>
-                      {showHomeButton && (
-                        <button
-                          onClick={() => {
-                            // Strip trailing /c for org pages
-                            const homeUrl = basePrefix.replace(/\/c$/, '')
-                            router.push(homeUrl)
-                            setIsSidebarOpen(false)
-                          }}
-                          className="flex items-center justify-center w-full py-1 text-sm font-medium rounded-md transition-colors text-muted-foreground hover:bg-muted hover:text-foreground mb-4"
-                          title="Home"
-                        >
-                          <Home className="w-5 h-5" />
-                        </button>
-                      )}
-                    </>
-                  )
-                })()}
-              </nav>
+              /* Collapsed navigation - empty, use header icon to go home */
+              <nav className="space-y-2" />
             ) : (
               /* Full navigation when expanded */
               <nav className="space-y-2">
@@ -429,8 +424,6 @@ export function PublicSiteLayout({
                   ? fullSiteStructure
                   : siteStructure
 
-                const showHomeButton = sidebarBehavior === 'contextual' && siteStructure.length === 1
-
                 // In contextual mode with single skript, chevron is just decorative (always expanded)
                 const isContextualSingleSkript = sidebarBehavior === 'contextual' &&
                   siteStructure.length === 1 &&
@@ -438,23 +431,6 @@ export function PublicSiteLayout({
 
                 return (
                   <>
-                    {/* Home button - only show when viewing a single collection in contextual mode */}
-                    {showHomeButton && (
-                      <button
-                        onClick={() => {
-                          // Navigate to root page (teacher or org)
-                          // Strip trailing /c for org pages (basePrefix includes /c for content routes)
-                          const homeUrl = basePrefix.replace(/\/c$/, '')
-                          router.push(homeUrl)
-                          setIsSidebarOpen(false)
-                        }}
-                        className="flex items-center w-full text-left py-1 text-sm font-medium rounded-md transition-colors text-muted-foreground hover:bg-muted hover:text-foreground mb-4"
-                      >
-                        <Home className="w-4 h-4 mr-2 flex-shrink-0" />
-                        <span>Home</span>
-                      </button>
-                    )}
-                    
                     {displayStructure.map((collection, index) => (
                 <div key={collection.id} className={`${index > 0 ? 'mt-5' : ''} mb-4`}>
                   {/* Collection Title - Docusaurus-style category header */}
@@ -511,8 +487,8 @@ export function PublicSiteLayout({
                             )}
                           </div>
 
-                          {/* Pages - with smooth slide transition */}
-                          <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${
+                          {/* Pages - with smooth slide transition (disabled until initialized to prevent flash) */}
+                          <div className={`grid ${isInitialized ? 'transition-[grid-template-rows] duration-200 ease-out' : ''} ${
                             expandedSkripts.includes(skript.id) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
                           }`}>
                             <div className="overflow-hidden">
@@ -593,8 +569,8 @@ export function PublicSiteLayout({
                         </button>
                       </div>
 
-                      {/* Root Skript Pages - with smooth slide transition */}
-                      <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${
+                      {/* Root Skript Pages - with smooth slide transition (disabled until initialized) */}
+                      <div className={`grid ${isInitialized ? 'transition-[grid-template-rows] duration-200 ease-out' : ''} ${
                         expandedSkripts.includes(skript.id) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
                       }`}>
                         <div className="overflow-hidden">
