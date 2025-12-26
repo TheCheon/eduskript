@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
-import { ChevronLeft, Building2, FileText, Globe, LayoutDashboard } from 'lucide-react'
+import { ChevronLeft, Building2, FileText, Globe, LayoutDashboard, X } from 'lucide-react'
+import { OrgIcon } from '@/components/org-icon'
 import Link from 'next/link'
 import { OrgNav } from '@/components/dashboard/org-nav'
 
@@ -17,7 +18,8 @@ interface Organization {
   name: string
   slug: string
   description: string | null
-  logoUrl: string | null
+  showIcon: boolean
+  iconUrl: string | null
   requireEmailDomain: string | null
   allowTeacherCustomDomains: boolean
   billingPlan: string
@@ -42,10 +44,12 @@ export default function OrgSettingsPage({ params }: { params: Promise<{ orgId: s
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    logoUrl: '',
+    showIcon: true,
+    iconUrl: '',
     requireEmailDomain: '',
     allowTeacherCustomDomains: false,
   })
+  const [uploadingIcon, setUploadingIcon] = useState(false)
 
   // Fetch organization
   useEffect(() => {
@@ -67,7 +71,8 @@ export default function OrgSettingsPage({ params }: { params: Promise<{ orgId: s
         setFormData({
           name: data.organization.name,
           description: data.organization.description || '',
-          logoUrl: data.organization.logoUrl || '',
+          showIcon: data.organization.showIcon ?? true,
+          iconUrl: data.organization.iconUrl || '',
           requireEmailDomain: data.organization.requireEmailDomain || '',
           allowTeacherCustomDomains: data.organization.allowTeacherCustomDomains || false,
         })
@@ -97,7 +102,8 @@ export default function OrgSettingsPage({ params }: { params: Promise<{ orgId: s
         body: JSON.stringify({
           name: formData.name,
           description: formData.description || null,
-          logoUrl: formData.logoUrl || null,
+          showIcon: formData.showIcon,
+          iconUrl: formData.iconUrl || null,
           requireEmailDomain: formData.requireEmailDomain || null,
           allowTeacherCustomDomains: formData.allowTeacherCustomDomains,
         }),
@@ -178,15 +184,102 @@ export default function OrgSettingsPage({ params }: { params: Promise<{ orgId: s
             />
           </div>
 
-          <div>
-            <Label htmlFor="logoUrl">Logo URL</Label>
-            <Input
-              id="logoUrl"
-              type="url"
-              value={formData.logoUrl}
-              onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
-              placeholder="https://example.com/logo.png"
-            />
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="showIcon">Show Icon</Label>
+                <p className="text-xs text-muted-foreground">
+                  Display an icon for your organization
+                </p>
+              </div>
+              <Switch
+                id="showIcon"
+                checked={formData.showIcon}
+                onCheckedChange={(checked) =>
+                  setFormData({ ...formData, showIcon: checked })
+                }
+              />
+            </div>
+
+            {formData.showIcon && (
+              <div className="space-y-3">
+                <Label>Organization Icon</Label>
+                <div className="flex items-center gap-4">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-lg border bg-muted">
+                    <OrgIcon
+                      org={{ showIcon: true, iconUrl: formData.iconUrl || null, name: formData.name }}
+                      size={32}
+                      className="text-muted-foreground"
+                    />
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    {formData.iconUrl ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">Custom icon</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setFormData({ ...formData, iconUrl: '' })}
+                          className="h-6 px-2 text-destructive hover:text-destructive"
+                        >
+                          <X className="h-3 w-3 mr-1" />
+                          Remove
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Using default icon</span>
+                    )}
+                    <div>
+                      <input
+                        type="file"
+                        id="iconUpload"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+
+                          setUploadingIcon(true)
+                          try {
+                            const formDataUpload = new FormData()
+                            formDataUpload.append('file', file)
+                            formDataUpload.append('orgId', orgId)
+
+                            const res = await fetch('/api/upload/org-icon', {
+                              method: 'POST',
+                              body: formDataUpload,
+                            })
+
+                            if (!res.ok) {
+                              const data = await res.json()
+                              throw new Error(data.error || 'Upload failed')
+                            }
+
+                            const { url } = await res.json()
+                            setFormData({ ...formData, iconUrl: url })
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : 'Failed to upload icon')
+                          } finally {
+                            setUploadingIcon(false)
+                            e.target.value = ''
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={uploadingIcon}
+                        onClick={() => document.getElementById('iconUpload')?.click()}
+                      >
+                        {uploadingIcon ? 'Uploading...' : 'Upload custom icon'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="border-t pt-6">

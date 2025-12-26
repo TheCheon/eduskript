@@ -153,7 +153,8 @@ export default async function OrgTeacherContentPage({ params, searchParams }: Pa
       id: true,
       name: true,
       description: true,
-      logoUrl: true
+      showIcon: true,
+      iconUrl: true
     }
   })
 

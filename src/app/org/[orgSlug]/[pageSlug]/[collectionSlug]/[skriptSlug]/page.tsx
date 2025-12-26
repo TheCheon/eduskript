@@ -115,7 +115,8 @@ export default async function OrgTeacherSkriptPage({ params }: PageProps) {
       id: true,
       name: true,
       description: true,
-      logoUrl: true
+      showIcon: true,
+      iconUrl: true
     }
   })
 

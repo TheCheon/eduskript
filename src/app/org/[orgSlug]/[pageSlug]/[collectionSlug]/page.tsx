@@ -107,7 +107,8 @@ export default async function OrgTeacherCollectionPage({ params }: PageProps) {
       id: true,
       name: true,
       description: true,
-      logoUrl: true
+      showIcon: true,
+      iconUrl: true
     }
   })
 

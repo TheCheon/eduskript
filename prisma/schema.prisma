@@ -704,7 +704,8 @@ model Organization {
   name        String                          // "Eduskript", "Springfield High"
   slug        String   @unique                // URL slug for org page
   description String?
-  logoUrl     String?  @map("logo_url")
+  showIcon    Boolean  @default(true) @map("show_icon")
+  iconUrl     String?  @map("icon_url")
 
   // Settings
   allowMemberPages          Boolean @default(true) @map("allow_member_pages")  // Members can have personal pages

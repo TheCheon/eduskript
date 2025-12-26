@@ -19,7 +19,8 @@ export async function GET(
         name: true,
         slug: true,
         description: true,
-        logoUrl: true,
+        showIcon: true,
+        iconUrl: true,
         allowMemberPages: true,
         allowTeacherCustomDomains: true,
         requireEmailDomain: true,
@@ -54,7 +55,7 @@ export async function PATCH(
 
   try {
     const body = await request.json()
-    const { name, description, logoUrl, allowMemberPages, allowTeacherCustomDomains, requireEmailDomain } = body
+    const { name, description, showIcon, iconUrl, allowMemberPages, allowTeacherCustomDomains, requireEmailDomain } = body
 
     // Validate name if provided
     if (name !== undefined && (!name || typeof name !== 'string' || name.trim().length === 0)) {
@@ -78,7 +79,8 @@ export async function PATCH(
     const updateData: Record<string, unknown> = {}
     if (name !== undefined) updateData.name = name.trim()
     if (description !== undefined) updateData.description = description || null
-    if (logoUrl !== undefined) updateData.logoUrl = logoUrl || null
+    if (showIcon !== undefined) updateData.showIcon = Boolean(showIcon)
+    if (iconUrl !== undefined) updateData.iconUrl = iconUrl || null
     if (allowMemberPages !== undefined) updateData.allowMemberPages = Boolean(allowMemberPages)
     if (allowTeacherCustomDomains !== undefined) updateData.allowTeacherCustomDomains = Boolean(allowTeacherCustomDomains)
     if (requireEmailDomain !== undefined) {
@@ -93,7 +95,8 @@ export async function PATCH(
         name: true,
         slug: true,
         description: true,
-        logoUrl: true,
+        showIcon: true,
+        iconUrl: true,
         allowMemberPages: true,
         allowTeacherCustomDomains: true,
         requireEmailDomain: true,

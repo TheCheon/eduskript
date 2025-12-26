@@ -94,7 +94,8 @@ export default async function OrgSkriptPage({ params }: SkriptPageProps) {
       id: true,
       name: true,
       description: true,
-      logoUrl: true
+      showIcon: true,
+      iconUrl: true
     }
   })
 
@@ -239,7 +240,7 @@ export default async function OrgSkriptPage({ params }: SkriptPageProps) {
       pageSlug: `org/${orgSlug}`,
       pageName: organization.name,
       pageDescription: organization.description,
-      pageIcon: organization.logoUrl,
+      pageIcon: organization.showIcon ? (organization.iconUrl || 'default') : null,
       bio: null,
       title: null
     }

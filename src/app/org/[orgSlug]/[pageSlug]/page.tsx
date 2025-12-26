@@ -98,7 +98,8 @@ export default async function OrgTeacherPage({ params }: OrgTeacherPageProps) {
       id: true,
       name: true,
       description: true,
-      logoUrl: true
+      showIcon: true,
+      iconUrl: true
     }
   })
 

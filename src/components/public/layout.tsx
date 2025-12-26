@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { ChevronDown, ChevronRight, Menu, X, Home, ChevronLeft } from 'lucide-react'
+import { ChevronDown, ChevronRight, Menu, X, Home, ChevronLeft, NotebookPen } from 'lucide-react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { ReadingProgress } from './reading-progress'
@@ -305,8 +305,12 @@ export function PublicSiteLayout({
             {isSidebarCollapsed ? (
               /* Collapsed sidebar header */
               <div className="flex flex-col items-center gap-2">
-                {/* Icon or placeholder */}
-                {teacher.pageIcon ? (
+                {/* Icon: custom URL, default NotebookPen, or letter placeholder */}
+                {teacher.pageIcon === 'default' ? (
+                  <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                    <NotebookPen className="w-6 h-6 text-muted-foreground" />
+                  </div>
+                ) : teacher.pageIcon ? (
                   <div className="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-background">
                     <Image
                       src={teacher.pageIcon}
@@ -339,7 +343,12 @@ export function PublicSiteLayout({
               <>
                 {/* Row 1: Icon + Page name */}
                 <div className="flex items-center justify-center gap-3">
-                  {teacher.pageIcon ? (
+                  {/* Icon: custom URL, default NotebookPen, or letter placeholder */}
+                  {teacher.pageIcon === 'default' ? (
+                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                      <NotebookPen className="w-6 h-6 text-muted-foreground" />
+                    </div>
+                  ) : teacher.pageIcon ? (
                     <div className="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-background">
                       <Image
                         src={teacher.pageIcon}

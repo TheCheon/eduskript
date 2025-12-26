@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: OrgPageProps): Promise<Metada
   try {
     const organization = await prisma.organization.findUnique({
       where: { slug: orgSlug },
-      select: { name: true, description: true, logoUrl: true },
+      select: { name: true, description: true, showIcon: true, iconUrl: true },
     })
 
     if (!organization) {
@@ -45,7 +45,7 @@ export async function generateMetadata({ params }: OrgPageProps): Promise<Metada
         description: organization.description || `${organization.name} on Eduskript`,
         type: 'website',
         siteName: organization.name,
-        ...(organization.logoUrl && { images: [organization.logoUrl] }),
+        ...(organization.showIcon && organization.iconUrl && { images: [organization.iconUrl] }),
       },
     }
   } catch (error) {
@@ -126,12 +126,14 @@ export default async function OrgPage({ params }: OrgPageProps) {
     : { collections: [], rootSkripts: [] }
 
   // Create a "teacher" object for PublicSiteLayout (org acts as page owner)
+  // For pageIcon: if showIcon is false, use null; if showIcon is true but no custom iconUrl,
+  // we'll rely on the OrgIcon component to show the default NotebookPen icon
   const orgAsTeacher = {
     name: organization.name,
     pageSlug: `org/${orgSlug}`, // Used for localStorage keys
     pageName: organization.name,
     pageDescription: organization.description,
-    pageIcon: organization.logoUrl,
+    pageIcon: organization.showIcon ? (organization.iconUrl || 'default') : null,
     bio: null,
     title: null
   }
