@@ -714,6 +714,7 @@ export function PageBuilderInterface({ context = { type: 'user' } }: PageBuilder
             }}
             draggedItem={activeItem}
             onRefresh={() => setRefreshTrigger(prev => prev + 1)}
+            context={context}
           />
 
           {/* Import/Export - under page builder */}

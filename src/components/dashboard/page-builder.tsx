@@ -28,6 +28,11 @@ interface PageItem {
   }
 }
 
+interface PageBuilderContext {
+  type: 'user' | 'organization'
+  organizationId?: string
+}
+
 interface PageBuilderProps {
   items: PageItem[]
   onItemsChange?: (items: PageItem[], changedCollectionIds?: Set<string>) => void
@@ -41,6 +46,7 @@ interface PageBuilderProps {
     description?: string
   } | null
   onRefresh?: () => void
+  context?: PageBuilderContext
 }
 
 export function PageBuilder({
@@ -50,8 +56,13 @@ export function PageBuilder({
   expandedCollections = [],
   onToggleCollection,
   draggedItem,
-  onRefresh
+  onRefresh,
+  context = { type: 'user' }
 }: PageBuilderProps) {
+  // Determine the frontpage URL based on context
+  const frontpageUrl = context.type === 'organization' && context.organizationId
+    ? `/dashboard/org/${context.organizationId}/frontpage`
+    : '/dashboard/frontpage'
   const { data: session } = useSession()
   const [seeding, setSeeding] = useState(false)
   const [seedError, setSeedError] = useState('')
@@ -124,7 +135,7 @@ export function PageBuilder({
             Your Page
           </CardTitle>
           <div className="flex gap-2">
-            <Link href="/dashboard/frontpage">
+            <Link href={frontpageUrl}>
               <Button
                 variant="outline"
                 size="sm"
