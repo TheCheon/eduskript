@@ -16,17 +16,21 @@ export function ModCalc() {
 
   useEffect(() => {
     if (!isNaN(base) && !isNaN(exponent) && modulus && modulus !== 0) {
-      setNonsense(false)
       try {
         const b = BigInt(base)
         const e = BigInt(exponent)
         const m = BigInt(modulus)
         const res = b ** e % m
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- derived state from inputs
         setResult(Number(res))
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setNonsense(false)
       } catch {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setNonsense(true)
       }
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNonsense(true)
     }
   }, [base, exponent, modulus])
@@ -63,7 +67,7 @@ export function ModCalc() {
 
         {nonsense && (
           <div className="absolute top-2 w-full text-center font-bold text-red-500 hover:text-red-600">
-            Let's try not to break maths 😬👍
+            Let&apos;s try not to break maths 😬👍
           </div>
         )}
       </div>

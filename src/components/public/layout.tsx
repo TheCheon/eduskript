@@ -163,6 +163,7 @@ export function PublicSiteLayout({
 
   // Set initialized after first render
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional hydration pattern
     setIsInitialized(true)
   }, [])
 

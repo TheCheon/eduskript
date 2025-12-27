@@ -24,6 +24,7 @@ export function ColorTitleHeading({ id, children, className = '' }: ColorTitleHe
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional hydration pattern
     setMounted(true)
   }, [])
 
