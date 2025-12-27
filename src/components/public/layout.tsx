@@ -81,12 +81,13 @@ export function PublicSiteLayout({
 
   // Detect if we're on a custom domain (not eduskript.org or localhost)
   // On custom domains, use root-relative URLs (no pageSlug prefix)
-  // Uses lazy initializer to avoid hydration mismatch and setState in effect
-  const [isCustomDomain] = useState(() => {
-    if (typeof window === 'undefined') return false
+  // Must use useEffect because window is not available during SSR
+  const [isCustomDomain, setIsCustomDomain] = useState(false)
+  useEffect(() => {
     const hostname = window.location.hostname
-    return !['localhost', 'eduskript.org', 'www.eduskript.org'].includes(hostname)
-  })
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Required: domain detection only possible after mount
+    setIsCustomDomain(!['localhost', 'eduskript.org', 'www.eduskript.org'].includes(hostname))
+  }, [])
 
   // Compute the base URL prefix for navigation
   // On custom domains: use root-relative URLs (e.g., /collection/skript/page)
