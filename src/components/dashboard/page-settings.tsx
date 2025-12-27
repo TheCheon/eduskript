@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation'
 import { Save, Loader2, FileText, Upload, X, ExternalLink, Globe, Wand2 } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { InlineMarkdown } from '@/components/ui/inline-markdown'
 
 export function PageSettings() {
   const { data: session, update } = useSession()
@@ -333,7 +334,7 @@ export function PageSettings() {
                 </h3>
                 {pageDescription && (
                   <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                    {pageDescription}
+                    <InlineMarkdown>{pageDescription}</InlineMarkdown>
                   </p>
                 )}
               </div>

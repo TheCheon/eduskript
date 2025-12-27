@@ -2330,10 +2330,9 @@ plots
               </Button>
               <button
                 onClick={() => setLineWrapping(!lineWrapping)}
-                className="h-6 w-6 p-0 rounded-md flex items-center justify-center transition-colors hover:bg-accent hover:text-accent-foreground"
-                style={lineWrapping ? {
-                  backgroundColor: resolvedTheme === 'dark' ? '#374151' : '#d1d5db'
-                } : undefined}
+                className={`h-6 w-6 p-0 rounded-md flex items-center justify-center transition-colors hover:bg-accent hover:text-accent-foreground ${
+                  lineWrapping ? 'bg-muted' : ''
+                }`}
                 title={lineWrapping ? 'Disable line wrapping' : 'Enable line wrapping'}
               >
                 <WrapText className="w-3 h-3" />

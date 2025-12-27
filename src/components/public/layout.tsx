@@ -11,6 +11,7 @@ import { PublicThemeToggle } from './theme-toggle'
 import { AuthButton } from './auth-button'
 import { FontSizeControls } from './font-size-controls'
 import { SyncStatusButton } from '@/components/ui/sync-status'
+import { InlineMarkdown } from '@/components/ui/inline-markdown'
 import { useLayout } from '@/contexts/layout-context'
 import { TeacherClassProvider } from '@/contexts/teacher-class-context'
 import { AdminToolbox } from './admin-toolbox'
@@ -412,10 +413,10 @@ export function PublicSiteLayout({
                   </div>
                 </button>
 
-                {/* Row 2: Description (if exists) */}
+                {/* Row 2: Description (if exists) - supports markdown links */}
                 {teacher.pageDescription && (
                   <p className="text-sm text-muted-foreground mt-2 text-center">
-                    {teacher.pageDescription}
+                    <InlineMarkdown>{teacher.pageDescription}</InlineMarkdown>
                   </p>
                 )}
 
