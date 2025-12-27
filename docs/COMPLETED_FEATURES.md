@@ -2,7 +2,46 @@
 
 This file tracks features that have been fully implemented and deployed.
 
-*Last updated: 2025-11-22*
+*Last updated: 2025-12-27*
+
+---
+
+## AI Edit with Streaming & Merge Editor (December 2025)
+
+**Goal:** Let teachers use AI to edit content with VS Code-like review experience.
+
+**Implementation:**
+- **Merge Editor**: CodeMirror `unifiedMergeView` with per-chunk accept/reject buttons
+- **Streaming**: Two-phase (plan → generate each page) with SSE real-time progress
+- **Progressive Review**: Review completed pages while AI generates remaining ones
+- **Early Save**: "Save X Ready" button for partial results
+
+**Key Files:**
+- `src/components/ai/merge-editor.tsx` - Unified merge view
+- `src/components/ai/ai-edit-modal.tsx` - Progressive UI
+- `src/hooks/use-ai-edit.ts` - SSE handling
+- `src/app/api/ai/edit/route.ts` - Streaming API
+
+---
+
+## Custom AI Prompts (December 2025)
+
+**Goal:** Organizations and teachers can configure custom AI instructions.
+
+**Implementation:**
+- **Organization Prompts**: Org admins set guidelines for all teachers
+- **Teacher Prompts**: Personal preferences in page settings
+- **Hierarchy**: Org → Teacher (both prepended to AI context)
+
+**UI Locations:**
+- Org admins: `/dashboard/org/[orgId]/settings` → AI Assistant
+- Teachers: `/dashboard/settings` → AI Assistant
+
+**Key Files:**
+- `prisma/schema.prisma` - `aiSystemPrompt` on User model
+- `src/app/dashboard/org/[orgId]/settings/page.tsx` - Org prompt UI
+- `src/components/dashboard/page-settings.tsx` - Teacher prompt UI
+- `src/app/api/user/ai-prompt/route.ts` - Teacher prompt API
 
 ---
 
