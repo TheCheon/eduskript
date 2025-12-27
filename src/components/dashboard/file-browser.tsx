@@ -95,10 +95,14 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
     return files.find(f => getFileName(f) === schemaName)
   }
 
-  // Filter out auto-generated SVG files (they're paired with .excalidraw files)
+  // Filter out auto-generated files
   const shouldShowFile = (filename: string) => {
     // Don't show .excalidraw.light.svg or .excalidraw.dark.svg files
     if (filename.match(/\.excalidraw\.(light|dark)\.svg$/)) {
+      return false
+    }
+    // Don't show database schema excalidraw files (they're shown inline with the DB)
+    if (filename.match(/-schema\.excalidraw$/)) {
       return false
     }
     return true
