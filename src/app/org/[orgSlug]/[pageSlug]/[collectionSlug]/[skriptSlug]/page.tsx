@@ -243,7 +243,7 @@ export default async function OrgTeacherSkriptPage({ params }: PageProps) {
       typographyPreference={teacher.typographyPreference as 'modern' | 'classic' || 'modern'}
       routePrefix={`/org/${orgSlug}/${pageSlug}`}
     >
-      <div id="paper" className="paper-responsive py-24 bg-card dark:bg-slate-900/80 paper-shadow border border-border dark:border-white/10">
+      <div id="paper" className="paper-responsive py-24 bg-card paper-shadow border border-border">
         {skript.frontPage?.content ? (
           <article className="prose-theme">
             <ServerMarkdownRenderer

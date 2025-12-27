@@ -207,7 +207,7 @@ export default async function OrgTeacherCollectionPage({ params }: PageProps) {
       typographyPreference={teacher.typographyPreference as 'modern' | 'classic' || 'modern'}
       routePrefix={`/org/${orgSlug}/${pageSlug}`}
     >
-      <div id="paper" className="paper-responsive py-24 bg-card dark:bg-slate-900/80 paper-shadow border border-border dark:border-white/10">
+      <div id="paper" className="paper-responsive py-24 bg-card paper-shadow border border-border">
         <div className="text-center py-8">
           <h1 className="text-3xl font-bold mb-4">{collection.title}</h1>
           {collection.description && (

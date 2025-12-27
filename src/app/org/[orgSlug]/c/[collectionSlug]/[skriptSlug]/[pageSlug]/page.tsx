@@ -221,7 +221,7 @@ export default async function OrgPublicPage({ params }: PageProps) {
       routePrefix={`/org/${orgSlug}/c`}
       pageId={page.id}
     >
-      <div id="paper" className="paper-responsive py-24 bg-card dark:bg-slate-900/80 paper-shadow border border-border dark:border-white/10">
+      <div id="paper" className="paper-responsive py-24 bg-card paper-shadow border border-border">
         <article className="prose-theme">
           <AnnotationWrapper pageId={page.id} content={page.content} publicAnnotations={publicAnnotations} publicSnaps={publicSnaps} isPageAuthor={isPageAuthor}>
             <ServerMarkdownRenderer

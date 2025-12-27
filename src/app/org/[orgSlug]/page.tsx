@@ -154,7 +154,7 @@ export default async function OrgPage({ params }: OrgPageProps) {
       routePrefix={`/org/${orgSlug}/c`}
       pageId={frontPage?.id}
     >
-      <div id="paper" className="paper-responsive py-24 bg-card dark:bg-slate-900/80 paper-shadow border border-border dark:border-white/10">
+      <div id="paper" className="paper-responsive py-24 bg-card paper-shadow border border-border">
         {/* Preview mode indicator for unpublished frontpage */}
         {isPreviewMode && (
           <div className="flex items-center gap-2 px-3 py-1.5 mb-4 text-sm rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800/50">
