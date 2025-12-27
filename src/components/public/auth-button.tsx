@@ -67,10 +67,12 @@ export function AuthButton({ pageId, teacherPageSlug }: AuthButtonProps) {
     const isCustomDomain = !['localhost', 'eduskript.org', 'www.eduskript.org'].includes(hostname)
 
     if (isCustomDomain && pageSlug) {
-      // Redirect to main site for auth, with callback to eduskript.org equivalent URL
-      // Custom domain path: /grundjahr/... -> main site path: /ig/grundjahr/...
-      const mainSiteCallback = `https://eduskript.org/${pageSlug}${pathname}`
-      const baseSignIn = `https://eduskript.org/auth/signin?from=${encodeURIComponent(pageSlug)}&callbackUrl=${encodeURIComponent(mainSiteCallback)}`
+      // After OAuth completes, redirect to cross-domain endpoint which will:
+      // 1. Generate a one-time token
+      // 2. Redirect to the custom domain with the token
+      // 3. Custom domain callback sets the session cookie
+      const crossDomainCallback = `https://eduskript.org/api/auth/cross-domain?returnDomain=${encodeURIComponent(hostname)}&returnPath=${encodeURIComponent(pathname)}`
+      const baseSignIn = `https://eduskript.org/auth/signin?from=${encodeURIComponent(pageSlug)}&callbackUrl=${encodeURIComponent(crossDomainCallback)}`
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Required: domain detection only possible after mount
       setSignInUrl(baseSignIn)
     }

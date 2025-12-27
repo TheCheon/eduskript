@@ -160,6 +160,9 @@ model User {
   examSubmissions      ExamSubmission[] @relation("StudentExamSubmissions")
   gradedExamSubmissions ExamSubmission[] @relation("GradedExamSubmissions")
 
+  // Cross-domain auth tokens
+  crossDomainTokens CrossDomainToken[]
+
   @@unique([oauthProvider, oauthProviderId]) // Students identified by OAuth provider
   @@map("users")
 }
@@ -875,4 +878,22 @@ model ExamSubmission {
   @@index([pageId])
   @@index([studentId])
   @@map("exam_submissions")
+}
+
+// Cross-domain authentication tokens
+// Used to transfer sessions from eduskript.org to custom domains
+model CrossDomainToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  domain    String   // Target custom domain
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at") // Null until token is consumed
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([expiresAt])
+  @@map("cross_domain_tokens")
 }
