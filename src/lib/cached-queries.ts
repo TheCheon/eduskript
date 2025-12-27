@@ -668,6 +668,35 @@ export const getOrgPublishedPage = (
 ) =>
   unstable_cache(
     async () => {
+      // First, verify this collection is actually in the org's page layout
+      // This prevents accessing content via org routes that isn't configured for the org
+      const orgPageLayout = await prisma.orgPageLayout.findUnique({
+        where: { organizationId: orgId },
+        include: {
+          items: {
+            where: { type: 'collection' }
+          }
+        }
+      })
+
+      if (!orgPageLayout) return null
+
+      // Get collection IDs that are in the org's page layout
+      const configuredCollectionIds = orgPageLayout.items.map(item => item.contentId)
+
+      // Find the collection by slug first to get its ID
+      const collectionCheck = await prisma.collection.findFirst({
+        where: { slug: collectionSlug },
+        select: { id: true }
+      })
+
+      if (!collectionCheck) return null
+
+      // Verify this collection is configured in the org's page layout
+      if (!configuredCollectionIds.includes(collectionCheck.id)) {
+        return null
+      }
+
       // Get all admin/owner user IDs for this org
       const adminMembers = await prisma.organizationMember.findMany({
         where: {

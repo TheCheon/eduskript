@@ -37,6 +37,12 @@ vi.mock('@/lib/prisma', () => ({
     skript: {
       findFirst: vi.fn(),
     },
+    orgPageLayout: {
+      findUnique: vi.fn(),
+    },
+    organizationMember: {
+      findMany: vi.fn(),
+    },
   },
 }))
 
@@ -48,6 +54,7 @@ import {
   getPublishedPage,
   getAllPublishedCollections,
   getTeacherHomepageContent,
+  getOrgPublishedPage,
 } from '@/lib/cached-queries'
 
 describe('cached-queries', () => {
@@ -400,5 +407,168 @@ describe('revalidateTag integration', () => {
     expect(revalidateTag).toHaveBeenNthCalledWith(2, 'skript:john:math:algebra', 'default')
     expect(revalidateTag).toHaveBeenNthCalledWith(3, 'collection:john:math', 'default')
     expect(revalidateTag).toHaveBeenNthCalledWith(4, 'teacher-content:john', 'default')
+  })
+})
+
+describe('getOrgPublishedPage - Access Control', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('should return null when org has no page layout', async () => {
+    vi.mocked(prisma.orgPageLayout.findUnique).mockResolvedValue(null)
+
+    const result = await getOrgPublishedPage('org-1', 'my-org', 'math', 'algebra', 'intro')
+
+    expect(result).toBeNull()
+    // Should not proceed to check collection or members
+    expect(prisma.collection.findFirst).not.toHaveBeenCalled()
+    expect(prisma.organizationMember.findMany).not.toHaveBeenCalled()
+  })
+
+  it('should return null when collection is not in org page layout', async () => {
+    // Org has a page layout with only collection-A configured
+    vi.mocked(prisma.orgPageLayout.findUnique).mockResolvedValue({
+      id: 'layout-1',
+      organizationId: 'org-1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      items: [
+        { id: 'item-1', orgPageLayoutId: 'layout-1', type: 'collection', contentId: 'collection-A', order: 0, createdAt: new Date() }
+      ]
+    })
+
+    // But we're trying to access collection-B
+    vi.mocked(prisma.collection.findFirst).mockResolvedValue({
+      id: 'collection-B',
+      title: 'Math',
+      slug: 'math',
+      description: null,
+      isPublished: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+
+    const result = await getOrgPublishedPage('org-1', 'my-org', 'math', 'algebra', 'intro')
+
+    expect(result).toBeNull()
+    // Should check the page layout but not proceed to get members since collection not configured
+    expect(prisma.orgPageLayout.findUnique).toHaveBeenCalled()
+    expect(prisma.organizationMember.findMany).not.toHaveBeenCalled()
+  })
+
+  it('should return null when collection slug does not exist', async () => {
+    vi.mocked(prisma.orgPageLayout.findUnique).mockResolvedValue({
+      id: 'layout-1',
+      organizationId: 'org-1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      items: [
+        { id: 'item-1', orgPageLayoutId: 'layout-1', type: 'collection', contentId: 'collection-A', order: 0, createdAt: new Date() }
+      ]
+    })
+
+    // Collection slug doesn't exist
+    vi.mocked(prisma.collection.findFirst)
+      .mockResolvedValueOnce(null) // First call for slug check
+
+    const result = await getOrgPublishedPage('org-1', 'my-org', 'nonexistent', 'algebra', 'intro')
+
+    expect(result).toBeNull()
+  })
+
+  it('should return page when collection IS in org page layout', async () => {
+    const mockPage = {
+      id: 'page-1',
+      title: 'Introduction',
+      slug: 'intro',
+      content: '# Hello',
+      order: 1,
+      isPublished: true,
+      pageType: 'normal',
+      examSettings: null,
+    }
+
+    // Org has collection-A configured
+    vi.mocked(prisma.orgPageLayout.findUnique).mockResolvedValue({
+      id: 'layout-1',
+      organizationId: 'org-1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      items: [
+        { id: 'item-1', orgPageLayoutId: 'layout-1', type: 'collection', contentId: 'collection-A', order: 0, createdAt: new Date() }
+      ]
+    })
+
+    // First findFirst call - check collection exists by slug
+    vi.mocked(prisma.collection.findFirst)
+      .mockResolvedValueOnce({
+        id: 'collection-A', // Same as configured!
+      })
+      // Second findFirst call - get full collection data
+      .mockResolvedValueOnce({
+        id: 'collection-A',
+        title: 'Math',
+        slug: 'math',
+        description: 'Math collection',
+        isPublished: true,
+        accentColor: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        collectionSkripts: [{
+          id: 'cs-1',
+          collectionId: 'collection-A',
+          skriptId: 'skript-1',
+          userId: 'admin-1',
+          order: 1,
+          createdAt: new Date(),
+          skript: {
+            id: 'skript-1',
+            title: 'Algebra',
+            slug: 'algebra',
+            isPublished: true,
+            pages: [mockPage],
+          },
+        }],
+      })
+
+    // Admin members
+    vi.mocked(prisma.organizationMember.findMany).mockResolvedValue([
+      { userId: 'admin-1' }
+    ])
+
+    const result = await getOrgPublishedPage('org-1', 'my-org', 'math', 'algebra', 'intro')
+
+    expect(result).not.toBeNull()
+    expect(result?.page.slug).toBe('intro')
+    expect(result?.collection.id).toBe('collection-A')
+  })
+
+  it('should prevent access to content not configured in org layout (security test)', async () => {
+    // This is the critical security test - an org admin owns content but hasn't
+    // configured it in the org's page layout. It should NOT be accessible.
+
+    // Org only has "tutorial" collection configured
+    vi.mocked(prisma.orgPageLayout.findUnique).mockResolvedValue({
+      id: 'layout-1',
+      organizationId: 'org-1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      items: [
+        { id: 'item-1', orgPageLayoutId: 'layout-1', type: 'collection', contentId: 'tutorial-collection', order: 0, createdAt: new Date() }
+      ]
+    })
+
+    // Attacker tries to access "secret" collection owned by same admin but not configured
+    vi.mocked(prisma.collection.findFirst).mockResolvedValueOnce({
+      id: 'secret-collection', // NOT in page layout items!
+    })
+
+    const result = await getOrgPublishedPage('org-1', 'my-org', 'secret', 'private-skript', 'page')
+
+    // Should be blocked because 'secret-collection' is not in the configured items
+    expect(result).toBeNull()
+    // Should never reach member lookup since access blocked at page layout check
+    expect(prisma.organizationMember.findMany).not.toHaveBeenCalled()
   })
 })
