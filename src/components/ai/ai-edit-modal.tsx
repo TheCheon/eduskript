@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Wand2, Loader2, ArrowLeft } from 'lucide-react'
+import { useState, useCallback } from 'react'
+import { Wand2, Loader2, X, Check, FileText, Plus, ChevronDown, ChevronRight } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -10,8 +10,10 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { Progress } from '@/components/ui/progress'
+import { Badge } from '@/components/ui/badge'
 import { useAIEdit } from '@/hooks/use-ai-edit'
-import { EditProposalReview } from './edit-proposal-review'
+import { MergeEditor, SimpleEditor } from './merge-editor'
 import type { PageEdit } from '@/lib/ai/types'
 
 interface AIEditModalProps {
@@ -27,6 +29,11 @@ interface AIEditModalProps {
   onEditsApplied?: (newContent?: string) => void
 }
 
+// Helper to get unique key for an edit
+function getEditKey(edit: PageEdit): string {
+  return edit.pageId ?? `new:${edit.pageSlug}`
+}
+
 export function AIEditModal({
   open,
   onOpenChange,
@@ -38,30 +45,85 @@ export function AIEditModal({
   onEditsApplied,
 }: AIEditModalProps) {
   const [instruction, setInstruction] = useState('')
-  const { proposal, isLoading, error, requestEdit, applyEdits, clearProposal } =
-    useAIEdit({ skriptId, pageId, currentContent })
+  const {
+    proposal,
+    isLoading,
+    error,
+    plan,
+    currentEditIndex,
+    completedEdits,
+    requestEdit,
+    applyEdits,
+    clearProposal,
+    cancelRequest,
+  } = useAIEdit({ skriptId, pageId, currentContent })
+
+  // Track merged content for each page (user can edit while streaming)
+  const [mergedContent, setMergedContent] = useState<Record<string, string>>({})
+  const [expandedEdits, setExpandedEdits] = useState<Set<string>>(new Set())
+  const [isSaving, setIsSaving] = useState(false)
+
+  const handleContentChange = useCallback((key: string, content: string) => {
+    setMergedContent(prev => ({ ...prev, [key]: content }))
+  }, [])
+
+  const toggleExpanded = (key: string) => {
+    setExpandedEdits(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!instruction.trim() || isLoading) return
+    // Reset state for new request
+    setMergedContent({})
+    setExpandedEdits(new Set())
     await requestEdit(instruction.trim())
   }
 
-  const handleAccept = async (edits: PageEdit[]) => {
-    await applyEdits(edits)
-    // Find the edit for the focused page and pass its content back
-    const focusedEdit = pageId ? edits.find(e => e.pageId === pageId) : undefined
-    onEditsApplied?.(focusedEdit?.proposedContent)
-    onOpenChange(false)
+  const handleSave = async () => {
+    // Use completed edits (either from streaming or final proposal)
+    const editsToApply = (proposal?.edits || completedEdits).map(edit => {
+      const key = getEditKey(edit)
+      return {
+        ...edit,
+        proposedContent: mergedContent[key] ?? edit.proposedContent,
+      }
+    })
+
+    if (editsToApply.length === 0) return
+
+    setIsSaving(true)
+    try {
+      await applyEdits(editsToApply)
+      // Find the edit for the focused page and pass its content back
+      const focusedEdit = pageId ? editsToApply.find(e => e.pageId === pageId) : undefined
+      onEditsApplied?.(focusedEdit?.proposedContent)
+      onOpenChange(false)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleCancel = () => {
+    if (isLoading) {
+      cancelRequest()
+    }
     clearProposal()
+    setMergedContent({})
+    setExpandedEdits(new Set())
   }
 
   const handleClose = (open: boolean) => {
     if (!open) {
-      clearProposal()
+      handleCancel()
       setInstruction('')
     }
     onOpenChange(open)
@@ -71,16 +133,173 @@ export function AIEditModal({
     ? `Editing: ${pageTitle} (in ${skriptTitle})`
     : `Editing: ${skriptTitle}`
 
+  // Calculate progress
+  const totalEdits = plan?.totalEdits || 0
+  const progressPercent = totalEdits > 0 ? (currentEditIndex / totalEdits) * 100 : 0
+  const isComplete = proposal && !isLoading
+
+  // Show progressive view when we have a plan or completed edits
+  const showProgressiveView = (plan && currentEditIndex >= 0) || completedEdits.length > 0 || proposal
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-5xl h-[80vh] flex flex-col p-0 gap-0">
-        {proposal ? (
-          // Review mode
-          <EditProposalReview
-            proposal={proposal}
-            onAccept={handleAccept}
-            onCancel={handleCancel}
-          />
+        {showProgressiveView ? (
+          // Progressive view - show edits as they complete
+          <div className="flex flex-col h-full">
+            {/* Header with progress */}
+            <div className="flex-shrink-0 border-b px-4 py-3 bg-muted/30">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Wand2 className="h-5 w-5 text-primary" />
+                  <h2 className="text-lg font-semibold">
+                    {isComplete ? 'Review Changes' : 'Generating Changes'}
+                  </h2>
+                </div>
+                {!isComplete && (
+                  <Button variant="ghost" size="sm" onClick={handleCancel}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground mb-2">
+                {plan?.overallSummary || proposal?.overallSummary}
+              </p>
+              {!isComplete && totalEdits > 0 && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Generating {Math.min(currentEditIndex + 1, totalEdits)} of {totalEdits}...</span>
+                    <span>{Math.round(progressPercent)}%</span>
+                  </div>
+                  <Progress value={progressPercent} className="h-1.5" />
+                </div>
+              )}
+            </div>
+
+            {/* Edit list - progressive with merge editors */}
+            <div className="flex-1 overflow-y-auto">
+              {(proposal?.edits || completedEdits).map((edit, index) => {
+                const key = getEditKey(edit)
+                const isExpanded = expandedEdits.has(key)
+                const content = mergedContent[key] ?? edit.proposedContent
+
+                return (
+                  <div key={key} className="border-b">
+                    {/* Edit header */}
+                    <div
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 cursor-pointer"
+                      onClick={() => toggleExpanded(key)}
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                        <Check className="w-3 h-3 text-white" />
+                      </div>
+                      {edit.isNew ? (
+                        <Plus className="h-4 w-4 text-green-500 flex-shrink-0" />
+                      ) : (
+                        <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate flex items-center gap-2">
+                          {edit.pageTitle}
+                          {edit.isNew && (
+                            <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 text-xs">
+                              NEW
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-sm text-muted-foreground truncate">{edit.summary}</div>
+                      </div>
+                    </div>
+
+                    {/* Merge editor (collapsible) */}
+                    {isExpanded && (
+                      <div className="px-4 pb-4">
+                        {edit.isNew ? (
+                          <SimpleEditor
+                            content={content}
+                            onChange={(c) => handleContentChange(key, c)}
+                            className="h-[400px] border rounded-md overflow-hidden"
+                          />
+                        ) : (
+                          <MergeEditor
+                            original={edit.originalContent}
+                            proposed={edit.proposedContent}
+                            onChange={(c) => handleContentChange(key, c)}
+                            className="h-[400px] border rounded-md overflow-hidden"
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+
+              {/* Show pending pages */}
+              {!isComplete && plan?.pages.slice(currentEditIndex).map((page, idx) => {
+                const actualIndex = currentEditIndex + idx
+                const isCurrent = actualIndex === currentEditIndex
+
+                return (
+                  <div key={page.pageSlug} className="border-b">
+                    <div className="flex items-center gap-3 px-4 py-3 opacity-60">
+                      <div className="w-4 h-4" /> {/* Spacer for chevron */}
+                      {isCurrent ? (
+                        <Loader2 className="w-5 h-5 text-blue-500 animate-spin flex-shrink-0" />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/30 flex-shrink-0" />
+                      )}
+                      {page.isNew ? (
+                        <Plus className="h-4 w-4 text-green-500 flex-shrink-0" />
+                      ) : (
+                        <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate flex items-center gap-2">
+                          {page.pageTitle}
+                          {page.isNew && (
+                            <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 text-xs">
+                              NEW
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-sm text-muted-foreground truncate">{page.summary}</div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Footer actions */}
+            <div className="flex-shrink-0 border-t px-4 py-3 bg-background flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                {completedEdits.length || proposal?.edits.length || 0} {(completedEdits.length || proposal?.edits.length || 0) === 1 ? 'page' : 'pages'} ready
+                {!isComplete && totalEdits > 0 && ` (${totalEdits - currentEditIndex} generating...)`}
+              </p>
+              <div className="flex items-center gap-3">
+                <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSave}
+                  disabled={isSaving || (completedEdits.length === 0 && !proposal)}
+                >
+                  {isSaving ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4 mr-2" />
+                  )}
+                  Save {isComplete ? 'Changes' : `${completedEdits.length} Ready`}
+                </Button>
+              </div>
+            </div>
+          </div>
         ) : (
           // Input mode
           <>
@@ -117,8 +336,16 @@ export function AIEditModal({
               </div>
 
               {error && (
-                <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+                <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm whitespace-pre-wrap">
                   {error}
+                </div>
+              )}
+
+              {/* Show initial loading state before plan arrives */}
+              {isLoading && !plan && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Planning changes...
                 </div>
               )}
 

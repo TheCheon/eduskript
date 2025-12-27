@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { EditorView, basicSetup } from 'codemirror'
 import { EditorState } from '@codemirror/state'
 import { unifiedMergeView, acceptChunk, rejectChunk, getChunks } from '@codemirror/merge'
@@ -22,7 +22,9 @@ export function MergeEditor({ original, proposed, onChange, className = '' }: Me
   const viewRef = useRef<EditorView | null>(null)
   // Store onChange in a ref to avoid recreating the editor when it changes
   const onChangeRef = useRef(onChange)
-  onChangeRef.current = onChange
+  useLayoutEffect(() => {
+    onChangeRef.current = onChange
+  }, [onChange])
 
   const { resolvedTheme } = useTheme()
 
@@ -168,7 +170,9 @@ export function SimpleEditor({ content, onChange, className = '' }: SimpleEditor
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
-  onChangeRef.current = onChange
+  useLayoutEffect(() => {
+    onChangeRef.current = onChange
+  }, [onChange])
 
   const { resolvedTheme } = useTheme()
 

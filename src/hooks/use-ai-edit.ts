@@ -1,22 +1,39 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import type { EditProposal, EditResponse, PageEdit } from '@/lib/ai/types'
+import { useState, useCallback, useRef } from 'react'
+import type { EditProposal, PageEdit } from '@/lib/ai/types'
 
 interface UseAIEditOptions {
   skriptId: string
   pageId?: string
-  /** Current editor content - used instead of fetching from DB */
   currentContent?: string
+}
+
+interface EditPlan {
+  totalEdits: number
+  overallSummary: string
+  pages: Array<{
+    pageId: string | null
+    pageTitle: string
+    pageSlug: string
+    summary: string
+    isNew?: boolean
+  }>
 }
 
 interface UseAIEditReturn {
   proposal: EditProposal | null
   isLoading: boolean
   error: string | null
+  // Streaming state
+  plan: EditPlan | null
+  currentEditIndex: number
+  completedEdits: PageEdit[]
+  // Actions
   requestEdit: (instruction: string) => Promise<void>
   applyEdits: (edits: PageEdit[]) => Promise<void>
   clearProposal: () => void
+  cancelRequest: () => void
 }
 
 export function useAIEdit({ skriptId, pageId, currentContent }: UseAIEditOptions): UseAIEditReturn {
@@ -24,14 +41,30 @@ export function useAIEdit({ skriptId, pageId, currentContent }: UseAIEditOptions
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Streaming state
+  const [plan, setPlan] = useState<EditPlan | null>(null)
+  const [currentEditIndex, setCurrentEditIndex] = useState(-1)
+  const [completedEdits, setCompletedEdits] = useState<PageEdit[]>([])
+
+  // AbortController ref for cancellation
+  const abortControllerRef = useRef<AbortController | null>(null)
+
   const requestEdit = useCallback(
     async (instruction: string) => {
+      // Cancel any existing request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+
       setIsLoading(true)
       setError(null)
+      setPlan(null)
+      setCurrentEditIndex(-1)
+      setCompletedEdits([])
+      setProposal(null)
 
-      // Use AbortController with 2-minute timeout for large edits
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 120000)
+      abortControllerRef.current = controller
 
       try {
         const response = await fetch('/api/ai/edit', {
@@ -41,25 +74,111 @@ export function useAIEdit({ skriptId, pageId, currentContent }: UseAIEditOptions
           signal: controller.signal,
         })
 
-        clearTimeout(timeoutId)
-
-        const data: EditResponse = await response.json()
-
-        if (!data.success || !data.proposal) {
+        if (!response.ok) {
+          const data = await response.json()
           throw new Error(data.error || 'Failed to get edit proposal')
         }
 
-        setProposal(data.proposal)
+        // Handle SSE stream
+        const reader = response.body?.getReader()
+        if (!reader) {
+          throw new Error('No response body')
+        }
+
+        const decoder = new TextDecoder()
+        let buffer = ''
+        const edits: PageEdit[] = []
+        let overallSummary = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+
+          // Parse SSE events from buffer
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || '' // Keep incomplete line in buffer
+
+          let eventType = ''
+          let eventData = ''
+
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              eventType = line.slice(7).trim()
+            } else if (line.startsWith('data: ')) {
+              eventData = line.slice(6)
+
+              if (eventType && eventData) {
+                try {
+                  const data = JSON.parse(eventData)
+
+                  switch (eventType) {
+                    case 'plan':
+                      setPlan(data)
+                      overallSummary = data.overallSummary
+                      setCurrentEditIndex(0)
+                      break
+
+                    case 'edit':
+                      const edit: PageEdit = {
+                        pageId: data.pageId,
+                        pageTitle: data.pageTitle,
+                        pageSlug: data.pageSlug,
+                        originalContent: data.originalContent,
+                        proposedContent: data.proposedContent,
+                        summary: data.summary,
+                        isNew: data.isNew,
+                      }
+                      edits.push(edit)
+                      setCompletedEdits([...edits])
+                      setCurrentEditIndex(data.index + 1)
+                      break
+
+                    case 'complete':
+                      // Build final proposal
+                      if (edits.length > 0 || data.edits) {
+                        setProposal({
+                          skriptId,
+                          edits: data.edits || edits,
+                          overallSummary: data.overallSummary || overallSummary,
+                        })
+                      } else {
+                        setProposal({
+                          skriptId,
+                          edits: [],
+                          overallSummary: data.overallSummary || 'No changes needed',
+                        })
+                      }
+                      break
+
+                    case 'error':
+                      throw new Error(data.error || 'Unknown error')
+                  }
+                } catch (parseError) {
+                  if (parseError instanceof SyntaxError) {
+                    console.error('Failed to parse SSE data:', eventData)
+                  } else {
+                    throw parseError
+                  }
+                }
+
+                eventType = ''
+                eventData = ''
+              }
+            }
+          }
+        }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
-          setError('Request timed out. Try a smaller edit or fewer pages.')
-        } else {
-          const message = err instanceof Error ? err.message : 'An error occurred'
-          setError(message)
+          // Request was cancelled, don't set error
+          return
         }
+        const message = err instanceof Error ? err.message : 'An error occurred'
+        setError(message)
       } finally {
-        clearTimeout(timeoutId)
         setIsLoading(false)
+        abortControllerRef.current = null
       }
     },
     [skriptId, pageId, currentContent]
@@ -125,6 +244,9 @@ export function useAIEdit({ skriptId, pageId, currentContent }: UseAIEditOptions
 
       // Clear proposal on success
       setProposal(null)
+      setPlan(null)
+      setCompletedEdits([])
+      setCurrentEditIndex(-1)
     },
     [skriptId]
   )
@@ -132,14 +254,29 @@ export function useAIEdit({ skriptId, pageId, currentContent }: UseAIEditOptions
   const clearProposal = useCallback(() => {
     setProposal(null)
     setError(null)
+    setPlan(null)
+    setCompletedEdits([])
+    setCurrentEditIndex(-1)
+  }, [])
+
+  const cancelRequest = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    setIsLoading(false)
   }, [])
 
   return {
     proposal,
     isLoading,
     error,
+    plan,
+    currentEditIndex,
+    completedEdits,
     requestEdit,
     applyEdits,
     clearProposal,
+    cancelRequest,
   }
 }
