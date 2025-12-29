@@ -264,15 +264,6 @@ export async function POST(request: NextRequest) {
           parsedData = item.data
         }
 
-        // Debug: log targeting info
-        console.log('[user-data/sync] Item:', {
-          adapter: item.adapter,
-          itemId: item.itemId,
-          targetType: item.targetType,
-          targetId: item.targetId,
-          dataLength: item.data?.length ?? 0
-        })
-
         // Normalize targeting fields (null if not set)
         const targetType = item.targetType || null
         const targetId = item.targetId || null
@@ -383,9 +374,7 @@ export async function POST(request: NextRequest) {
         synced.push(`${item.adapter}:${item.itemId}`)
 
         // Track teacher broadcasts for SSE notification
-        console.log('[user-data/sync] After normalization:', { targetType, targetId, adapter: item.adapter })
         if (targetType && targetId) {
-          console.log('[user-data/sync] Adding to teacherBroadcasts:', { targetType, targetId, pageId: item.itemId })
           teacherBroadcasts.push({
             targetType: targetType as 'class' | 'student',
             targetId,
@@ -414,14 +403,11 @@ export async function POST(request: NextRequest) {
     // Publish SSE events for quiz submissions
     // Notify all classes the student is enrolled in so teachers see real-time updates
     if (quizSubmissions.length > 0 && !isTeacher) {
-      console.log(`[user-data/sync] Publishing ${quizSubmissions.length} quiz submissions for student ${userId}`)
       try {
         const memberships = await prisma.classMembership.findMany({
           where: { studentId: userId },
           select: { classId: true }
         })
-
-        console.log(`[user-data/sync] Student is in ${memberships.length} classes`)
         // Get student pseudonym from database (for exam session case where we don't have session)
         const studentUser = await prisma.user.findUnique({
           where: { id: userId },
@@ -431,10 +417,6 @@ export async function POST(request: NextRequest) {
 
         for (const submission of quizSubmissions) {
           for (const membership of memberships) {
-            console.log(`[user-data/sync] Publishing quiz-submission to class:${membership.classId}:teacher`, {
-              pageId: submission.pageId,
-              questionId: submission.questionId
-            })
             await eventBus.publish(`class:${membership.classId}:teacher`, {
               type: 'quiz-submission',
               classId: membership.classId,
@@ -481,7 +463,6 @@ export async function POST(request: NextRequest) {
                 })
               }
             }
-            console.log(`[user-data/sync] Published student-work-update to ${memberships.length} class(es) for ${pageIds.length} page(s)`)
           }
         } catch (err) {
           console.error('[user-data/sync] Failed to publish student work events:', err)
@@ -503,12 +484,10 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      console.log('[user-data/sync] Publishing teacher broadcast events:', uniqueBroadcasts.size, '(deduped from', teacherBroadcasts.length, ')')
       try {
         for (const broadcast of uniqueBroadcasts.values()) {
           if (broadcast.targetType === 'class') {
             // Broadcast to entire class
-            console.log('[user-data/sync] Publishing to class:', broadcast.targetId, 'pageId:', broadcast.pageId)
             await eventBus.publish(`class:${broadcast.targetId}`, {
               type: 'teacher-annotations-update',
               classId: broadcast.targetId,
@@ -518,7 +497,6 @@ export async function POST(request: NextRequest) {
             })
           } else if (broadcast.targetType === 'student') {
             // Individual student feedback
-            console.log('[user-data/sync] Publishing to student:', broadcast.targetId, 'pageId:', broadcast.pageId)
             await eventBus.publish(`user:${broadcast.targetId}`, {
               type: 'teacher-feedback',
               studentId: broadcast.targetId,
@@ -542,7 +520,6 @@ export async function POST(request: NextRequest) {
     )
 
     if (pageAnnotationItems.length > 0) {
-      console.log('[user-data/sync] Invalidating ISR cache for page annotations:', pageAnnotationItems.length)
       try {
         // Get all unique pageIds that were updated
         const pageIds = [...new Set(pageAnnotationItems.map(item => item.itemId))]
@@ -591,9 +568,7 @@ export async function POST(request: NextRequest) {
               for (const author of cs.collection.authors) {
                 const userPageSlug = author.user.pageSlug
                 if (userPageSlug) {
-                  const path = `/${userPageSlug}/${collectionSlug}/${skriptSlug}/${contentPageSlug}`
-                  console.log('[user-data/sync] Revalidating path:', path)
-                  revalidatePath(path)
+                  revalidatePath(`/${userPageSlug}/${collectionSlug}/${skriptSlug}/${contentPageSlug}`)
                 }
               }
             }
@@ -625,9 +600,7 @@ export async function POST(request: NextRequest) {
                 // Invalidate org page paths for all collections
                 for (const cs of page.skript.collectionSkripts) {
                   if (!cs.collection) continue
-                  const orgPath = `/org/${orgLayout.organization.slug}/c/${cs.collection.slug}/${skriptSlug}/${contentPageSlug}`
-                  console.log('[user-data/sync] Revalidating org path:', orgPath)
-                  revalidatePath(orgPath)
+                  revalidatePath(`/org/${orgLayout.organization.slug}/c/${cs.collection.slug}/${skriptSlug}/${contentPageSlug}`)
                 }
               }
             }
@@ -668,16 +641,12 @@ export async function POST(request: NextRequest) {
           if (frontPage) {
             // User front page: /{pageSlug}
             if (frontPage.userId && frontPage.user?.pageSlug) {
-              const path = `/${frontPage.user.pageSlug}`
-              console.log('[user-data/sync] Revalidating user front page:', path)
-              revalidatePath(path)
+              revalidatePath(`/${frontPage.user.pageSlug}`)
             }
 
             // Organization front page: /org/{orgSlug}
             if (frontPage.organizationId && frontPage.organization?.slug) {
-              const path = `/org/${frontPage.organization.slug}`
-              console.log('[user-data/sync] Revalidating org front page:', path)
-              revalidatePath(path)
+              revalidatePath(`/org/${frontPage.organization.slug}`)
             }
 
             // Skript front page: /{pageSlug}/{collectionSlug}/{skriptSlug}
@@ -691,9 +660,7 @@ export async function POST(request: NextRequest) {
                 for (const author of cs.collection.authors) {
                   const userPageSlug = author.user.pageSlug
                   if (userPageSlug) {
-                    const path = `/${userPageSlug}/${collectionSlug}/${skriptSlug}`
-                    console.log('[user-data/sync] Revalidating skript front page:', path)
-                    revalidatePath(path)
+                    revalidatePath(`/${userPageSlug}/${collectionSlug}/${skriptSlug}`)
                   }
                 }
               }
@@ -713,9 +680,7 @@ export async function POST(request: NextRequest) {
               for (const orgLayout of orgLayouts) {
                 for (const cs of frontPage.skript.collectionSkripts) {
                   if (!cs.collection) continue
-                  const orgPath = `/org/${orgLayout.organization.slug}/c/${cs.collection.slug}/${skriptSlug}`
-                  console.log('[user-data/sync] Revalidating org skript front page:', orgPath)
-                  revalidatePath(orgPath)
+                  revalidatePath(`/org/${orgLayout.organization.slug}/c/${cs.collection.slug}/${skriptSlug}`)
                 }
               }
             }

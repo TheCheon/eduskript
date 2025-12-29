@@ -273,23 +273,6 @@ export async function GET(request: NextRequest) {
         }
       })
 
-    // Debug: log raw data from database before filtering
-    console.log('[student/teacher-annotations] Raw class data from DB:', classAnnotations.map(a => ({
-      targetId: a.targetId,
-      canvasDataLength: (a.data as { canvasData?: string } | null)?.canvasData?.length ?? 0,
-      canvasDataPreview: (a.data as { canvasData?: string } | null)?.canvasData?.slice(0, 50) ?? 'null',
-    })))
-
-    console.log('[student/teacher-annotations] Returning:', {
-      classAnnotationsCount: classAnnotationsWithInfo.length,
-      classSnapsCount: classSnapsWithInfo.length,
-      classCodeHighlightsCount: classCodeHighlightsWithInfo.length,
-      hasIndividualFeedback: !!(individualFeedback && hasValidFeedback),
-      hasIndividualSnapFeedback: hasValidSnapFeedback,
-      individualCodeHighlightsCount: individualCodeHighlightsWithInfo.length,
-      pageId
-    })
-
     // Return with aggressive no-cache headers to ensure students always get fresh data
     // Teacher broadcasts should NEVER be cached on the client - server is always the source of truth
     return NextResponse.json({

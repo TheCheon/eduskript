@@ -53,7 +53,6 @@ export async function GET(request: NextRequest) {
     let classesWithAnnotations: Set<string> = new Set()
     if (pageId) {
       const classIds = classes.map(c => c.id)
-      console.log('[/api/classes] Checking annotations for classIds:', classIds, 'pageId:', pageId)
       const annotations = await prisma.userData.findMany({
         where: {
           targetType: 'class',
@@ -66,16 +65,13 @@ export async function GET(request: NextRequest) {
           data: true,
         }
       })
-      console.log('[/api/classes] Found annotations:', annotations.length)
       // Only count classes with non-empty canvasData
       for (const ann of annotations) {
         const data = ann.data as { canvasData?: string } | null
-        console.log('[/api/classes] Annotation for', ann.targetId, 'canvasData length:', data?.canvasData?.length ?? 0)
         if (ann.targetId && data?.canvasData && data.canvasData.length > 0 && data.canvasData !== '[]') {
           classesWithAnnotations.add(ann.targetId)
         }
       }
-      console.log('[/api/classes] Classes with annotations:', Array.from(classesWithAnnotations))
     }
 
     return NextResponse.json({
