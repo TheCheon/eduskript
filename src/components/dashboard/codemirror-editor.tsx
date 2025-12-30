@@ -5,7 +5,7 @@ import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
-import { Eye, EyeOff, Pencil, Code, Bold, Italic, Heading, List, ListOrdered, Link, Palette, Highlighter, Circle, Wand2 } from 'lucide-react'
+import { Eye, EyeOff, Pencil, Code, Bold, Italic, Heading, Heading1, Heading2, Heading3, List, ListOrdered, Link, Palette, Highlighter, Circle, Wand2, ChevronDown } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +19,8 @@ import { ExcalidrawEditor } from './excalidraw-editor'
 import { InteractivePreview } from './interactive-preview'
 import type { EditorView } from '@codemirror/view'
 import type { ViewUpdate } from '@codemirror/view'
+import { fromMarkdown } from 'mdast-util-from-markdown'
+import type { Strong, Emphasis, Parent } from 'mdast'
 
 interface CodeMirrorEditorProps {
   content: string
@@ -867,18 +869,152 @@ const CodeMirrorEditor = function CodeMirrorEditor({
     }
   }
 
-  const insertBold = () => wrapSelection('**')
-  const insertItalic = () => wrapSelection('*')
-  const insertHeading = () => {
+  /**
+   * Find an enclosing emphasis or strong node at the given cursor position.
+   * Returns the node and its absolute start/end offsets if found.
+   */
+  const findEnclosingFormatNode = (
+    doc: string,
+    cursorPos: number,
+    nodeType: 'strong' | 'emphasis'
+  ): { node: Strong | Emphasis; start: number; end: number } | null => {
+    try {
+      const tree = fromMarkdown(doc)
+
+      // Recursively search for the node type containing the cursor
+      const findNode = (
+        parent: Parent,
+        target: number
+      ): { node: Strong | Emphasis; start: number; end: number } | null => {
+        for (const child of parent.children) {
+          if (!child.position) continue
+
+          const start = child.position.start.offset ?? 0
+          const end = child.position.end.offset ?? 0
+
+          // Check if cursor is within this node's range
+          if (target >= start && target <= end) {
+            // If this is the node type we're looking for, return it
+            if (child.type === nodeType) {
+              return { node: child as Strong | Emphasis, start, end }
+            }
+
+            // If this node has children, search deeper
+            if ('children' in child) {
+              const found = findNode(child as Parent, target)
+              if (found) return found
+            }
+          }
+        }
+        return null
+      }
+
+      return findNode(tree, cursorPos)
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Expand cursor position to word boundaries if cursor is inside a word.
+   * Returns original from/to if cursor is at a word boundary or there's a selection.
+   */
+  const expandToWord = (doc: string, from: number, to: number): { from: number; to: number } => {
+    // If there's already a selection, don't expand
+    if (from !== to) return { from, to }
+
+    const pos = from
+
+    // Check if cursor is inside a word (has word chars on both sides)
+    const charBefore = pos > 0 ? doc[pos - 1] : ''
+    const charAfter = pos < doc.length ? doc[pos] : ''
+
+    // Word character pattern (letters, numbers, unicode word chars)
+    const isWordChar = (c: string) => /\w/.test(c) || /[\u00C0-\u024F\u1E00-\u1EFF]/.test(c)
+
+    // Only expand if cursor is truly inside a word (word chars on both sides)
+    if (!isWordChar(charBefore) || !isWordChar(charAfter)) {
+      return { from, to }
+    }
+
+    // Find word start
+    let wordStart = pos
+    while (wordStart > 0 && isWordChar(doc[wordStart - 1])) {
+      wordStart--
+    }
+
+    // Find word end
+    let wordEnd = pos
+    while (wordEnd < doc.length && isWordChar(doc[wordEnd])) {
+      wordEnd++
+    }
+
+    return { from: wordStart, to: wordEnd }
+  }
+
+  /**
+   * Toggle bold/italic formatting. If cursor is inside the formatting, remove it.
+   * Otherwise, wrap the selection with the formatting markers.
+   * If cursor is inside a word with no selection, formats the entire word.
+   */
+  const toggleFormat = (marker: string, nodeType: 'strong' | 'emphasis') => {
+    if (!editorViewRef.current || useSimpleEditor) return
+
+    const view = editorViewRef.current
+    let { from, to } = view.state.selection.main
+    const doc = view.state.doc.toString()
+
+    // Check if cursor/selection is inside an existing format node
+    const enclosing = findEnclosingFormatNode(doc, from, nodeType)
+
+    if (enclosing) {
+      // Remove the formatting by extracting the inner content
+      const markerLen = marker.length
+      const innerStart = enclosing.start + markerLen
+      const innerEnd = enclosing.end - markerLen
+      const innerContent = doc.slice(innerStart, innerEnd)
+
+      // Calculate new cursor position after removal
+      // If cursor was inside the formatted region, adjust it
+      let newCursorPos = from - markerLen
+      if (newCursorPos < enclosing.start) newCursorPos = enclosing.start
+
+      view.dispatch({
+        changes: { from: enclosing.start, to: enclosing.end, insert: innerContent },
+        selection: { anchor: newCursorPos }
+      })
+    } else {
+      // Expand to word if cursor is inside a word with no selection
+      const expanded = expandToWord(doc, from, to)
+      from = expanded.from
+      to = expanded.to
+
+      // Wrap selection with formatting
+      const selectedText = doc.slice(from, to)
+      const wrappedText = `${marker}${selectedText}${marker}`
+
+      view.dispatch({
+        changes: { from, to, insert: wrappedText },
+        selection: { anchor: from + marker.length, head: to + marker.length }
+      })
+    }
+
+    view.focus()
+  }
+
+  const insertBold = () => toggleFormat('**', 'strong')
+  const insertItalic = () => toggleFormat('*', 'emphasis')
+  const insertHeading = (level: 1 | 2 | 3 = 2) => {
     if (editorViewRef.current && !useSimpleEditor) {
       const view = editorViewRef.current
       const pos = view.state.selection.main.head
       const line = view.state.doc.lineAt(pos)
       const lineStart = line.from
+      const prefix = '#'.repeat(level) + ' '
 
       view.dispatch({
-        changes: { from: lineStart, insert: '## ' },
-        selection: { anchor: lineStart + 3 }
+        changes: { from: lineStart, insert: prefix },
+        selection: { anchor: lineStart + prefix.length }
       })
       view.focus()
     }
@@ -987,8 +1123,8 @@ const CodeMirrorEditor = function CodeMirrorEditor({
       onDrop={handleDrop}
     >
       {/* Toolbar */}
-      <div className="border-b border-border p-2 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="border-b border-border p-2 flex flex-wrap items-center justify-between gap-y-2">
+        <div className="flex flex-wrap items-center gap-1">
           {/* AI Edit button - leftmost */}
           {onAIEdit && (
             <Button
@@ -996,7 +1132,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
               size="sm"
               onClick={onAIEdit}
               title="AI Edit"
-              className="px-2"
+              className="w-8 h-8 p-0 border rounded-md"
             >
               <Wand2 className="w-4 h-4" />
             </Button>
@@ -1004,13 +1140,13 @@ const CodeMirrorEditor = function CodeMirrorEditor({
           {/* Formatting buttons */}
           {!useSimpleEditor && (
             <>
-              <div className="h-4 w-px bg-border" />
+              <div className="h-4 w-px bg-border mx-1" />
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={insertBold}
                 title="Bold (Ctrl+B)"
-                className="px-2"
+                className="w-8 h-8 p-0 border rounded-md"
               >
                 <Bold className="w-4 h-4" />
               </Button>
@@ -1019,25 +1155,54 @@ const CodeMirrorEditor = function CodeMirrorEditor({
                 size="sm"
                 onClick={insertItalic}
                 title="Italic (Ctrl+I)"
-                className="px-2"
+                className="w-8 h-8 p-0 border rounded-md"
               >
                 <Italic className="w-4 h-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={insertHeading}
-                title="Heading"
-                className="px-2"
-              >
-                <Heading className="w-4 h-4" />
-              </Button>
+              <DropdownMenu>
+                <div className="flex items-center border rounded-md h-8">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => insertHeading(2)}
+                    title="Heading 2"
+                    className="w-8 h-8 p-0 rounded-r-none border-0"
+                  >
+                    <Heading className="w-4 h-4" />
+                  </Button>
+                  <div className="h-4 w-px bg-border mx-1" />
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-5 h-8 p-0 rounded-l-none border-0"
+                      title="Heading options"
+                    >
+                      <ChevronDown className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </div>
+                <DropdownMenuContent align="start" className="min-w-[120px]">
+                  <DropdownMenuItem onClick={() => insertHeading(1)} className="gap-2">
+                    <Heading1 className="w-4 h-4" />
+                    <span>Heading 1</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => insertHeading(2)} className="gap-2">
+                    <Heading2 className="w-4 h-4" />
+                    <span>Heading 2</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => insertHeading(3)} className="gap-2">
+                    <Heading3 className="w-4 h-4" />
+                    <span>Heading 3</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={insertBulletList}
                 title="Bullet List"
-                className="px-2"
+                className="w-8 h-8 p-0 border rounded-md"
               >
                 <List className="w-4 h-4" />
               </Button>
@@ -1046,7 +1211,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
                 size="sm"
                 onClick={insertNumberedList}
                 title="Numbered List"
-                className="px-2"
+                className="w-8 h-8 p-0 border rounded-md"
               >
                 <ListOrdered className="w-4 h-4" />
               </Button>
@@ -1055,11 +1220,11 @@ const CodeMirrorEditor = function CodeMirrorEditor({
                 size="sm"
                 onClick={insertLink}
                 title="Link"
-                className="px-2"
+                className="w-8 h-8 p-0 border rounded-md"
               >
                 <Link className="w-4 h-4" />
               </Button>
-              <div className="h-4 w-px bg-border" />
+              <div className="h-4 w-px bg-border mx-1" />
               {/* Text Color Button */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1067,7 +1232,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
                     variant="ghost"
                     size="sm"
                     title="Text Color"
-                    className="px-2"
+                    className="w-8 h-8 p-0 border rounded-md"
                   >
                     <Palette className="w-4 h-4" />
                   </Button>
@@ -1101,7 +1266,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
                     variant="ghost"
                     size="sm"
                     title="Highlight"
-                    className="px-2"
+                    className="w-8 h-8 p-0 border rounded-md"
                   >
                     <Highlighter className="w-4 h-4" />
                   </Button>
@@ -1135,7 +1300,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
                     variant="ghost"
                     size="sm"
                     title="Invert image colors (for dark mode diagrams)"
-                    className="px-2"
+                    className="w-8 h-8 p-0 border rounded-md"
                   >
                     <span className="w-4 h-4 rounded-full border border-current overflow-hidden flex">
                       <span className="w-1/2 bg-current" />
@@ -1164,7 +1329,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <div className="h-4 w-px bg-border" />
+              <div className="h-4 w-px bg-border mx-1" />
             </>
           )}
 
@@ -1172,22 +1337,20 @@ const CodeMirrorEditor = function CodeMirrorEditor({
             variant="ghost"
             size="sm"
             onClick={insertCodeEditor}
-            className="flex items-center gap-2"
-            title="Insert Python Code Editor"
+            className="w-8 h-8 p-0 border rounded-md"
+            title="Add Code Editor"
           >
             <Code className="w-4 h-4" />
-            Add Code Editor
           </Button>
           {skriptId && (
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setExcalidrawOpen(true)}
-              className="flex items-center gap-2"
-              title="Create Drawing"
+              className="w-8 h-8 p-0 border rounded-md"
+              title="Add Excalidraw Drawing"
             >
               <Pencil className="w-4 h-4" />
-              Add Drawing
             </Button>
           )}
         </div>
