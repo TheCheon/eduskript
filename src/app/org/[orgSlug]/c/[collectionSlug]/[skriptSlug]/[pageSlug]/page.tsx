@@ -5,8 +5,6 @@ import { AnnotationWrapper } from '@/components/public/annotation-wrapper'
 import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
 import { getOrgPublishedPage, getOrgFullSiteStructure } from '@/lib/cached-queries'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 
 interface PageProps {
   params: Promise<{
@@ -149,31 +147,8 @@ export default async function OrgPublicPage({ params }: PageProps) {
     })
   ])
 
-  // Check if current user can create public annotations
-  // For org pages: user must be org admin/owner with author permission on skript
-  let isPageAuthor = false
-  const session = await getServerSession(authOptions)
-  if (session?.user?.id) {
-    // Check if user is org admin/owner
-    const orgMember = await prisma.organizationMember.findFirst({
-      where: {
-        organizationId: organization.id,
-        userId: session.user.id,
-        role: { in: ['owner', 'admin'] }
-      }
-    })
-    if (orgMember) {
-      // Check if user has author permission on the skript
-      const skriptAuthor = await prisma.skriptAuthor.findFirst({
-        where: {
-          skriptId: skript.id,
-          userId: session.user.id,
-          permission: 'author'
-        }
-      })
-      isPageAuthor = !!skriptAuthor
-    }
-  }
+  // Note: isPageAuthor check moved to client-side to preserve ISR caching
+  // The AnnotationLayer component will check author status via API if needed
 
   // Build site structure for navigation (only published pages)
   const siteStructure = [{
@@ -223,7 +198,7 @@ export default async function OrgPublicPage({ params }: PageProps) {
     >
       <div id="paper" className="paper-responsive py-24 bg-card paper-shadow border border-border">
         <article className="prose-theme">
-          <AnnotationWrapper pageId={page.id} content={page.content} publicAnnotations={publicAnnotations} publicSnaps={publicSnaps} isPageAuthor={isPageAuthor}>
+          <AnnotationWrapper pageId={page.id} content={page.content} publicAnnotations={publicAnnotations} publicSnaps={publicSnaps}>
             <ServerMarkdownRenderer
               content={page.content}
               skriptId={skript.id}
