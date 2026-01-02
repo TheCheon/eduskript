@@ -9,26 +9,17 @@
 ![Alt text](image.png)
 ```
 
-**With sizing**:
-```markdown
-![Alt text](image.png){width=50%}
-![Alt text](image.png){width=300px}
-```
-
-**With alignment**:
-```markdown
-![Centered image](image.png){width=50%;align=center}
-![Right-aligned](image.png){align=right}
-```
-
+You can change the size and alignment of images visually in the preview editor.
 ## Excalidraw Diagrams
 
 Excalidraw is a hand-drawn style diagramming tool built into Eduskript.
 
 **Creating a diagram**:
-1. In the file browser, click **+ New Excalidraw**
+1. In the page editor, place your cursor where you want the drawing and click **+ New Excalidraw**
 2. Draw your diagram
-3. Reference it in markdown:
+3. Click "Save"
+
+You can also drag and drop existing excalidrawings from the file browser to the page. It'll be inserted using 
 
 ```markdown
 ![My diagram](diagram.excalidraw)

@@ -5,7 +5,44 @@
 ## move back from mdx to markdown / remark
 didn't realize the security vulnerability mdx poses. we have to move back.
 
+stuff AI integration got wrong:
+- 4 pages generated but only 3 made it into the skript? check production logs on koyeb using koyeb cli
+- syntax for callouts wrong all the time, see example below
+- syntax for tabs wrong, see xample below
 
+WRONG
+
+> [!tip] 
+> **Analogie**
+> Stellen Sie sich vor, Sie leuchten mit einer Taschenlampe durch ein Glas Wasser. Wenn Sie rote Tinte hineintropfen, wird das durchkommende Licht schwächer. Bei PPG ist das "rote Tinte" das pulsierende Blut in den Kapillaren.
+
+:::tabs
+::tab[Brustgurt (EKG-basiert)]
+**Vorteile:**
+- Sehr genau (±1-2 bpm)
+- Misst elektrische Herzaktivität direkt
+- Kaum Bewegungsartefakte
+§**Nachteile:**
+- Unbequem zu tragen
+- Muss feucht sein für guten Kontakt
+- Nur Puls, keine anderen Werte
+
+::tab[Smartwatch (PPG-basiert)]
+**Vorteile:**
+- Bequem und unauffällig
+- Misst zusätzlich SpO2, Stress, etc.
+- Permanentes Monitoring
+
+**Nachteile:**
+- Weniger genau
+- Störanfällig bei Bewegung
+- Abhängig von korrektem Sitz
+:::
+
+CORRECT
+
+> [!tip] Analogie
+> Stellen Sie sich vor, Sie leuchten mit einer Taschenlampe durch ein Glas Wasser. Wenn Sie rote Tinte hineintropfen, wird das durchkommende Licht schwächer. Bei PPG ist das "rote Tinte" das pulsierende Blut in den Kapillaren.
 
 ## documentation system
 we want to write docs for eduskript that are mirrored into a collection on eduskript. since you have direct access to the codebase here, you can write a great documentary for open source contributors. later we can keep it up to date and sync it again. for this we need a parallelism between file structure and skripts. i say we use the exact same file structure we'd use in import too, which is (as far as i remember):
@@ -41,6 +78,21 @@ overview (using all components even when not explained)
 skript "organization":
 14. Classes and student management
 13. Collaborating with other teachers
+
+  |------------------------------------|----------------|--------------------------------------------|
+  | AUTHENTICATION_FLOWS.md            | Reference      | Integrate → internals/04-authentication.md |
+  | LOGGING_SYSTEM.md                  | How-to         | Integrate → extending/04-debugging.md      |
+  | REALTIME_EVENTS.md                 | Architecture   | Integrate → internals/05-realtime.md       |
+  | CODE_EDITOR.md                     | Implementation | skip & delete       |
+  | MDX_RENDER_PIPELINE.md             | Architecture   | skip & delete       |
+  | STUDENT_DATA_STORAGE.md            | Architecture   | skip & delete               |
+  | COMPLETED_FEATURES.md              | Changelog      | skip & delete     |
+  | DELTA_SYNC.md                      | Future plan    | add to skript "future ideas"             |
+  | ORGANIZATION_PLAN.md               | Plan           | add summary to dev docs, then delete                              |
+  | TEACHER_BROADCAST_PLAN.md          | Plan           | add summary to dev docs, then delete |
+  | ANNOTATION_SYSTEM.md               | Telemetry      | add summary to dev docs, then delete |
+  | annotation-positioning-research.md | Research       | integrate with annotation system summary   |
+  | REFETCH_ANALYSIS.md                | Analysis       | skip and delete   |
 
 ## Annotation / Snap System Polish (Jan 2026)
 *Core system complete, UX improvements needed:*

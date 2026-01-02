@@ -4,10 +4,10 @@
 
 Content has two states:
 
-| State | Visible to | Use case |
-|-------|------------|----------|
-| **Draft** | Only you | Work in progress |
-| **Published** | Everyone | Ready for students |
+| State         | Visible to | Use case           |
+| ------------- | ---------- | ------------------ |
+| **Draft**     | Only you   | Work in progress   |
+| **Published** | Everyone   | Ready for students |
 
 ## How to Publish
 
@@ -20,29 +20,21 @@ You can publish at any level:
 - Publish a **skript** → all published pages inside are visible
 - Publish a **collection** → all published skripts inside are visible
 
-Unpublished content inside published containers stays hidden.
+
+> [!warning] Attention
+> Unpublished content inside published containers stays hidden.
 
 ## Sharing with Students
 
-Copy the URL from your browser and share it directly:
+To copy the page URL click the share icon. You can also click on any heading to directly link to that heading.
 
 - **Email**: Paste the link
 - **LMS** (Canvas, Moodle, etc.): Add as external link
 - **QR code**: Generate from any URL shortener
 
-URLs are stable. Changing the content doesn't change the URL.
+Page URLs are stable. Changing the content doesn't change the URL.
 
-## What Students See
-
-Students see:
-- Your published content
-- Navigation sidebar
-- Interactive elements (code editors, etc.)
-
-Students don't see:
-- Draft content
-- Edit buttons
-- Your dashboard
+Heading URLs change when you change the heading. Students will still get to your page, but not the heading.
 
 ## Updating Published Content
 

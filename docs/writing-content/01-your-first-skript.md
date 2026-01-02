@@ -2,7 +2,7 @@
 
 ## Set Up Your Page
 
-1. Sign in or create an account
+1. Create an account on eduskript.org
 2. Go to **Dashboard → Page Settings**
 3. Choose your **page slug** — this becomes your URL: `eduskript.org/yourname`
 4. Add a page name and description
@@ -11,18 +11,14 @@ Your public page is now live at that URL.
 
 ## Content Hierarchy
 
-Three levels, simple:
+The main unit of organisation on eduskript is - big surprise! - a **skript**. Skripts are made up of pages.
 
-```
-Collection    →    Skript    →    Page
-(course)           (module)       (lesson)
-```
+A skript typically covers a single topic. A few examples:
+- Quadratic equations in maths
+- Introduction to Python in computer science
+- Classical mechanics in physics
 
-**Collection**: A course or textbook. Groups related skripts.
-
-**Skript**: A chapter or module. Contains ordered pages.
-
-**Page**: One lesson. Markdown content with interactive elements.
+You can also put skripts together into a collection. E.g. I use a collection "Foundation year computer science".
 
 ## Create Your First Content
 

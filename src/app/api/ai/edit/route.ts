@@ -129,6 +129,12 @@ export async function POST(request: Request): Promise<Response> {
     pageContentMap.set(p.id, content)
   })
 
+  // Debug: Log content snippets to verify we have latest from DB
+  console.log('[AI Edit] Page content snippets from DB:', skript.pages.map(p => ({
+    title: p.title,
+    contentPreview: p.content.slice(0, 100).replace(/\n/g, ' ')
+  })))
+
   const skriptContext: SkriptContext = {
     skript: {
       id: skript.id,
@@ -227,6 +233,7 @@ export async function POST(request: Request): Promise<Response> {
         // Log plan for debugging
         console.log(`[AI Edit] Plan received: ${plan.edits.length} pages to generate`, {
           skriptId,
+          focusedPageId: pageId || 'none (skript-level edit)',
           pages: plan.edits.map(e => ({ title: e.pageTitle, isNew: e.isNew })),
         })
 
