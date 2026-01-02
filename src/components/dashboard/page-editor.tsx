@@ -740,56 +740,57 @@ export function PageEditor({ collection, skript, page }: PageEditorProps) {
         </div>
       )}
 
-      {/* Skript Pages - Collapsible Drawer (hidden in fullscreen) */}
-      {!isFullscreen && skript.pages && skript.pages.length > 0 && (
+      {/* Skript Overview - Pages and Files (hidden in fullscreen) */}
+      {!isFullscreen && (
       <CollapsibleDrawer
         title={skript.title}
         icon={<BookOpen className="w-5 h-5" />}
         defaultOpen={true}
       >
-        <div className="space-y-1">
-          {skript.pages.map((p) => (
-            <Link
-              key={p.id}
-              href={`/dashboard/collections/${collection.slug}/skripts/${skript.slug}/pages/${p.slug}/edit`}
-              className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors ${
-                p.id === page.id
-                  ? 'bg-primary/10 text-primary font-medium'
-                  : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <FileText className="w-4 h-4 flex-shrink-0" />
-              <span className="truncate">{p.title}</span>
-              {!p.isPublished && (
-                <span className="ml-auto text-xs text-muted-foreground">(draft)</span>
-              )}
-            </Link>
-          ))}
-        </div>
-      </CollapsibleDrawer>
-      )}
+        {/* Pages */}
+        {skript.pages && skript.pages.length > 0 && (
+          <div className="space-y-1 mb-4">
+            {skript.pages.map((p) => (
+              <Link
+                key={p.id}
+                href={`/dashboard/collections/${collection.slug}/skripts/${skript.slug}/pages/${p.slug}/edit`}
+                className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors ${
+                  p.id === page.id
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <FileText className="w-4 h-4 flex-shrink-0" />
+                <span className="truncate">{p.title}</span>
+                {!p.isPublished && (
+                  <span className="ml-auto text-xs text-muted-foreground">(draft)</span>
+                )}
+              </Link>
+            ))}
+          </div>
+        )}
 
-      {/* Skript Files - Collapsible Drawer (hidden in fullscreen) */}
-      {!isFullscreen && (
-      <CollapsibleDrawer
-        title="Skript Files"
-        icon={<Files className="w-5 h-5" />}
-        defaultOpen={false}
-      >
-        <FileBrowser
-          skriptId={skript.id}
-          files={fileList}
-          loading={fileListLoading}
-          onFileSelect={(file) => {
-            // Files are inserted via drag and drop, not click
-            // This is just for backwards compatibility with other file types
-            handleFileInsert(file)
-            refreshFileList()
-          }}
-          onUploadComplete={refreshFileList}
-          onFileRenamed={handleFileRenamed}
-          onExcalidrawEdit={handleExcalidrawEdit}
-        />
+        {/* Files section */}
+        <div className="border-t pt-3">
+          <div className="flex items-center gap-2 px-2 mb-2 text-sm font-medium text-muted-foreground">
+            <Files className="w-4 h-4" />
+            <span>Files</span>
+          </div>
+          <FileBrowser
+            skriptId={skript.id}
+            files={fileList}
+            loading={fileListLoading}
+            onFileSelect={(file) => {
+              // Files are inserted via drag and drop, not click
+              // This is just for backwards compatibility with other file types
+              handleFileInsert(file)
+              refreshFileList()
+            }}
+            onUploadComplete={refreshFileList}
+            onFileRenamed={handleFileRenamed}
+            onExcalidrawEdit={handleExcalidrawEdit}
+          />
+        </div>
       </CollapsibleDrawer>
       )}
 
