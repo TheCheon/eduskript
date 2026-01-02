@@ -78,7 +78,9 @@ import {
 } from './s3'
 
 // File storage configuration - exported for pre-validation in upload handlers
-export const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '20971520') // 20MB default
+// 500MB default for direct S3 uploads (large videos/databases)
+// Server-proxied uploads are limited by platform body size limits (~10MB)
+export const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '524288000') // 500MB default
 export const ALLOWED_TYPES = (process.env.ALLOWED_FILE_TYPES || 'jpg,jpeg,png,gif,webp,svg,pdf,doc,docx,odt,txt,md,zip,mp4,mp3,wav,ogg,webm,csv,json,xml,html,css,js,ts,py,java,cpp,c,h,hpp,rs,go,php,rb,sh,yml,yaml,excalidraw,db,sqlite,ig').split(',')
 
 /**

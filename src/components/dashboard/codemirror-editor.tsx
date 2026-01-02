@@ -157,41 +157,106 @@ const CodeMirrorEditor = function CodeMirrorEditor({
     // Handle computer file drops
     const files = Array.from(e.dataTransfer.files)
     if (files.length > 0 && skriptId) {
+      // Size limits
+      const MAX_FILE_SIZE = 500 * 1024 * 1024 // 500MB max
+      const DIRECT_UPLOAD_THRESHOLD = 10 * 1024 * 1024 // 10MB - use direct S3 upload for larger files
+
+      for (const file of files) {
+        if (file.size > MAX_FILE_SIZE) {
+          alert.showError(`File "${file.name}" is too large (${Math.round(file.size / 1024 / 1024)}MB). Maximum size is 500MB.`)
+          return
+        }
+      }
+
       try {
         for (const file of files) {
-          const formData = new FormData()
-          formData.append('file', file)
-          formData.append('uploadType', 'skript')
-          formData.append('skriptId', skriptId)
+          let uploadedFile
 
-          const response = await fetch('/api/upload', {
-            method: 'POST',
-            body: formData,
-          })
-
-          if (response.ok) {
-            const uploadedFile = await response.json()
-            insertFileAtPosition(uploadedFile, dropPosition)
-            // Refresh file list after successful upload
-            if (onFileUpload) {
-              onFileUpload()
-            }
+          if (file.size > DIRECT_UPLOAD_THRESHOLD) {
+            // Large file - use direct S3 upload
+            uploadedFile = await uploadDirectToS3(file, skriptId)
           } else {
-            // Handle upload error
-            try {
-              const errorData = await response.json()
-              const errorMessage = errorData.error || 'Upload failed'
-              alert.showError(`Failed to upload file: ${errorMessage}`)
-            } catch {
-              alert.showError(`Failed to upload file (status ${response.status})`)
+            // Small file - use standard upload
+            const formData = new FormData()
+            formData.append('file', file)
+            formData.append('uploadType', 'skript')
+            formData.append('skriptId', skriptId)
+
+            const response = await fetch('/api/upload', {
+              method: 'POST',
+              body: formData,
+            })
+
+            if (!response.ok) {
+              try {
+                const errorData = await response.json()
+                throw new Error(errorData.error || 'Upload failed')
+              } catch (e) {
+                if (e instanceof Error && e.message !== 'Upload failed') throw e
+                throw new Error(`Upload failed (status ${response.status})`)
+              }
             }
+
+            uploadedFile = await response.json()
+          }
+
+          insertFileAtPosition(uploadedFile, dropPosition)
+          if (onFileUpload) {
+            onFileUpload()
           }
         }
       } catch (error) {
         console.error('Error uploading dropped files:', error)
-        alert.showError('Failed to upload file. Please try again.')
+        alert.showError(error instanceof Error ? error.message : 'Failed to upload file. Please try again.')
       }
     }
+  }
+
+  // Upload large files directly to S3 via presigned URL
+  const uploadDirectToS3 = async (file: File, targetSkriptId: string) => {
+    // Step 1: Get presigned URL
+    const presignedResponse = await fetch('/api/upload/presigned', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: file.name,
+        size: file.size,
+        contentType: file.type || 'application/octet-stream',
+        skriptId: targetSkriptId
+      })
+    })
+
+    if (!presignedResponse.ok) {
+      const error = await presignedResponse.json().catch(() => ({ error: 'Failed to get upload URL' }))
+      throw new Error(error.error || 'Failed to get upload URL')
+    }
+
+    const { uploadUrl, uploadToken, uploadData, signature } = await presignedResponse.json()
+
+    // Step 2: Upload directly to S3
+    const s3Response = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      body: file
+    })
+
+    if (!s3Response.ok) {
+      throw new Error(`S3 upload failed: ${s3Response.status} ${s3Response.statusText}`)
+    }
+
+    // Step 3: Confirm upload
+    const confirmResponse = await fetch('/api/upload/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uploadToken, uploadData, signature })
+    })
+
+    if (!confirmResponse.ok) {
+      const error = await confirmResponse.json().catch(() => ({ error: 'Failed to confirm upload' }))
+      throw new Error(error.error || 'Failed to confirm upload')
+    }
+
+    return await confirmResponse.json()
   }
 
   // Insert file at specific position (or cursor if no position provided)

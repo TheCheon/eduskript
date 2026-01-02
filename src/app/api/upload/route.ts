@@ -4,6 +4,9 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { saveFile, MAX_FILE_SIZE, validateFile, sanitizeFilename } from '@/lib/file-storage'
 
+// Increase function timeout for large uploads
+export const maxDuration = 120 // 2 minutes
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)

@@ -196,6 +196,17 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
   }
 
   const uploadFiles = async (fileList: File[], uploadType: 'global' | 'skript' = 'skript') => {
+    // Size limits
+    const MAX_FILE_SIZE = 500 * 1024 * 1024 // 500MB max
+    const DIRECT_UPLOAD_THRESHOLD = 10 * 1024 * 1024 // 10MB - use direct S3 upload for larger files
+
+    for (const file of fileList) {
+      if (file.size > MAX_FILE_SIZE) {
+        alert.showError(`File "${file.name}" is too large (${Math.round(file.size / 1024 / 1024)}MB). Maximum size is 500MB.`)
+        return
+      }
+    }
+
     for (const file of fileList) {
       const canUpload = await handleDuplicateCheck(file, uploadType)
       if (!canUpload) {
@@ -205,30 +216,107 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
 
     const uploadPromises = fileList.map(async (file) => {
       try {
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('uploadType', uploadType)
-        if (skriptId && uploadType === 'skript') {
-          formData.append('skriptId', skriptId)
-        }
-
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        })
-
-        if (response.ok) {
-          if (onUploadComplete) onUploadComplete()
+        // For large files, use direct S3 upload via presigned URL
+        if (file.size > DIRECT_UPLOAD_THRESHOLD && skriptId) {
+          await uploadDirectToS3(file, skriptId)
         } else {
-          const error = await response.json()
-          console.error('Upload failed:', error.error)
+          // For smaller files, use the standard upload endpoint
+          await uploadViaServer(file, uploadType)
         }
+        if (onUploadComplete) onUploadComplete()
       } catch (error) {
         console.error('Upload error:', error)
+        if (error instanceof Error) {
+          alert.showError(`Upload failed: ${error.message}`)
+        } else {
+          alert.showError('Upload failed. Please check your connection and try again.')
+        }
       }
     })
 
     await Promise.all(uploadPromises)
+  }
+
+  // Upload large files directly to S3 via presigned URL
+  const uploadDirectToS3 = async (file: File, targetSkriptId: string) => {
+    // Step 1: Get presigned URL
+    const presignedResponse = await fetch('/api/upload/presigned', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: file.name,
+        size: file.size,
+        contentType: file.type || 'application/octet-stream',
+        skriptId: targetSkriptId
+      })
+    })
+
+    if (!presignedResponse.ok) {
+      const error = await presignedResponse.json().catch(() => ({ error: 'Failed to get upload URL' }))
+      throw new Error(error.error || 'Failed to get upload URL')
+    }
+
+    const { uploadUrl, uploadToken, uploadData, signature } = await presignedResponse.json()
+
+    // Step 2: Upload directly to S3
+    const s3Response = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream'
+      },
+      body: file
+    })
+
+    if (!s3Response.ok) {
+      throw new Error(`S3 upload failed: ${s3Response.status} ${s3Response.statusText}`)
+    }
+
+    // Step 3: Confirm upload and create database record
+    const confirmResponse = await fetch('/api/upload/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uploadToken,
+        uploadData,
+        signature
+      })
+    })
+
+    if (!confirmResponse.ok) {
+      const error = await confirmResponse.json().catch(() => ({ error: 'Failed to confirm upload' }))
+      throw new Error(error.error || 'Failed to confirm upload')
+    }
+
+    return await confirmResponse.json()
+  }
+
+  // Upload smaller files via server
+  const uploadViaServer = async (file: File, uploadType: 'global' | 'skript') => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('uploadType', uploadType)
+    if (skriptId && uploadType === 'skript') {
+      formData.append('skriptId', skriptId)
+    }
+
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      try {
+        const error = await response.json()
+        throw new Error(error.error || 'Upload failed')
+      } catch (e) {
+        if (e instanceof Error && e.message !== 'Upload failed') {
+          throw e
+        }
+        throw new Error(`Upload failed (${response.status}). The file may be too large.`)
+      }
+    }
+
+    return await response.json()
   }
 
   const handleFileDragStart = (e: React.DragEvent, file: FileItem) => {
