@@ -112,6 +112,7 @@ export function useAIEdit({ skriptId, pageId, currentContent }: UseAIEditOptions
               if (eventType && eventData) {
                 try {
                   const data = JSON.parse(eventData)
+                  console.log(`[AI Edit Client] Received event: ${eventType}`, data)
 
                   switch (eventType) {
                     case 'plan':
@@ -156,9 +157,8 @@ export function useAIEdit({ skriptId, pageId, currentContent }: UseAIEditOptions
                       throw new Error(data.error || 'Unknown error')
                   }
                 } catch (parseError) {
-                  if (parseError instanceof SyntaxError) {
-                    console.error('Failed to parse SSE data:', eventData)
-                  } else {
+                  console.error('[AI Edit Client] Parse error:', parseError, 'Data:', eventData)
+                  if (!(parseError instanceof SyntaxError)) {
                     throw parseError
                   }
                 }
@@ -169,7 +169,9 @@ export function useAIEdit({ skriptId, pageId, currentContent }: UseAIEditOptions
             }
           }
         }
+        console.log(`[AI Edit Client] Stream ended. Edits received: ${edits.length}`)
       } catch (err) {
+        console.error('[AI Edit Client] Error:', err)
         if (err instanceof Error && err.name === 'AbortError') {
           // Request was cancelled, don't set error
           return
