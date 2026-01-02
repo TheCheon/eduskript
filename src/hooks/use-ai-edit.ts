@@ -132,16 +132,23 @@ export function useAIEdit({ skriptId, pageId, currentContent }: UseAIEditOptions
                         isNew: data.isNew,
                       }
                       edits.push(edit)
+                      console.log(`[AI Edit Client] Edit ${data.index + 1} received: "${data.pageTitle}", total edits: ${edits.length}`)
                       setCompletedEdits([...edits])
                       setCurrentEditIndex(data.index + 1)
                       break
 
                     case 'complete':
-                      // Build final proposal
-                      if (edits.length > 0 || data.edits) {
+                      // Build final proposal from locally accumulated edits
+                      // Server sends { success: true }, edits were sent progressively via 'edit' events
+                      console.log(`[AI Edit Client] Complete event. Local edits: ${edits.length}, data.edits: ${data.edits?.length ?? 'undefined'}`)
+                      console.log(`[AI Edit Client] Local edit titles:`, edits.map(e => e.pageTitle))
+                      // Prefer locally accumulated edits (from streaming) - only fall back to data.edits if empty
+                      const finalEdits = edits.length > 0 ? edits : (data.edits || [])
+                      console.log(`[AI Edit Client] Setting proposal with ${finalEdits.length} edits`)
+                      if (finalEdits.length > 0) {
                         setProposal({
                           skriptId,
-                          edits: data.edits || edits,
+                          edits: finalEdits,
                           overallSummary: data.overallSummary || overallSummary,
                         })
                       } else {
@@ -169,7 +176,7 @@ export function useAIEdit({ skriptId, pageId, currentContent }: UseAIEditOptions
             }
           }
         }
-        console.log(`[AI Edit Client] Stream ended. Edits received: ${edits.length}`)
+        console.log(`[AI Edit Client] Stream ended. Edits received: ${edits.length}`, edits.map(e => e.pageTitle))
       } catch (err) {
         console.error('[AI Edit Client] Error:', err)
         if (err instanceof Error && err.name === 'AbortError') {

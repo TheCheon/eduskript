@@ -32,6 +32,17 @@ async function getPageData(collectionSlug: string, skriptSlug: string, pageSlug:
           collectionId: collection.id
         }
       }
+    },
+    include: {
+      pages: {
+        orderBy: { order: 'asc' },
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          isPublished: true,
+        }
+      }
     }
   })
 
@@ -78,7 +89,12 @@ export default async function PageEditPage({
   return (
     <PageEditor
       collection={collection}
-      skript={skript}
+      skript={{
+        id: skript.id,
+        slug: skript.slug,
+        title: skript.title,
+        pages: skript.pages,
+      }}
       page={{
         ...page,
         examSettings: page.examSettings as { requireSEB?: boolean } | null

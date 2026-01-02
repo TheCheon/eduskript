@@ -178,6 +178,7 @@ export function AIEditModal({
 
             {/* Edit list - progressive with merge editors */}
             <div className="flex-1 overflow-y-auto">
+              {(() => { console.log(`[AI Edit Modal] Rendering edits: proposal=${proposal?.edits?.length ?? 'none'}, completedEdits=${completedEdits.length}`); return null })()}
               {(proposal?.edits || completedEdits).map((edit, index) => {
                 const key = getEditKey(edit)
                 const isExpanded = expandedEdits.has(key)
@@ -216,25 +217,23 @@ export function AIEditModal({
                       </div>
                     </div>
 
-                    {/* Merge editor (collapsible) */}
-                    {isExpanded && (
-                      <div className="px-4 pb-4">
-                        {edit.isNew ? (
-                          <SimpleEditor
-                            content={content}
-                            onChange={(c) => handleContentChange(key, c)}
-                            className="h-[400px] border rounded-md overflow-hidden"
-                          />
-                        ) : (
-                          <MergeEditor
-                            original={edit.originalContent}
-                            proposed={edit.proposedContent}
-                            onChange={(c) => handleContentChange(key, c)}
-                            className="h-[400px] border rounded-md overflow-hidden"
-                          />
-                        )}
-                      </div>
-                    )}
+                    {/* Merge editor - keep mounted to preserve state, hide when collapsed */}
+                    <div className={isExpanded ? 'px-4 pb-4' : 'hidden'}>
+                      {edit.isNew ? (
+                        <SimpleEditor
+                          content={content}
+                          onChange={(c) => handleContentChange(key, c)}
+                          className="h-[400px] border rounded-md overflow-hidden"
+                        />
+                      ) : (
+                        <MergeEditor
+                          original={edit.originalContent}
+                          proposed={edit.proposedContent}
+                          onChange={(c) => handleContentChange(key, c)}
+                          className="h-[400px] border rounded-md overflow-hidden"
+                        />
+                      )}
+                    </div>
                   </div>
                 )
               })}
