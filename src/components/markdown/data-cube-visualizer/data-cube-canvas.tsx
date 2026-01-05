@@ -45,14 +45,14 @@ export default function DataCubeCanvas() {
   const [width, setWidth] = useState(16)
   const [height, setHeight] = useState(16)
   const [colorDepth, setColorDepth] = useState(2)
-  const [imageLoaded, setImageLoaded] = useState(false)
+  const [imageSrc, setImageSrc] = useState<string | null>(null)
 
   // Load demo image once on mount
   useEffect(() => {
     const img = new Image()
     img.onload = () => {
       imageRef.current = img
-      setImageLoaded(true)
+      setImageSrc(img.src)
     }
     img.onerror = () => {
       // Fallback: create a colorful test pattern
@@ -70,7 +70,7 @@ export default function DataCubeCanvas() {
         const testImg = new Image()
         testImg.onload = () => {
           imageRef.current = testImg
-          setImageLoaded(true)
+          setImageSrc(testImg.src)
         }
         testImg.src = canvas.toDataURL()
       }
@@ -200,7 +200,7 @@ export default function DataCubeCanvas() {
   useEffect(() => {
     const canvas = canvas2dRef.current
     const img = imageRef.current
-    if (!canvas || !img || !imageLoaded) return
+    if (!canvas || !img || !imageSrc) return
 
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
     if (!ctx) return
@@ -227,7 +227,7 @@ export default function DataCubeCanvas() {
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.imageSmoothingEnabled = false
     ctx.drawImage(offscreen, 0, 0, width, height, 0, 0, canvas.width, canvas.height)
-  }, [width, height, colorDepth, imageLoaded])
+  }, [width, height, colorDepth, imageSrc])
 
   return (
     <span className="flex flex-col gap-4 p-4 bg-neutral-900 rounded-lg text-white">
@@ -264,9 +264,10 @@ export default function DataCubeCanvas() {
         {/* Original Image */}
         <span className="flex flex-col items-center gap-2">
           <span className="w-[200px] h-[200px] border-2 border-neutral-600 bg-white rounded overflow-hidden block">
-            {imageLoaded && imageRef.current && (
+            {imageSrc && (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={imageRef.current.src}
+                src={imageSrc}
                 alt="Original"
                 className="w-full h-full object-contain"
                 style={{ imageRendering: 'pixelated' }}

@@ -92,18 +92,25 @@ export function ContentImage({ src, alt = '', title, style, onWidthChange, origi
   const handleLayoutChange = useCallback((layout: { width: number; align: 'left' | 'center' | 'right'; wrap: boolean }) => {
     if (!onWidthChange) return
 
-    // Build <image> component with props (use filename, not resolved URL)
-    // Use lowercase for consistency with other custom elements (code-editor, youtube-embed, etc.)
-    let props = `src="${filename}" alt="${alt}" width="${Math.round(layout.width)}%"`
+    // Build <img> element with standard HTML attributes
+    // Using style for width, data-* for custom layout attributes
+    let attrs = `src="${filename}" alt="${alt}" style="width: ${Math.round(layout.width)}%"`
     if (layout.align !== 'center') {
-      props += ` align="${layout.align}"`
+      attrs += ` data-align="${layout.align}"`
     }
     if (layout.wrap) {
-      props += ` wrap`
+      attrs += ` data-wrap="true"`
+    }
+    // Preserve invert/saturate if present
+    if (invert) {
+      attrs += ` data-invert="${invert}"`
+    }
+    if (saturate) {
+      attrs += ` data-saturate="${saturate}"`
     }
 
-    onWidthChange(`<image ${props} />`)
-  }, [alt, filename, onWidthChange])
+    onWidthChange(`<img ${attrs} />`)
+  }, [alt, filename, invert, saturate, onWidthChange])
 
   // Build data attributes for source line tracking
   const dataAttributes: Record<string, string> = {}
