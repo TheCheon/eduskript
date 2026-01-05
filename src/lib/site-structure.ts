@@ -25,6 +25,7 @@ export interface SiteStructureSkript {
   title: string
   slug: string
   order?: number // Position within collection (0-indexed) for letter markers
+  hasFrontpage?: boolean // Whether the skript has a frontpage (for navigation behavior)
   pages: SiteStructurePage[]
 }
 
@@ -49,6 +50,7 @@ interface RawSkript {
   title: string
   slug: string
   isPublished?: boolean
+  frontPage?: { id: string } | null // Optional frontpage relation
   pages: RawPage[]
 }
 
@@ -113,6 +115,7 @@ export function buildSiteStructure(
           slug: cs.skript.slug,
           // Use index after sorting - this is the position in the collection for letter markers (A, B, C...)
           order: index,
+          hasFrontpage: Boolean(cs.skript.frontPage),
           pages: cs.skript.pages
             // Filter unpublished pages
             .filter(p => !onlyPublished || p.isPublished !== false)

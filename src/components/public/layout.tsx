@@ -36,6 +36,7 @@ interface SiteStructure {
     title: string
     slug: string
     order?: number // Position within collection (0-indexed) for letter markers
+    hasFrontpage?: boolean // Whether the skript has a frontpage
     pages: {
       id: string
       title: string
@@ -49,6 +50,7 @@ interface RootSkript {
   title: string
   description: string | null
   slug: string
+  hasFrontpage?: boolean
   collection: { title: string, slug: string }
   pages: Array<{ id: string, title: string, slug: string }>
 }
@@ -291,17 +293,22 @@ export function PublicSiteLayout({
     setIsSidebarOpen(false)
   }
 
-  const navigateToSkript = (collectionSlug: string, skriptSlug: string, skriptId: string) => {
-    // Navigate to skript frontpage and expand the skript
-    const url = `${getBasePrefix()}/${collectionSlug}/${skriptSlug}`
+  const navigateToSkript = (collectionSlug: string, skriptSlug: string, skriptId: string, hasFrontpage?: boolean) => {
+    if (hasFrontpage) {
+      // Navigate to skript frontpage and expand the skript
+      const url = `${getBasePrefix()}/${collectionSlug}/${skriptSlug}`
 
-    // Ensure the skript is expanded
-    if (!expandedSkripts.includes(skriptId)) {
-      setExpandedSkripts(prev => [...prev, skriptId])
+      // Ensure the skript is expanded
+      if (!expandedSkripts.includes(skriptId)) {
+        setExpandedSkripts(prev => [...prev, skriptId])
+      }
+
+      router.push(url)
+      setIsSidebarOpen(false)
+    } else {
+      // No frontpage - just toggle expand/collapse
+      toggleSkript(skriptId)
     }
-
-    router.push(url)
-    setIsSidebarOpen(false)
   }
 
   return (
@@ -506,9 +513,9 @@ export function PublicSiteLayout({
                             >
                               {String.fromCharCode(65 + (skript.order ?? skriptIndex))}
                             </span>
-                            {/* Title - navigate to frontpage and expand */}
+                            {/* Title - navigate to frontpage (if exists) or toggle expand */}
                             <button
-                              onClick={() => navigateToSkript(collection.slug, skript.slug, skript.id)}
+                              onClick={() => navigateToSkript(collection.slug, skript.slug, skript.id, skript.hasFrontpage)}
                               className="truncate flex-1 text-left hover:text-primary"
                             >
                               {skript.title}
@@ -594,9 +601,9 @@ export function PublicSiteLayout({
                         >
                           {String.fromCharCode(65 + skriptIndex)}
                         </span>
-                        {/* Title - navigate to frontpage and expand */}
+                        {/* Title - navigate to frontpage (if exists) or toggle expand */}
                         <button
-                          onClick={() => navigateToSkript(skript.collection.slug, skript.slug, skript.id)}
+                          onClick={() => navigateToSkript(skript.collection.slug, skript.slug, skript.id, skript.hasFrontpage)}
                           className="truncate flex-1 text-left hover:text-primary"
                         >
                           {skript.title}

@@ -104,6 +104,7 @@ export const getPublishedCollection = (teacherId: string, pageSlug: string, coll
             include: {
               skript: {
                 include: {
+                  frontPage: { select: { id: true } },
                   pages: {
                     where: { isPublished: true },
                     orderBy: { order: 'asc' },
@@ -158,6 +159,7 @@ export const getAllPublishedCollections = (teacherId: string, pageSlug: string) 
             include: {
               skript: {
                 include: {
+                  frontPage: { select: { id: true } },
                   pages: {
                     where: { isPublished: true },
                     orderBy: { order: 'asc' },
@@ -232,6 +234,7 @@ export const getFullSiteStructure = (teacherId: string, pageSlug: string) =>
             include: {
               skript: {
                 include: {
+                  frontPage: { select: { id: true } },
                   pages: {
                     where: { isPublished: true },
                     orderBy: { order: 'asc' },
@@ -299,6 +302,7 @@ export const getPublishedPage = (
             include: {
               skript: {
                 include: {
+                  frontPage: { select: { id: true } },
                   pages: {
                     where: { isPublished: true },
                     orderBy: { order: 'asc' },
@@ -417,6 +421,7 @@ export const getTeacherHomepageContent = (teacherId: string, pageSlug: string, p
                 include: {
                   skript: {
                     include: {
+                      frontPage: { select: { id: true } },
                       pages: {
                         where: { isPublished: true },
                         orderBy: { order: 'asc' },
@@ -500,6 +505,7 @@ export const getCollectionForPreview = async (teacherId: string, collectionSlug:
         include: {
           skript: {
             include: {
+              frontPage: { select: { id: true } },
               pages: {
                 orderBy: { order: 'asc' },
                 select: {
@@ -615,6 +621,7 @@ export const getOrgFullSiteStructure = (orgId: string, orgSlug: string) =>
             include: {
               skript: {
                 include: {
+                  frontPage: { select: { id: true } },
                   pages: {
                     where: { isPublished: true },
                     orderBy: { order: 'asc' },
@@ -726,6 +733,7 @@ export const getOrgPublishedPage = (
             include: {
               skript: {
                 include: {
+                  frontPage: { select: { id: true } },
                   pages: {
                     where: { isPublished: true },
                     orderBy: { order: 'asc' },
@@ -837,6 +845,7 @@ export const getOrgHomepageContent = (
                 include: {
                   skript: {
                     include: {
+                      frontPage: { select: { id: true } },
                       pages: {
                         where: { isPublished: true },
                         orderBy: { order: 'asc' },
