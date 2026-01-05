@@ -4,11 +4,10 @@ import { useState } from "react"
 
 /**
  * Interactive RGB color sliders for teaching color representation.
- * Changes the background of #paper to demonstrate RGB values.
- * Just a fun gimmick - refreshing the page resets it.
+ * The component background changes to show the selected RGB color.
  */
 export function ColorSliders() {
-  const [rgb, setRgb] = useState({ r: 255, g: 255, b: 255 })
+  const [rgb, setRgb] = useState({ r: 52, g: 52, b: 172 })
 
   const padHex = (n: string): string => (n.length < 2 ? "0" + n : n)
 
@@ -19,19 +18,11 @@ export function ColorSliders() {
   const hex = rgbToHex(rgb.r, rgb.g, rgb.b)
 
   const handleSliderChange = (color: "r" | "g" | "b", value: string) => {
-    const newRgb = { ...rgb, [color]: parseInt(value) }
-    setRgb(newRgb)
-
-    // Change #paper background - just for fun, not persisted
-    const paper = document.getElementById('paper')
-    if (paper) {
-      const newHex = rgbToHex(newRgb.r, newRgb.g, newRgb.b)
-      paper.style.backgroundColor = newHex
-    }
+    setRgb({ ...rgb, [color]: parseInt(value) })
   }
 
   return (
-    <div className="p-4 space-y-4 rounded-lg bg-black/10 dark:bg-white/10">
+    <div className="p-4 space-y-4 rounded-lg" style={{ backgroundColor: hex }}>
       {/* Red Slider */}
       <fieldset className="border-none flex items-center gap-2">
         <label
@@ -117,15 +108,10 @@ export function ColorSliders() {
       </fieldset>
 
       {/* Combined Hex Output */}
-      <div className="flex items-center justify-center gap-4 pt-2">
+      <div className="flex items-center justify-center pt-2">
         <output className="text-2xl px-4 py-2 rounded bg-white/50 dark:bg-black/50 font-mono tracking-wider">
           {hex.toUpperCase()}
         </output>
-        <div
-          className="w-12 h-12 rounded border-2 border-white/50 shadow-inner"
-          style={{ backgroundColor: hex }}
-          title="Color preview"
-        />
       </div>
     </div>
   )
