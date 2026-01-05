@@ -10,7 +10,7 @@ import { remarkPlugins } from '../markdown-plugins'
 /**
  * Elements that should have their text content parsed as markdown
  */
-const MARKDOWN_CHILDREN_ELEMENTS = ['stickme']
+const MARKDOWN_CHILDREN_ELEMENTS = ['stickme', 'tab-item']
 
 /**
  * Rehype plugin to process markdown content inside specific custom elements.
