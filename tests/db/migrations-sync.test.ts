@@ -9,9 +9,10 @@ describe('Database Migrations', () => {
     const migrationsDir = resolve(rootDir, 'prisma/migrations')
     const schemaPath = resolve(rootDir, 'prisma/schema.prisma')
 
-    // Load real .env (not the test mock)
+    // Load real .env or .env.local (not the test mock)
     const envResult = config({ path: resolve(rootDir, '.env') })
-    const dbUrl = envResult.parsed?.DATABASE_URL
+    const envLocalResult = config({ path: resolve(rootDir, '.env.local') })
+    const dbUrl = envResult.parsed?.DATABASE_URL || envLocalResult.parsed?.DATABASE_URL
 
     if (!dbUrl || !dbUrl.startsWith('postgresql://')) {
       throw new Error(

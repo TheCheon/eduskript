@@ -3,6 +3,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
+import { createLogger } from '@/lib/logger'
+
+const log = createLogger('auth:cross-domain')
 
 /**
  * Generate a cross-domain auth token
@@ -19,7 +22,10 @@ export async function GET(request: NextRequest) {
   const returnDomain = searchParams.get('returnDomain')
   const returnPath = searchParams.get('returnPath') || '/'
 
+  log.info(`Cross-domain auth requested: returnDomain="${returnDomain}", returnPath="${returnPath}"`)
+
   if (!returnDomain) {
+    log.warn('Cross-domain auth rejected: missing returnDomain parameter')
     return NextResponse.json(
       { error: 'Missing return domain' },
       { status: 400 }
@@ -43,6 +49,7 @@ export async function GET(request: NextRequest) {
   })
 
   if (!customDomain) {
+    log.warn(`Cross-domain auth rejected: "${returnDomain}" is not a verified custom domain`)
     return NextResponse.json(
       { error: 'Invalid or unverified custom domain' },
       { status: 400 }
@@ -52,7 +59,7 @@ export async function GET(request: NextRequest) {
   // Get current session
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
-    // Not authenticated - redirect to sign in
+    log.info(`Cross-domain auth: user not authenticated, redirecting to sign in`)
     const signInUrl = `/auth/signin?callbackUrl=${encodeURIComponent(request.url)}`
     return NextResponse.redirect(new URL(signInUrl, request.url))
   }
@@ -70,6 +77,8 @@ export async function GET(request: NextRequest) {
       expiresAt,
     }
   })
+
+  log.info(`Cross-domain token issued for user=${session.user.id}, domain="${returnDomain}", accountType="${session.user.accountType}"`)
 
   // Redirect to custom domain with token
   const redirectUrl = `https://${returnDomain}/api/auth/cross-domain-callback?token=${token}&returnPath=${encodeURIComponent(returnPath)}`

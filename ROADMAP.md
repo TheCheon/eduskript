@@ -1,6 +1,23 @@
 **IMPORTANT: Do not mark items as complete in this roadmap unless explicitly instructed by the user.**
 
-**Note**: Completed features have been moved to `docs/COMPLETED_FEATURES.md`
+**Note**: Completed features are to be documented in `docs/`
+- User manual goes into writing-content, components, organization
+- Dev docs go into getting-started, extending, internals, contributing, future-ideas
+
+## Bug tracker
+
+**login** by students evidently created teacher accounts
+**snapshot** can seriously mess up website
+**metrics** don't work
+
+**preview** buttons still often lead to wrong urls and thus produce 404s. e.g. in the page editor:
+https://www.informatikgarten.ch/dashboard/collections/grundjahr/skripts/computer-os/pages/betriebssystem/edit
+leads to: https://www.informatikgarten.ch/preview/ig/grundjahr/computer-os/betriebssystem (404, proper would be https://www.informatikgarten.ch/grundjahr/computer-os/betriebssystem
+)
+
+images preload bad
+callouts with image bad
+touchpad vs touchscreen
 
 ## move back from mdx to markdown / remark
 didn't realize the security vulnerability mdx poses. we have to move back.

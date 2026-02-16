@@ -73,6 +73,9 @@ import type { Adapter, AdapterUser, AdapterAccount } from 'next-auth/adapters'
 import { PrismaAdapter } from '@auth/prisma-adapter'
 import { PrismaClient } from '@prisma/client'
 import { generatePseudonym } from './privacy/pseudonym'
+import { createLogger } from '@/lib/logger'
+
+const log = createLogger('auth:create-user')
 
 /**
  * Generates a username from an email address
@@ -243,77 +246,65 @@ export function PrivacyAdapter(options: PrivacyAdapterOptions): Adapter {
     },
 
     async createUser(user: Omit<AdapterUser, 'id'>) {
+      const maskedEmail = user.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'none'
+      log.info(`Creating new user account for ${maskedEmail}`)
+
       // Check if this is a student signup
       const isStudent = await isStudentSignup(user.email, user)
+      log.info(`Account type decision: ${isStudent ? 'STUDENT' : 'TEACHER'} for ${maskedEmail}`)
 
       if (isStudent) {
-        // CRITICAL: For students, NEVER store email
-        // We'll get OAuth provider info from linkAccount callback
-
         let createdUser
         try {
-          // Generate anonymized display name
-          // LIMITATION: This random string could theoretically collide, but it's
-          // just a display name (not an identifier) so duplicates are acceptable.
-          // A UUID-based approach would be more robust but less readable.
           const anonymousName = `Student ${Math.random().toString(36).substring(2, 6)}`
-
-          // Generate pseudonym from email (for teacher matching) but DON'T store the email
           const emailPseudonym = user.email ? generatePseudonym(user.email) : null
 
-          // Create user WITHOUT email
           createdUser = await prisma.user.create({
             data: {
               name: anonymousName,
               accountType: 'student',
-              studentPseudonym: emailPseudonym, // Store email-based pseudonym for matching
+              studentPseudonym: emailPseudonym,
               lastSeenAt: new Date(),
-              // All optional fields with null defaults are omitted
-              // (Prisma will set them to null automatically)
             },
           })
+
+          log.info(`Student account created: id=${createdUser.id}, name="${anonymousName}", pseudonym=${emailPseudonym?.substring(0, 8)}...`)
         } catch (error: any) {
-          console.error('[PrivacyAdapter] Error creating student user:', error.message)
+          log.error(`Failed to create student account for ${maskedEmail}: ${error.message}`)
           throw error
         }
 
-        // Note: PreAuthorizedStudent records are NOT auto-enrolled
-        // Student will see them as join requests in their My Classes page
-        // This allows them to choose whether to consent to identity reveal
-
         return {
           id: createdUser.id,
-          email: `student_${createdUser.id}@eduskript.local`, // Return unique fake email for NextAuth
+          email: `student_${createdUser.id}@eduskript.local`,
           emailVerified: null,
           name: createdUser.name,
-          image: user.image, // Pass through OAuth image (not stored in DB for privacy)
+          image: user.image,
         }
       }
 
-      // For teachers, use the base adapter (stores real email)
+      // Teacher account
       if (baseAdapter.createUser) {
         const createdUser = await baseAdapter.createUser(user as AdapterUser & Omit<AdapterUser, 'id'>)
 
-        // Generate a unique page slug from email
         let pageSlug: string | null = null
         if (user.email) {
           const baseSlug = generateUsernameFromEmail(user.email)
           pageSlug = await findUniquePageSlug(prisma, baseSlug)
         }
 
-        // Set account type to teacher and auto-generated page slug
-        // Mark as needing profile completion so they can customize their page
         await prisma.user.update({
           where: { id: createdUser.id },
           data: {
             accountType: 'teacher',
             lastSeenAt: new Date(),
-            pageSlug, // Auto-generated page slug for teachers
-            needsProfileCompletion: true, // New OAuth teachers should complete their profile
+            pageSlug,
+            needsProfileCompletion: true,
           },
         })
 
-        // Auto-join organizations by email domain
+        log.info(`Teacher account created: id=${createdUser.id}, pageSlug="${pageSlug}", email=${maskedEmail}`)
+
         if (user.email) {
           await autoJoinOrgByEmailDomain(prisma, createdUser.id, user.email)
         }

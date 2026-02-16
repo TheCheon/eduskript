@@ -71,7 +71,9 @@ export function AuthButton({ pageId, teacherPageSlug }: AuthButtonProps) {
       // 1. Generate a one-time token
       // 2. Redirect to the custom domain with the token
       // 3. Custom domain callback sets the session cookie
-      const crossDomainCallback = `https://eduskript.org/api/auth/cross-domain?returnDomain=${encodeURIComponent(hostname)}&returnPath=${encodeURIComponent(pathname)}`
+      // NOTE: 'from' param is included so isStudentSignup can detect student context
+      // even though the path is /api/... (a reserved path)
+      const crossDomainCallback = `https://eduskript.org/api/auth/cross-domain?returnDomain=${encodeURIComponent(hostname)}&returnPath=${encodeURIComponent(pathname)}&from=${encodeURIComponent(pageSlug)}`
       const baseSignIn = `https://eduskript.org/auth/signin?from=${encodeURIComponent(pageSlug)}&callbackUrl=${encodeURIComponent(crossDomainCallback)}`
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Required: domain detection only possible after mount
       setSignInUrl(baseSignIn)

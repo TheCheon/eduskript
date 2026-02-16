@@ -37,7 +37,7 @@ let lastPatternString = ''
  * Called on each log to support runtime changes (especially useful for localStorage).
  */
 function updatePatterns(): void {
-  const patternString = typeof window !== 'undefined'
+  const patternString = typeof window !== 'undefined' && typeof localStorage !== 'undefined' && typeof localStorage.getItem === 'function'
     ? localStorage.getItem('debug') ?? ''
     : process.env.DEBUG ?? ''
 
