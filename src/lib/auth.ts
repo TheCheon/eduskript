@@ -73,58 +73,25 @@ export const authOptions: NextAuthOptions = {
     ? PrivacyAdapter({
         prisma: prismaBase,
         isStudentSignup: async (email: string, context?: any) => {
-          // Detect student signup by checking the OAuth callback URL.
-          //
-          // The callback URL cookie tells us where the user came from:
-          // - /dashboard or /auth/* → teacher signup (main site)
-          // - /pageSlug/... → student signup (teacher's page)
-          // - /api/auth/cross-domain?from=pageSlug → student signup (custom domain)
-          //
-          // The 'from' query param is the fallback for cross-domain OAuth,
-          // where the path is /api/... (reserved) but the original teacher
-          // context is preserved in the query string.
+          // Detect student signup using our custom cookie set before OAuth redirect.
+          // The cookie contains the teacher's pageSlug when signing up from a teacher's page.
+          // No cookie = signing up from eduskript.org = teacher account.
           try {
             const cookieStore = await cookies()
-            const callbackCookie = cookieStore.get('next-auth.callback-url')
-            const callbackUrl = callbackCookie?.value || ''
+            const signupContextCookie = cookieStore.get('eduskript-signup-context')
+            const teacherSlug = signupContextCookie?.value ? decodeURIComponent(signupContextCookie.value) : ''
 
             log.info('Signup detection started', {
               email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-              callbackUrl,
+              teacherSlug: teacherSlug || '(none)',
             })
 
-            const reservedPaths = ['auth', 'api', 'dashboard', 'admin', '_next', 'favicon.ico', 'robots.txt', 'sitemap.xml']
-
-            // Extract path segment and query params from callback URL
-            let pathSegment = ''
-            let fromParam = ''
-            try {
-              const url = new URL(callbackUrl, 'http://dummy.com')
-              const parts = url.pathname.split('/').filter(Boolean)
-              pathSegment = parts[0] || ''
-              fromParam = url.searchParams.get('from') || ''
-            } catch {
-              const parts = callbackUrl.split('/').filter(Boolean)
-              pathSegment = parts[0] || ''
-            }
-
-            // Determine the teacher pageSlug to look up:
-            // 1. If path segment is a teacher page (not reserved), use it directly
-            // 2. If path is reserved (e.g. /api/auth/cross-domain), check 'from' param
-            //    This handles cross-domain OAuth where the callback goes through /api/...
-            let teacherSlug = ''
-            if (pathSegment && !reservedPaths.includes(pathSegment.toLowerCase())) {
-              teacherSlug = pathSegment
-              log.info(`Path segment "${pathSegment}" is not reserved, using as teacher lookup`)
-            } else if (fromParam) {
-              teacherSlug = fromParam
-              log.info(`Path segment "${pathSegment}" is reserved, using 'from' query param "${fromParam}" as teacher lookup (cross-domain flow)`)
-            } else {
-              log.info(`Path segment "${pathSegment}" is reserved and no 'from' param found — treating as teacher signup`)
+            if (!teacherSlug) {
+              log.info('No signup context cookie — treating as teacher signup')
               return false
             }
 
-            // Check if this slug belongs to a teacher
+            // Verify this slug belongs to an existing teacher
             const teacher = await prisma.user.findUnique({
               where: { pageSlug: teacherSlug },
               select: { id: true, accountType: true, pageSlug: true }

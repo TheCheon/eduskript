@@ -91,10 +91,16 @@ export function SignInForm({ fromTeacherPage, callbackUrl = '/dashboard' }: Sign
   }
 
   const handleOAuthSignIn = async (provider: string) => {
-    // The callbackUrl is used by auth.ts to determine if this is a student signup
-    // If the callbackUrl starts with a teacher's pageSlug (e.g., /eduadmin),
-    // the new user will be created as a student
-    // This is more reliable than cookies since NextAuth preserves callbackUrl through OAuth
+    // Set our own cookie to track signup context before OAuth redirect.
+    // NextAuth's callback-url cookie is unreliable across domains.
+    // This cookie tells isStudentSignup() whether this is a student signing up
+    // from a teacher's page (fromTeacherPage = teacher's pageSlug).
+    if (fromTeacherPage) {
+      document.cookie = `eduskript-signup-context=${encodeURIComponent(fromTeacherPage)}; path=/; max-age=600; SameSite=Lax`
+    } else {
+      // Clear any stale context cookie for teacher signups
+      document.cookie = 'eduskript-signup-context=; path=/; max-age=0'
+    }
     signIn(provider, { callbackUrl })
   }
 
