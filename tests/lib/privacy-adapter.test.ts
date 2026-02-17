@@ -70,7 +70,7 @@ describe('OAuth Signup Flow', () => {
   })
 
   describe('OAuth from teacher page (student signup context)', () => {
-    const isStudentSignup = vi.fn().mockResolvedValue(true)
+    const isStudentSignup = vi.fn().mockResolvedValue({ isStudent: true, teacherSlug: 'some-teacher' })
 
     it('should create a STUDENT account for new users', async () => {
       const adapter = PrivacyAdapter({
@@ -176,7 +176,7 @@ describe('OAuth Signup Flow', () => {
   })
 
   describe('OAuth from main site (teacher signup context)', () => {
-    const isStudentSignup = vi.fn().mockResolvedValue(false)
+    const isStudentSignup = vi.fn().mockResolvedValue({ isStudent: false })
 
     it('should create a TEACHER account for new users', async () => {
       // We need to mock the base adapter's createUser for this case
@@ -298,7 +298,7 @@ describe('OAuth Signup Flow', () => {
 
       const adapter = PrivacyAdapter({
         prisma: mockPrisma,
-        isStudentSignup: vi.fn().mockResolvedValue(true),
+        isStudentSignup: vi.fn().mockResolvedValue({ isStudent: true, teacherSlug: 'some-teacher' }),
       })
 
       // Simulate NextAuth calling getUserByAccount
@@ -356,7 +356,7 @@ describe('OAuth Signup Flow', () => {
 
       const adapter = PrivacyAdapter({
         prisma: mockPrisma,
-        isStudentSignup: vi.fn().mockResolvedValue(true),
+        isStudentSignup: vi.fn().mockResolvedValue({ isStudent: true, teacherSlug: 'some-teacher' }),
       })
 
       // Step 1: NextAuth calls getUserByAccount - should find existing student
@@ -404,7 +404,7 @@ describe('OAuth Signup Flow', () => {
 
       const adapter = PrivacyAdapter({
         prisma: mockPrisma,
-        isStudentSignup: vi.fn().mockResolvedValue(true),
+        isStudentSignup: vi.fn().mockResolvedValue({ isStudent: true, teacherSlug: 'some-teacher' }),
       })
 
       // Step 1: NextAuth calls getUserByAccount - no existing account found
@@ -450,7 +450,7 @@ describe('OAuth Signup Flow', () => {
 
       const adapter = PrivacyAdapter({
         prisma: mockPrisma,
-        isStudentSignup: vi.fn().mockResolvedValue(true), // From teacher page
+        isStudentSignup: vi.fn().mockResolvedValue({ isStudent: true, teacherSlug: 'some-teacher' }), // From teacher page
       })
 
       // NextAuth first checks getUserByAccount (returns null for new OAuth)

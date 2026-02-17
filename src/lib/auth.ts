@@ -58,7 +58,7 @@ import AzureADProvider from 'next-auth/providers/azure-ad'
 import bcrypt from 'bcryptjs'
 import { prisma, prismaBase } from '@/lib/prisma'
 import { generatePseudonym, isStudentEmail } from '@/lib/privacy/pseudonym'
-import { PrivacyAdapter } from '@/lib/privacy-adapter'
+import { PrivacyAdapter, type SignupContext } from '@/lib/privacy-adapter'
 import { cookies } from 'next/headers'
 import { createLogger } from '@/lib/logger'
 
@@ -72,24 +72,35 @@ export const authOptions: NextAuthOptions = {
   adapter: (process.env.GITHUB_CLIENT_ID || process.env.AZURE_AD_CLIENT_ID)
     ? PrivacyAdapter({
         prisma: prismaBase,
-        isStudentSignup: async (email: string, context?: any) => {
-          // Detect student signup using our custom cookie set before OAuth redirect.
-          // The cookie contains the teacher's pageSlug when signing up from a teacher's page.
+        isStudentSignup: async (email: string, context?: any): Promise<SignupContext> => {
+          // Parse structured signup cookie set before OAuth redirect.
+          // Format: "org:<slug>" for org page signups, "teacher:<slug>" for teacher page signups.
+          // Legacy format (plain slug without prefix) is treated as teacher page signup.
           // No cookie = signing up from eduskript.org = teacher account.
           try {
             const cookieStore = await cookies()
             const signupContextCookie = cookieStore.get('eduskript-signup-context')
-            const teacherSlug = signupContextCookie?.value ? decodeURIComponent(signupContextCookie.value) : ''
+            const rawValue = signupContextCookie?.value ? decodeURIComponent(signupContextCookie.value) : ''
 
             log.info('Signup detection started', {
               email: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
-              teacherSlug: teacherSlug || '(none)',
+              cookieValue: rawValue || '(none)',
             })
 
-            if (!teacherSlug) {
+            if (!rawValue) {
               log.info('No signup context cookie — treating as teacher signup')
-              return false
+              return { isStudent: false }
             }
+
+            // Parse structured cookie value
+            if (rawValue.startsWith('org:')) {
+              const orgSlug = rawValue.substring(4)
+              log.info(`Org page signup detected: orgSlug="${orgSlug}" → TEACHER account`)
+              return { isStudent: false, orgSlug }
+            }
+
+            // Teacher page signup: "teacher:<slug>" or legacy plain slug
+            const teacherSlug = rawValue.startsWith('teacher:') ? rawValue.substring(8) : rawValue
 
             // Verify this slug belongs to an existing teacher
             const teacher = await prisma.user.findUnique({
@@ -100,10 +111,13 @@ export const authOptions: NextAuthOptions = {
             const isStudent = teacher !== null && teacher.accountType === 'teacher'
             log.info(`Teacher lookup for "${teacherSlug}": ${teacher ? `found (accountType=${teacher.accountType})` : 'not found'} → signing up as ${isStudent ? 'STUDENT' : 'TEACHER'}`)
 
-            return isStudent
+            return {
+              isStudent,
+              teacherSlug: isStudent ? teacherSlug : undefined,
+            }
           } catch (error) {
             log.error('Signup detection failed, defaulting to teacher', { error })
-            return false
+            return { isStudent: false }
           }
         },
       })

@@ -138,13 +138,23 @@ async function findUniquePageSlug(prisma: PrismaClient, baseSlug: string): Promi
   return `${baseSlug}-${Date.now().toString(36)}`
 }
 
+/**
+ * Structured signup context parsed from the signup cookie.
+ * Determines account type and which org(s) to auto-join.
+ */
+export interface SignupContext {
+  isStudent: boolean
+  teacherSlug?: string  // signing up from a teacher's page
+  orgSlug?: string      // signing up from an org page
+}
+
 interface PrivacyAdapterOptions {
   prisma: PrismaClient
   /**
-   * Function to determine if a user should be treated as a student
-   * based on the signup context (e.g., domain, OAuth state)
+   * Function to determine signup context (account type + org info)
+   * based on the signup cookie set before OAuth redirect.
    */
-  isStudentSignup?: (email: string, context?: any) => boolean | Promise<boolean>
+  isStudentSignup?: (email: string, context?: any) => SignupContext | Promise<SignupContext>
 }
 
 /**
@@ -203,12 +213,71 @@ async function autoJoinOrgByEmailDomain(prisma: PrismaClient, userId: string, em
 }
 
 /**
+ * Auto-join organizations based on signup context (teacher page or org page).
+ * - From a teacher's page: join all orgs that teacher belongs to
+ * - From an org page: join that specific org
+ */
+async function autoJoinOrgBySignupContext(
+  prisma: PrismaClient,
+  userId: string,
+  context: SignupContext
+): Promise<void> {
+  try {
+    let orgIds: string[] = []
+
+    if (context.teacherSlug) {
+      // Find the teacher and their org memberships
+      const teacher = await prisma.user.findUnique({
+        where: { pageSlug: context.teacherSlug },
+        select: {
+          organizationMemberships: {
+            select: { organizationId: true },
+          },
+        },
+      })
+      orgIds = teacher?.organizationMemberships.map(m => m.organizationId) || []
+    } else if (context.orgSlug) {
+      // Find the org by slug
+      const org = await prisma.organization.findUnique({
+        where: { slug: context.orgSlug },
+        select: { id: true },
+      })
+      if (org) {
+        orgIds = [org.id]
+      }
+    }
+
+    for (const orgId of orgIds) {
+      const existing = await prisma.organizationMember.findUnique({
+        where: {
+          organizationId_userId: { organizationId: orgId, userId },
+        },
+      })
+
+      if (!existing) {
+        await prisma.organizationMember.create({
+          data: {
+            organizationId: orgId,
+            userId,
+            role: 'member',
+          },
+        })
+        log.info(`Auto-joined user ${userId} to org ${orgId} (signup context: ${context.teacherSlug ? 'teacher page' : 'org page'})`)
+      }
+    }
+  } catch (error) {
+    // Don't fail user creation if auto-join fails
+    console.error('[PrivacyAdapter] Error auto-joining org by signup context:', error)
+  }
+}
+
+/**
  * Creates a privacy-preserving adapter that wraps PrismaAdapter
  * Students: OAuth-only, NO email storage
  * Teachers: Normal email storage
  */
 export function PrivacyAdapter(options: PrivacyAdapterOptions): Adapter {
-  const { prisma, isStudentSignup = () => false } = options
+  const { prisma, isStudentSignup = (() => ({ isStudent: false })) as NonNullable<PrivacyAdapterOptions['isStudentSignup']> } = options
   const baseAdapter = PrismaAdapter(prisma) as Adapter
 
   return {
@@ -249,11 +318,14 @@ export function PrivacyAdapter(options: PrivacyAdapterOptions): Adapter {
       const maskedEmail = user.email?.replace(/(.{2}).*(@.*)/, '$1***$2') || 'none'
       log.info(`Creating new user account for ${maskedEmail}`)
 
-      // Check if this is a student signup
-      const isStudent = await isStudentSignup(user.email, user)
-      log.info(`Account type decision: ${isStudent ? 'STUDENT' : 'TEACHER'} for ${maskedEmail}`)
+      // Get structured signup context (account type + org info)
+      const signupContext = await isStudentSignup(user.email, user)
+      log.info(`Account type decision: ${signupContext.isStudent ? 'STUDENT' : 'TEACHER'} for ${maskedEmail}`, {
+        teacherSlug: signupContext.teacherSlug,
+        orgSlug: signupContext.orgSlug,
+      })
 
-      if (isStudent) {
+      if (signupContext.isStudent) {
         let createdUser
         try {
           const anonymousName = `Student ${Math.random().toString(36).substring(2, 6)}`
@@ -273,6 +345,9 @@ export function PrivacyAdapter(options: PrivacyAdapterOptions): Adapter {
           log.error(`Failed to create student account for ${maskedEmail}: ${error.message}`)
           throw error
         }
+
+        // Auto-join orgs based on signup context (e.g., teacher's orgs)
+        await autoJoinOrgBySignupContext(prisma, createdUser.id, signupContext)
 
         return {
           id: createdUser.id,
@@ -305,6 +380,10 @@ export function PrivacyAdapter(options: PrivacyAdapterOptions): Adapter {
 
         log.info(`Teacher account created: id=${createdUser.id}, pageSlug="${pageSlug}", email=${maskedEmail}`)
 
+        // Auto-join orgs by signup context (from org page or teacher page)
+        await autoJoinOrgBySignupContext(prisma, createdUser.id, signupContext)
+
+        // Also auto-join orgs by email domain (complementary — matches by email domain requirement)
         if (user.email) {
           await autoJoinOrgByEmailDomain(prisma, createdUser.id, user.email)
         }

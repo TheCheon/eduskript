@@ -25,9 +25,11 @@ export function SignInForm({ fromTeacherPage, callbackUrl = '/dashboard' }: Sign
   const [showCredentialsForm, setShowCredentialsForm] = useState(false)
   const router = useRouter()
 
-  // If fromTeacherPage is set, user is coming from a teacher's page (could be student or teacher)
-  // If not set, user is coming from main site (teacher-only)
+  // If fromTeacherPage is set, user is coming from a teacher's page or org page.
+  // Format: "org/<slug>" for org pages, plain slug for teacher pages.
   const isFromTeacherPage = !!fromTeacherPage
+  const isFromOrgPage = fromTeacherPage?.startsWith('org/') ?? false
+  const orgSlug = isFromOrgPage ? fromTeacherPage!.substring(4) : undefined
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -91,12 +93,13 @@ export function SignInForm({ fromTeacherPage, callbackUrl = '/dashboard' }: Sign
   }
 
   const handleOAuthSignIn = async (provider: string) => {
-    // Set our own cookie to track signup context before OAuth redirect.
-    // NextAuth's callback-url cookie is unreliable across domains.
-    // This cookie tells isStudentSignup() whether this is a student signing up
-    // from a teacher's page (fromTeacherPage = teacher's pageSlug).
-    if (fromTeacherPage) {
-      document.cookie = `eduskript-signup-context=${encodeURIComponent(fromTeacherPage)}; path=/; max-age=600; SameSite=Lax`
+    // Set structured cookie to track signup context before OAuth redirect.
+    // Format: "org:<slug>" for org page, "teacher:<slug>" for teacher page.
+    // This cookie tells isStudentSignup() the account type and which org to auto-join.
+    if (isFromOrgPage && orgSlug) {
+      document.cookie = `eduskript-signup-context=${encodeURIComponent(`org:${orgSlug}`)}; path=/; max-age=600; SameSite=Lax`
+    } else if (fromTeacherPage) {
+      document.cookie = `eduskript-signup-context=${encodeURIComponent(`teacher:${fromTeacherPage}`)}; path=/; max-age=600; SameSite=Lax`
     } else {
       // Clear any stale context cookie for teacher signups
       document.cookie = 'eduskript-signup-context=; path=/; max-age=0'
@@ -109,12 +112,18 @@ export function SignInForm({ fromTeacherPage, callbackUrl = '/dashboard' }: Sign
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl text-center">
-            {isFromTeacherPage ? 'Sign In' : 'Sign into your teacher account'}
+            {isFromOrgPage
+              ? 'Teacher Sign In'
+              : isFromTeacherPage
+                ? 'Sign In'
+                : 'Sign into your teacher account'}
           </CardTitle>
           <CardDescription className="text-center">
-            {isFromTeacherPage
-              ? 'Sign in to access this content'
-              : 'Sign in to manage your educational content'}
+            {isFromOrgPage
+              ? 'Sign in or create a new teacher account'
+              : isFromTeacherPage
+                ? 'Sign in to access this content'
+                : 'Sign in to manage your educational content'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -131,7 +140,7 @@ export function SignInForm({ fromTeacherPage, callbackUrl = '/dashboard' }: Sign
                 <path d="M0 12.13h10.87V23H0z" fill="#7fba00"/>
                 <path d="M12.13 12.13H23V23H12.13z" fill="#ffb900"/>
               </svg>
-              Continue with Microsoft
+              {isFromOrgPage ? 'Sign in with Microsoft' : 'Continue with Microsoft'}
             </Button>
           </div>
 
@@ -293,9 +302,11 @@ export function SignInForm({ fromTeacherPage, callbackUrl = '/dashboard' }: Sign
                 </>
               )}
 
-              {/* Privacy message for students */}
+              {/* Context-appropriate messaging */}
               <div className="text-xs text-center text-muted-foreground mt-4">
-                Your privacy is our priority. Student accounts use pseudonymous identifiers.
+                {isFromOrgPage
+                  ? 'New teachers will automatically join the organization.'
+                  : 'Your privacy is our priority. Student accounts use pseudonymous identifiers.'}
               </div>
             </>
           )}
