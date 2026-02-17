@@ -19,6 +19,11 @@ export function EagerImageLoader({ children }: { children: ReactNode }) {
     const container = containerRef.current
     if (!container) return
 
+    // Public pages scroll inside #scroll-container (overflow-auto, h-screen),
+    // not the browser viewport. IntersectionObserver needs this as root,
+    // otherwise rootMargin-based preloading never triggers.
+    const scrollRoot = document.getElementById('scroll-container') ?? undefined
+
     // Force-load an image by switching from lazy to eager
     const eagerLoad = (img: HTMLImageElement) => {
       if (img.dataset.eagerQueued) return
@@ -36,7 +41,7 @@ export function EagerImageLoader({ children }: { children: ReactNode }) {
           }
         }
       },
-      { rootMargin: '1500px 0px' }
+      { root: scrollRoot, rootMargin: '1500px 0px' }
     )
 
     // Observer for collapsed callouts — preload all contained images
@@ -51,7 +56,7 @@ export function EagerImageLoader({ children }: { children: ReactNode }) {
           }
         }
       },
-      { rootMargin: '1500px 0px' }
+      { root: scrollRoot, rootMargin: '1500px 0px' }
     )
 
     // Observe all images and foldable callouts
