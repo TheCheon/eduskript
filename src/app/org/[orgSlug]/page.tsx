@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getServerSession } from 'next-auth'
@@ -64,7 +64,7 @@ export default async function OrgPage({ params }: OrgPageProps) {
   const organization = await getOrgWithLayout(orgSlug)
 
   if (!organization) {
-    notFound()
+    redirect('/auth/signin')
   }
 
   // Check if current user is an admin/owner

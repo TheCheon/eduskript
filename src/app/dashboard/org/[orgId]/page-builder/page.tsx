@@ -87,6 +87,7 @@ export default function OrgPageBuilderPage({
         context={{
           type: 'organization',
           organizationId: orgId,
+          organizationSlug: organization.slug,
         }}
       />
     </div>

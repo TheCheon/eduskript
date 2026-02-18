@@ -69,10 +69,15 @@ import { Permission, UserPermissions } from '@/types'
  */
 export function checkCollectionPermissions(
   userId: string,
-  authors: (CollectionAuthor & { user: Partial<User> })[]
+  authors: (CollectionAuthor & { user: Partial<User> })[],
+  isAdmin?: boolean
 ): UserPermissions {
+  if (isAdmin) {
+    return { canEdit: true, canView: true, canManageAuthors: true }
+  }
+
   const userAuthor = authors.find(author => author.userId === userId)
-  
+
   if (!userAuthor) {
     return {
       canEdit: false,
@@ -105,8 +110,13 @@ export function checkCollectionPermissions(
 export function checkSkriptPermissions(
   userId: string,
   skriptAuthors: (SkriptAuthor & { user: Partial<User> })[],
-  collectionAuthors?: (CollectionAuthor & { user: Partial<User> })[]
+  collectionAuthors?: (CollectionAuthor & { user: Partial<User> })[],
+  isAdmin?: boolean
 ): UserPermissions {
+  if (isAdmin) {
+    return { canEdit: true, canView: true, canManageAuthors: true }
+  }
+
   // Priority 1: Direct skript permissions (highest precedence)
   const userSkriptAuthor = skriptAuthors.find(author => author.userId === userId)
 
@@ -159,8 +169,13 @@ export function checkPagePermissions(
   userId: string,
   pageAuthors: (PageAuthor & { user: Partial<User> })[],
   skriptAuthors: (SkriptAuthor & { user: Partial<User> })[],
-  collectionAuthors: (CollectionAuthor & { user: Partial<User> })[]
+  collectionAuthors: (CollectionAuthor & { user: Partial<User> })[],
+  isAdmin?: boolean
 ): UserPermissions {
+  if (isAdmin) {
+    return { canEdit: true, canView: true, canManageAuthors: true }
+  }
+
   // Priority 1: Direct page permissions (highest precedence)
   const userPageAuthor = pageAuthors.find(author => author.userId === userId)
 

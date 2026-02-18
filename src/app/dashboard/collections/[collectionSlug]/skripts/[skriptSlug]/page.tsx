@@ -28,11 +28,11 @@ export default async function SkriptPage({ params }: SkriptPageProps) {
   const collection = await prisma.collection.findFirst({
     where: {
       slug: collectionSlug,
-      authors: {
-        some: {
-          userId: session.user.id
+      ...(session.user.isAdmin ? {} : {
+        authors: {
+          some: { userId: session.user.id }
         }
-      }
+      })
     }
   })
 
@@ -90,7 +90,7 @@ export default async function SkriptPage({ params }: SkriptPageProps) {
   }
 
   // Check permissions
-  const permissions = checkSkriptPermissions(session.user.id, skript.authors)
+  const permissions = checkSkriptPermissions(session.user.id, skript.authors, undefined, session.user.isAdmin)
   
   if (!permissions.canView) {
     notFound()

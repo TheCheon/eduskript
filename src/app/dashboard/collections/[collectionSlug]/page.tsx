@@ -26,11 +26,12 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
   const collection = await prisma.collection.findFirst({
     where: {
       slug: collectionSlug,
-      authors: {
-        some: {
-          userId: session.user.id
+      // Admins can access any collection; regular users only see their own
+      ...(session.user.isAdmin ? {} : {
+        authors: {
+          some: { userId: session.user.id }
         }
-      }
+      })
     },
     include: {
       collectionSkripts: {
@@ -77,7 +78,7 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
   }
 
   // Check user permissions for this collection
-  const userPermissions = checkCollectionPermissions(session.user.id, collection.authors)
+  const userPermissions = checkCollectionPermissions(session.user.id, collection.authors, session.user.isAdmin)
 
   // Transform the data structure to match what CollectionEditor expects
   const transformedCollection = {

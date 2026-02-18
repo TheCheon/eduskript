@@ -44,7 +44,7 @@ export async function GET(
 
     // Check if user has permission to view this skript
     // First check direct skript permissions
-    let permissions = checkSkriptPermissions(session.user.id, skript.authors)
+    let permissions = checkSkriptPermissions(session.user.id, skript.authors, undefined, session.user.isAdmin)
 
     // If no direct permission, check collection-level permissions
     // According to permission model: "Collection authors can view all skripts in their collections"

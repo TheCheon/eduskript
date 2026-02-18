@@ -45,7 +45,7 @@ export async function GET(
     }
 
     // Check if user has permission to view this collection
-    const permissions = checkCollectionPermissions(session.user.id, collection.authors)
+    const permissions = checkCollectionPermissions(session.user.id, collection.authors, session.user.isAdmin)
     if (!permissions.canView) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }

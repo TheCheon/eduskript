@@ -26,8 +26,8 @@ const studentNavigation = [
 
 // Organization navigation items (relative to org)
 const orgNavigationItems = [
-  { name: 'Settings', suffix: '/settings', icon: Settings },
   { name: 'Page Builder', suffix: '/page-builder', icon: BookOpen },
+  { name: 'Settings', suffix: '/settings', icon: Settings },
   { name: 'Members', suffix: '/members', icon: Users },
   { name: 'Domains', suffix: '/domains', icon: Globe },
 ]
@@ -160,8 +160,8 @@ export function DashboardSidebar() {
             </>
           )}
 
-          {/* Teacher Navigation - Personal Section */}
-          {isTeacher && (
+          {/* Teacher Navigation - Personal Section (hidden for platform admins) */}
+          {isTeacher && !session?.user?.isAdmin && (
             <>
               <SectionHeader title={userName} isCollapsed={isCollapsed} />
               {personalNavigation.map((item) => {

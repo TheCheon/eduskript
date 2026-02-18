@@ -49,6 +49,10 @@ export default function AdminPanelPage() {
   const [seeding, setSeeding] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState<'teachers' | 'students'>('teachers')
+  const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false)
+  const [orgFormData, setOrgFormData] = useState({ name: '', slug: '' })
+  const [creatingOrg, setCreatingOrg] = useState(false)
+  const [createdOrg, setCreatedOrg] = useState<{ id: string; slug: string } | null>(null)
 
   // Form states
   const [formData, setFormData] = useState({
@@ -305,6 +309,40 @@ export default function AdminPanelPage() {
     }
   }
 
+  // Create organization
+  const handleCreateOrg = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setCreatingOrg(true)
+    setError('')
+
+    try {
+      const response = await fetch('/api/organizations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orgFormData),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create organization')
+      }
+
+      setCreatedOrg(data)
+      setOrgFormData({ name: '', slug: '' })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setCreatingOrg(false)
+    }
+  }
+
+  // Auto-generate slug from org name
+  const handleOrgNameChange = (name: string) => {
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    setOrgFormData({ name, slug })
+  }
+
   // Open edit dialog
   const openEditDialog = (user: User) => {
     setSelectedUser(user)
@@ -371,6 +409,9 @@ export default function AdminPanelPage() {
         <div className="flex gap-2">
           <Button onClick={handleSeedData} disabled={seeding} variant="outline">
             {seeding ? 'Seeding...' : 'Insert Example Data'}
+          </Button>
+          <Button onClick={() => { setCreatedOrg(null); setShowCreateOrgDialog(true) }} variant="outline">
+            Create Organization
           </Button>
           <Button onClick={() => setShowCreateDialog(true)}>
             Create User
@@ -596,6 +637,59 @@ export default function AdminPanelPage() {
           </Tabs>
         )}
       </Card>
+
+      {/* Create Organization Dialog */}
+      <Dialog open={showCreateOrgDialog} onOpenChange={(open) => { setShowCreateOrgDialog(open); if (!open) { setCreatedOrg(null); setOrgFormData({ name: '', slug: '' }) } }}>
+        <DialogContent className="max-w-md">
+          <h2 className="mb-4 text-xl font-semibold">Create Organization</h2>
+          {createdOrg ? (
+            <div className="space-y-4">
+              <div className="rounded-md bg-green-500/10 px-4 py-3 text-sm text-green-700 dark:text-green-400">
+                Organization &ldquo;{createdOrg.slug}&rdquo; created successfully!
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowCreateOrgDialog(false)}>Close</Button>
+                <Button asChild>
+                  <a href={`/dashboard/org/${createdOrg.id}/settings`}>Go to Settings →</a>
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleCreateOrg} className="space-y-4">
+              <div>
+                <Label htmlFor="org-name">Name</Label>
+                <Input
+                  id="org-name"
+                  value={orgFormData.name}
+                  onChange={(e) => handleOrgNameChange(e.target.value)}
+                  required
+                  placeholder="My Organization"
+                />
+              </div>
+              <div>
+                <Label htmlFor="org-slug">Slug</Label>
+                <Input
+                  id="org-slug"
+                  value={orgFormData.slug}
+                  onChange={(e) => setOrgFormData({ ...orgFormData, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+                  required
+                  placeholder="my-organization"
+                  pattern="[a-z0-9-]+"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Lowercase letters, numbers, and hyphens only.</p>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setShowCreateOrgDialog(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={creatingOrg}>
+                  {creatingOrg ? 'Creating...' : 'Create Organization'}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Create User Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>

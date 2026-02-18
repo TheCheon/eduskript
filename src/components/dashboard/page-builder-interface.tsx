@@ -45,6 +45,7 @@ interface DragData {
 export interface PageBuilderContext {
   type: 'user' | 'organization'
   organizationId?: string
+  organizationSlug?: string
 }
 
 interface PageBuilderInterfaceProps {
@@ -653,9 +654,10 @@ export function PageBuilderInterface({ context = { type: 'user' } }: PageBuilder
   }
 
   const handlePreview = () => {
-    // Open teacher's public page in a new tab
-    if (session?.user?.pageSlug) {
-      // Use origin which includes protocol + host correctly
+    // Open the public page in a new tab
+    if (context.type === 'organization' && context.organizationSlug) {
+      window.open(`${window.location.origin}/org/${context.organizationSlug}`, '_blank')
+    } else if (session?.user?.pageSlug) {
       const url = `${window.location.origin}/${session.user.pageSlug}`
       window.open(url, '_blank')
     } else {
