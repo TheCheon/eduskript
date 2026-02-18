@@ -11,9 +11,11 @@ import { usePendingInvitations } from '@/hooks/use-pending-invitations'
 interface AuthButtonProps {
   pageId?: string // Page ID to check edit permissions (lazy loaded)
   teacherPageSlug?: string // Teacher's pageSlug for custom domain auth redirect
+  isOrgPage?: boolean // Whether the current page is an org page
+  orgSlug?: string // Org slug for org page context
 }
 
-export function AuthButton({ pageId, teacherPageSlug }: AuthButtonProps) {
+export function AuthButton({ pageId, teacherPageSlug, isOrgPage, orgSlug }: AuthButtonProps) {
   const pathname = usePathname() ?? '/'
   const { data: session, status } = useSession()
   const [editUrl, setEditUrl] = useState<string | null>(null)
@@ -52,11 +54,17 @@ export function AuthButton({ pageId, teacherPageSlug }: AuthButtonProps) {
   }, [pageId, status, session?.user?.accountType])
 
   // Build sign-in URL with context
-  // If on a teacher's page, include 'from' param for student context
-  // On custom domains, redirect to main site for auth (OAuth callbacks only work there)
+  // 'from' param tells the sign-in page what context the user is coming from:
+  // - "org/<slug>" for org pages → shows two-column teacher/student layout
+  // - "<pageSlug>" for teacher pages → shows student-focused layout
   const [signInUrl, setSignInUrl] = useState(() => {
-    const baseSignIn = pageSlug && !['auth', 'dashboard', 'api'].includes(pageSlug)
-      ? `/auth/signin?from=${encodeURIComponent(pageSlug)}&callbackUrl=${encodeURIComponent(pathname)}`
+    const fromParam = isOrgPage && orgSlug
+      ? `org/${orgSlug}`
+      : pageSlug && !['auth', 'dashboard', 'api'].includes(pageSlug)
+        ? pageSlug
+        : undefined
+    const baseSignIn = fromParam
+      ? `/auth/signin?from=${encodeURIComponent(fromParam)}&callbackUrl=${encodeURIComponent(pathname)}`
       : `/auth/signin?callbackUrl=${encodeURIComponent(pathname)}`
     return baseSignIn
   })

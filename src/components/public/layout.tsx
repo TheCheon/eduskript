@@ -325,7 +325,7 @@ export function PublicSiteLayout({
         <AdminToolbox pageId={pageId} />
         <FontSizeControls />
         <PublicThemeToggle />
-        <AuthButton pageId={pageId} teacherPageSlug={teacher.pageSlug} />
+        <AuthButton pageId={pageId} teacherPageSlug={teacher.pageSlug} isOrgPage={routePrefix?.startsWith('/org/')} orgSlug={routePrefix?.startsWith('/org/') ? routePrefix.split('/')[2] : undefined} />
       </div>
 
       {/* Mobile menu button */}
@@ -390,7 +390,7 @@ export function PublicSiteLayout({
                   <ChevronRight className="w-5 h-5" />
                 </Button>
                 <AdminToolbox pageId={pageId} />
-                <AuthButton pageId={pageId} teacherPageSlug={teacher.pageSlug} />
+                <AuthButton pageId={pageId} teacherPageSlug={teacher.pageSlug} isOrgPage={routePrefix?.startsWith('/org/')} orgSlug={routePrefix?.startsWith('/org/') ? routePrefix.split('/')[2] : undefined} />
                 <PublicThemeToggle />
                 <FontSizeControls orientation="vertical" />
               </div>
@@ -448,7 +448,7 @@ export function PublicSiteLayout({
                     <AdminToolbox pageId={pageId} />
                     <FontSizeControls />
                     <PublicThemeToggle />
-                    <AuthButton pageId={pageId} teacherPageSlug={teacher.pageSlug} />
+                    <AuthButton pageId={pageId} teacherPageSlug={teacher.pageSlug} isOrgPage={routePrefix?.startsWith('/org/')} orgSlug={routePrefix?.startsWith('/org/') ? routePrefix.split('/')[2] : undefined} />
                   </div>
                   <Button
                     variant="ghost"

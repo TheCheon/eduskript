@@ -24,8 +24,9 @@ export default function SignUpPage() {
   const router = useRouter()
 
   const handleOAuthSignUp = (provider: string) => {
-    // Redirect to /dashboard ensures this is treated as a teacher signup
-    // (not a student signup from a teacher's page like /eduadmin)
+    // Set explicit teacher-signup cookie so isStudentSignup() creates a teacher account.
+    // Without this, the new safety default (no cookie → student) would create a student.
+    document.cookie = 'eduskript-signup-context=teacher-signup; path=/; max-age=600; SameSite=Lax'
     signIn(provider, { callbackUrl: '/dashboard' })
   }
 

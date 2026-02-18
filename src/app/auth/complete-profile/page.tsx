@@ -18,6 +18,7 @@ export default function CompleteProfilePage() {
   })
   const [initialized, setInitialized] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isConvertingToStudent, setIsConvertingToStudent] = useState(false)
   const [error, setError] = useState('')
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null)
   const [checkingSlug, setCheckingSlug] = useState(false)
@@ -135,6 +136,29 @@ export default function CompleteProfilePage() {
     setIsLoading(false)
   }
 
+  const handleConvertToStudent = async () => {
+    setIsConvertingToStudent(true)
+    setError('')
+
+    try {
+      const response = await fetch('/api/user/convert-to-student', {
+        method: 'POST',
+      })
+
+      if (response.ok) {
+        await updateSession()
+        router.push('/dashboard')
+      } else {
+        const data = await response.json()
+        setError(data.error || 'Failed to convert account')
+      }
+    } catch {
+      setError('An error occurred. Please try again.')
+    }
+
+    setIsConvertingToStudent(false)
+  }
+
   // Show loading while session is being fetched
   if (!session) {
     return (
@@ -210,6 +234,21 @@ export default function CompleteProfilePage() {
               {isLoading ? 'Saving...' : 'Continue to Dashboard'}
             </Button>
           </form>
+
+          {/* Escape hatch for students who accidentally ended up here */}
+          <div className="mt-6 pt-4 border-t border-border text-center">
+            <p className="text-sm text-muted-foreground mb-2">
+              You&apos;re creating a teacher account.
+            </p>
+            <button
+              type="button"
+              onClick={handleConvertToStudent}
+              disabled={isConvertingToStudent}
+              className="text-sm text-primary hover:underline"
+            >
+              {isConvertingToStudent ? 'Converting...' : "Actually, I'm a student →"}
+            </button>
+          </div>
         </CardContent>
       </Card>
     </div>
