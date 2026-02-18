@@ -8,7 +8,7 @@
 import React, { type ComponentType, type ReactNode, Children, isValidElement } from 'react'
 import Image from 'next/image'
 import type { SkriptFilesData } from './skript-files'
-import { resolveFile, resolveUrl, resolveExcalidraw } from './skript-files'
+import { resolveFile, resolveExcalidraw } from './skript-files'
 import { CodeEditor } from '@/components/public/code-editor'
 import { Tabs, TabItem } from '@/components/markdown/tabs'
 import { Youtube } from '@/components/markdown/youtube'
@@ -536,11 +536,11 @@ export function createMarkdownComponents(
 
     if (originalHref) {
       // This is a relative file link — resolve via SkriptFiles
-      const resolvedUrl = resolveUrl(files, originalHref)
-      if (resolvedUrl) {
-        // Use ?download=filename to trigger Content-Disposition: attachment on the API
-        const separator = resolvedUrl.includes('?') ? '&' : '?'
-        const downloadUrl = `${resolvedUrl}${separator}download=${encodeURIComponent(originalHref)}`
+      // Always use /api/files/{id} for downloads (not direct S3 URLs) so
+      // the API can set Content-Disposition: attachment with the original filename
+      const file = resolveFile(files, originalHref)
+      if (file) {
+        const downloadUrl = `/api/files/${file.id}?download=${encodeURIComponent(originalHref)}`
         return (
           <a href={downloadUrl} download={originalHref} {...props}>
             {children}
