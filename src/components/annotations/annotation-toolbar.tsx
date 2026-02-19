@@ -91,7 +91,7 @@ function ToolbarDivider() {
   return <div className="w-px h-6 bg-border mx-1" />
 }
 
-export type AnnotationMode = 'view' | 'draw' | 'erase' | 'snap'
+export type AnnotationMode = 'view' | 'draw' | 'erase'
 
 export interface AnnotationLayer {
   id: string
@@ -274,19 +274,9 @@ export function AnnotationToolbar({
     return false
   })
 
-  const [showSnapControls, setShowSnapControls] = useState(false)
-  const snapHoverTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const snapHideTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const snapLongPressTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const snapLongPressStartPos = useRef<{ x: number; y: number } | null>(null)
-
-  // Allow snapping at any zoom level
-  const snapDisabled = false
-
   // Ref for the popover elements to detect clicks outside
   const penPopoverRef = useRef<HTMLDivElement>(null)
   const deletePopoverRef = useRef<HTMLDivElement>(null)
-  const snapPopoverRef = useRef<HTMLDivElement>(null)
 
   // Close popovers when stylus touches paper or when clicking outside
   useEffect(() => {
@@ -300,7 +290,6 @@ export function AnnotationToolbar({
         if (!isOnToolbar) {
           setShowPenControls(null)
           setShowDeleteControls(false)
-          setShowSnapControls(false)
         }
         return
       }
@@ -316,14 +305,11 @@ export function AnnotationToolbar({
       if (showDeleteControls) {
         setShowDeleteControls(false)
       }
-      if (showSnapControls) {
-        setShowSnapControls(false)
-      }
     }
 
     document.addEventListener('pointerdown', handlePointerDown, true)
     return () => document.removeEventListener('pointerdown', handlePointerDown, true)
-  }, [showPenControls, showDeleteControls, showSnapControls])
+  }, [showPenControls, showDeleteControls])
 
   const handlePenMouseEnter = (penIndex: number) => {
     // Clear any pending hide timer
@@ -497,78 +483,6 @@ export function AnnotationToolbar({
       deleteLongPressTimerRef.current = null
     }
     deleteLongPressStartPos.current = null
-  }
-
-  const handleSnapMouseEnter = () => {
-    if (!snapDisabled) return
-
-    // Clear any pending hide timer
-    if (snapHideTimerRef.current) {
-      clearTimeout(snapHideTimerRef.current)
-      snapHideTimerRef.current = null
-    }
-
-    // Set timer to show snap controls
-    snapHoverTimerRef.current = setTimeout(() => {
-      setShowSnapControls(true)
-    }, 300)
-  }
-
-  const handleSnapMouseLeave = () => {
-    if (snapHoverTimerRef.current) {
-      clearTimeout(snapHoverTimerRef.current)
-      snapHoverTimerRef.current = null
-    }
-
-    // If snap controls are showing, delay hiding them
-    if (showSnapControls) {
-      snapHideTimerRef.current = setTimeout(() => {
-        setShowSnapControls(false)
-      }, 200)
-    }
-  }
-
-  const handleSnapClick = () => {
-    if (snapDisabled) return
-    onModeChange(mode === 'snap' ? 'view' : 'snap')
-  }
-
-  // Long-press handlers for snap button (stylus/touch support)
-  const handleSnapPointerDown = (e: React.PointerEvent) => {
-    // Only handle touch/pen, not mouse (mouse uses hover)
-    if (e.pointerType === 'mouse' || !snapDisabled) return
-
-    // Prevent default to avoid text selection on long-press (iOS Safari)
-    e.preventDefault()
-
-    snapLongPressStartPos.current = { x: e.clientX, y: e.clientY }
-    snapLongPressTimerRef.current = setTimeout(() => {
-      setShowSnapControls(true)
-      snapLongPressTimerRef.current = null
-    }, 500)
-  }
-
-  const handleSnapPointerMove = (e: React.PointerEvent) => {
-    if (!snapLongPressStartPos.current || !snapLongPressTimerRef.current) return
-
-    const dx = e.clientX - snapLongPressStartPos.current.x
-    const dy = e.clientY - snapLongPressStartPos.current.y
-    const distance = Math.sqrt(dx * dx + dy * dy)
-
-    // Cancel long-press if moved more than 10px
-    if (distance > 10) {
-      clearTimeout(snapLongPressTimerRef.current)
-      snapLongPressTimerRef.current = null
-      snapLongPressStartPos.current = null
-    }
-  }
-
-  const handleSnapPointerUp = () => {
-    if (snapLongPressTimerRef.current) {
-      clearTimeout(snapLongPressTimerRef.current)
-      snapLongPressTimerRef.current = null
-    }
-    snapLongPressStartPos.current = null
   }
 
   // Close dropdowns when clicking outside
@@ -1170,7 +1084,6 @@ export function AnnotationToolbar({
             <Eraser className="w-4 h-4" />
           </button>
 
-          {/* Snap Tool - hidden, needs replacement (html2canvas is unreliable) */}
         </ToolbarSection>
       </div>
     </div>

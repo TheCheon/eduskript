@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react'
 import { GripVertical, Trash2, Globe, Users, User } from 'lucide-react'
-import type { Snap } from './snap-overlay'
+import type { Snap } from '@/types/snap'
 import { SnapViewerOverlay } from './snap-viewer-overlay'
 
 // Teacher snap type includes layer info
