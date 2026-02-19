@@ -27,7 +27,12 @@ export default function SignUpPage() {
     // Set explicit teacher-signup cookie so isStudentSignup() creates a teacher account.
     // Without this, the new safety default (no cookie → student) would create a student.
     document.cookie = 'eduskript-signup-context=teacher-signup; path=/; max-age=600; SameSite=Lax'
-    signIn(provider, { callbackUrl: '/dashboard' })
+    // Use absolute callbackUrl on tunnel domains so the post-OAuth redirect
+    // (including the complete-profile redirect) stays on the tunnel URL, not localhost.
+    const hostname = window.location.hostname
+    const isTunnel = hostname.endsWith('.ngrok-free.dev') || hostname.endsWith('.ngrok-free.app') || hostname.endsWith('.ngrok.io')
+    const callbackUrl = isTunnel ? `${window.location.origin}/dashboard` : '/dashboard'
+    signIn(provider, { callbackUrl })
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

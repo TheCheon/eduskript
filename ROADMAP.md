@@ -5,13 +5,12 @@
 - Dev docs go into getting-started, extending, internals, contributing, future-ideas. Only document major features, how we arrange smaller stuff document in code
 
 ## Needs testing
-images preload bad
-callouts with image bad
 
 ## Doing
+auth via tunnel
+**snapshot** can seriously mess up website. a new idea: people use their own screenshot / snapping tool and just paste the image. that way we can get rid of loads of hacks that had to do with trying to get html to canvas to work. upon pasting an image, users should see an overlay with the image that they are inserting. it should have a selection/crop tool to cut the image. then a button to confirm or cancel. upon confirmation, the image should be uploaded to a bucket (i think we have one already for that).
 
 ## To do
-**zooom** touchpad vs touchscreen
 **preview** buttons still often lead to wrong urls and thus produce 404s. e.g. in the page editor:
 https://www.informatikgarten.ch/dashboard/collections/grundjahr/skripts/computer-os/pages/betriebssystem/edit
 leads to: https://www.informatikgarten.ch/preview/ig/grundjahr/computer-os/betriebssystem (404, proper would be https://www.informatikgarten.ch/grundjahr/computer-os/betriebssystem
@@ -19,7 +18,6 @@ leads to: https://www.informatikgarten.ch/preview/ig/grundjahr/computer-os/betri
 
 ## Backlog
 
-**snapshot** can seriously mess up website
 **metrics** don't work well at all - get rid of them?
 
 
