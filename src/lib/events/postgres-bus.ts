@@ -8,6 +8,11 @@
  * - publish() sends NOTIFY on a channel with JSON payload
  * - subscribe() uses a dedicated connection with LISTEN
  * - PostgreSQL broadcasts to all listening connections
+ *
+ * Reconnection:
+ * Managed PostgreSQL services (Koyeb, etc.) periodically kill long-lived
+ * connections for maintenance. We handle this with exponential backoff
+ * (1s → 2s → 4s → ... → 30s max) and deduplicated reconnect attempts.
  */
 
 import pg from 'pg'
@@ -23,6 +28,10 @@ const CHANNEL_PREFIX = 'eduskript_'
 // Sanitize channel names for PostgreSQL (alphanumeric + underscore only)
 // PostgreSQL channel names are limited to 63 characters (NAMEDATALEN - 1)
 const MAX_CHANNEL_LENGTH = 63
+
+// Reconnection parameters
+const INITIAL_RETRY_MS = 1000
+const MAX_RETRY_MS = 30_000
 
 function sanitizeChannel(channel: string): string {
   const sanitized = CHANNEL_PREFIX + channel.replace(/[^a-zA-Z0-9]/g, '_')
@@ -51,8 +60,9 @@ class PostgresEventBus implements EventBus {
   private pool: pg.Pool
   private listenerClient: pg.Client | null = null
   private subscribers = new Map<string, Set<Handler>>()
-  private isConnecting = false
-  private connectionPromise: Promise<void> | null = null
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private retryMs = INITIAL_RETRY_MS
+  private isReconnecting = false
 
   constructor() {
     const sslConfig = getSSLConfig()
@@ -64,47 +74,44 @@ class PostgresEventBus implements EventBus {
     })
 
     // Start listening connection
-    this.ensureListenerConnection()
+    this.connect()
   }
 
   /**
-   * Ensure we have a dedicated listener connection
+   * Establish the dedicated LISTEN connection.
+   * Serialized: only one connect attempt runs at a time.
    */
-  private async ensureListenerConnection(): Promise<void> {
-    if (this.listenerClient) return
-    if (this.connectionPromise) return this.connectionPromise
-
-    if (this.isConnecting) return
-
-    this.isConnecting = true
-    this.connectionPromise = this.createListenerConnection()
+  private async connect(): Promise<void> {
+    if (this.isReconnecting) return
+    this.isReconnecting = true
 
     try {
-      await this.connectionPromise
-    } finally {
-      this.isConnecting = false
-      this.connectionPromise = null
-    }
-  }
+      // Clean up any stale client before creating a new one
+      if (this.listenerClient) {
+        this.listenerClient.removeAllListeners()
+        this.listenerClient.end().catch(() => {})
+        this.listenerClient = null
+      }
 
-  private async createListenerConnection(): Promise<void> {
-    try {
       const sslConfig = getSSLConfig()
-      this.listenerClient = new Client({
+      const client = new Client({
         connectionString: process.env.DATABASE_URL,
         ...(sslConfig && { ssl: sslConfig }),
       })
 
-      await this.listenerClient.connect()
+      await client.connect()
+
+      // Connection succeeded — reset backoff
+      this.retryMs = INITIAL_RETRY_MS
+      this.listenerClient = client
 
       // Handle incoming notifications
-      this.listenerClient.on('notification', (msg) => {
+      client.on('notification', (msg) => {
         if (!msg.channel.startsWith(CHANNEL_PREFIX)) return
 
         try {
           const event = JSON.parse(msg.payload || '{}') as AppEvent
 
-          // Find handlers for this channel (need to match sanitized version)
           for (const [subscribedChannel, handlers] of this.subscribers) {
             const sanitized = sanitizeChannel(subscribedChannel)
             if (sanitized === msg.channel) {
@@ -122,28 +129,53 @@ class PostgresEventBus implements EventBus {
         }
       })
 
-      // Handle connection errors/closure
-      this.listenerClient.on('error', (err) => {
-        console.error('[PostgresEventBus] Listener connection error:', err)
+      // Both 'error' and 'end' feed into the same reconnect path.
+      // The error handler fires first (with the PG error), then 'end' fires.
+      // We only schedule one reconnect via scheduleReconnect().
+      client.on('error', () => {
+        // Connection lost — will reconnect via 'end' or scheduleReconnect
         this.listenerClient = null
-        // Attempt to reconnect after a delay
-        setTimeout(() => this.ensureListenerConnection(), 1000)
+        this.scheduleReconnect()
       })
 
-      this.listenerClient.on('end', () => {
+      client.on('end', () => {
         this.listenerClient = null
+        this.scheduleReconnect()
       })
 
       // Re-subscribe to all active channels on this new connection
       for (const channel of this.subscribers.keys()) {
         const pgChannel = sanitizeChannel(channel)
-        await this.listenerClient.query(`LISTEN ${pgChannel}`)
+        await client.query(`LISTEN ${pgChannel}`)
+      }
+
+      if (this.retryMs > INITIAL_RETRY_MS) {
+        // Only log if we recovered from a previous failure
+        console.log('[PostgresEventBus] Listener connection restored')
       }
     } catch (error) {
-      console.error('[PostgresEventBus] Failed to create listener connection:', error)
       this.listenerClient = null
-      throw error
+      console.warn(`[PostgresEventBus] Connection failed, retrying in ${this.retryMs}ms`)
+      this.scheduleReconnect()
+    } finally {
+      this.isReconnecting = false
     }
+  }
+
+  /**
+   * Schedule a reconnect with exponential backoff.
+   * Deduplicates: only one pending timer at a time.
+   */
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer) return // Already scheduled
+
+    const delay = this.retryMs
+    this.retryMs = Math.min(this.retryMs * 2, MAX_RETRY_MS)
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      this.connect()
+    }, delay)
   }
 
   async publish(channel: string, event: AppEvent): Promise<void> {
@@ -173,13 +205,8 @@ class PostgresEventBus implements EventBus {
       this.listenerClient.query(`LISTEN ${pgChannel}`)
         .catch((err) => console.error(`[PostgresEventBus] LISTEN ${pgChannel} failed:`, err))
     } else {
-      // Ensure connection is being established
-      this.ensureListenerConnection().then(() => {
-        if (this.listenerClient) {
-          this.listenerClient.query(`LISTEN ${pgChannel}`)
-            .catch((err) => console.error(`[PostgresEventBus] LISTEN ${pgChannel} failed:`, err))
-        }
-      })
+      // Connection will re-LISTEN on all channels when it reconnects
+      this.scheduleReconnect()
     }
 
     // Return unsubscribe function
@@ -217,7 +244,12 @@ class PostgresEventBus implements EventBus {
    * Cleanup connections (for graceful shutdown)
    */
   async close(): Promise<void> {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
     if (this.listenerClient) {
+      this.listenerClient.removeAllListeners()
       await this.listenerClient.end()
       this.listenerClient = null
     }
