@@ -355,13 +355,6 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
     setHasUnsavedChanges(true)
   }
 
-  const handleMuxVideoInsert = (video: VideoInfo) => {
-    // remarkMuxVideo plugin transforms ![](filename.mp4) into a Mux player
-    const insertText = `![](${video.filename})`
-    setContent((prev: string) => prev + '\n\n' + insertText)
-    setHasUnsavedChanges(true)
-  }
-
   const handleFileRenamed = (oldFilename: string, newFilename: string) => {
     // Update the current editor content to reflect the renamed file
     const updatedContent = content
@@ -855,7 +848,6 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
               <VideoBrowser
                 videos={videoList}
                 loading={fileListLoading}
-                onVideoSelect={handleMuxVideoInsert}
               />
             </div>
           )}

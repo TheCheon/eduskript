@@ -162,6 +162,28 @@ const CodeMirrorEditor = function CodeMirrorEditor({
       }
     }
 
+    // Check if it's a Mux video dragged from the video browser
+    const muxVideoData = e.dataTransfer.getData('application/Eduskript-mux-video')
+    if (muxVideoData) {
+      try {
+        const video = JSON.parse(muxVideoData)
+        const insertText = `![](${video.filename})`
+        if (editorViewRef.current && !useSimpleEditor) {
+          const view = editorViewRef.current
+          const insertPos = dropPosition !== null && dropPosition !== undefined ? dropPosition : view.state.selection.main.head
+          const transaction = view.state.update({
+            changes: { from: insertPos, insert: insertText },
+            selection: { anchor: insertPos + insertText.length }
+          })
+          view.dispatch(transaction)
+          onChange(view.state.doc.toString())
+        }
+        return
+      } catch (error) {
+        console.error('Error parsing mux video data:', error)
+      }
+    }
+
     // Handle computer file drops
     const files = Array.from(e.dataTransfer.files)
     if (files.length > 0 && skriptId) {
