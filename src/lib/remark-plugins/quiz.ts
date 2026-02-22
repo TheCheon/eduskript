@@ -153,10 +153,19 @@ function parseQuestionBlock(content: string): { attrs: QuestionAttributes; optio
   const maxValueMatch = attrString.match(/maxValue=["']([^"']+)["']/)
   const stepMatch = attrString.match(/step=["']([^"']+)["']/)
 
-  if (!idMatch) return null
+  // Auto-generate ID from content hash when no explicit id provided
+  const fallbackId = (() => {
+    let hash = 0
+    for (let i = 0; i < content.length; i++) {
+      const char = content.charCodeAt(i)
+      hash = ((hash << 5) - hash) + char
+      hash = hash & hash
+    }
+    return `q-${Math.abs(hash).toString(36)}`
+  })()
 
   const attrs: QuestionAttributes = {
-    id: idMatch[1],
+    id: idMatch ? idMatch[1] : fallbackId,
     type: typeMatch?.[1],
     showFeedback: showFeedbackMatch?.[1],
     allowUpdate: allowUpdateMatch?.[1],

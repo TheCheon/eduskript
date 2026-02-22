@@ -5,7 +5,7 @@ import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
-import { Eye, EyeOff, Pencil, Code, Bold, Italic, Heading, Heading1, Heading2, Heading3, List, ListOrdered, Link, Palette, Highlighter, Circle, Wand2, ChevronDown, FilePen, Minus, Plus } from 'lucide-react'
+import { Eye, EyeOff, Pencil, Code, Bold, Italic, Heading, Heading1, Heading2, Heading3, List, ListOrdered, Link, Palette, Highlighter, Circle, Wand2, ChevronDown, FilePen, Minus, Plus, CircleHelp } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -284,7 +284,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
     
     if (['sqlite', 'db'].includes(extension || '')) {
       // Database file - insert SQL editor block
-      insertText = `\`\`\`sql editor db="${fileName}"\n-- Show all tables in the database\nSELECT name FROM sqlite_master WHERE type='table' ORDER BY name;\n\`\`\``
+      insertText = `\`\`\`sql editor id="${generateId()}" db="${fileName}"\n-- Show all tables in the database\nSELECT name FROM sqlite_master WHERE type='table' ORDER BY name;\n\`\`\``
     } else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension || '')) {
       // Image - use regular markdown syntax with just filename for path resolution
       const altText = fileName.replace(/\.[^/.]+$/, '')
@@ -804,6 +804,8 @@ const CodeMirrorEditor = function CodeMirrorEditor({
     onChange(newContent)
   }
 
+  const generateId = () => Math.random().toString(36).slice(2, 7)
+
   // Insert code editor block
   const insertCodeEditor = () => {
     const codeEditorTemplate = '```python editor\n# Write your Python code here\nprint("Hello, World!")\n```\n'
@@ -826,6 +828,34 @@ const CodeMirrorEditor = function CodeMirrorEditor({
         onChange(newContent)
         setTimeout(() => {
           textarea.selectionStart = textarea.selectionEnd = start + codeEditorTemplate.length
+          textarea.focus()
+        }, 0)
+      }
+    }
+  }
+
+  // Insert quiz question block
+  const insertQuiz = () => {
+    const quizTemplate = `<Question id="${generateId()}">\n  <Option is="correct">Correct answer</Option>\n  <Option>Wrong answer</Option>\n</Question>\n`
+
+    if (editorViewRef.current && !useSimpleEditor) {
+      const view = editorViewRef.current
+      const insertPos = view.state.selection.main.head
+      const transaction = view.state.update({
+        changes: { from: insertPos, insert: quizTemplate },
+        selection: { anchor: insertPos + quizTemplate.length }
+      })
+      view.dispatch(transaction)
+      onChange(view.state.doc.toString())
+    } else if (useSimpleEditor) {
+      const textarea = document.querySelector('textarea') as HTMLTextAreaElement
+      if (textarea) {
+        const start = textarea.selectionStart
+        const newContent = textareaContent.substring(0, start) + quizTemplate + textareaContent.substring(start)
+        setTextareaContent(newContent)
+        onChange(newContent)
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = start + quizTemplate.length
           textarea.focus()
         }, 0)
       }
@@ -1453,6 +1483,15 @@ const CodeMirrorEditor = function CodeMirrorEditor({
               title="Add Code Editor"
             >
               <Code className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={insertQuiz}
+              className="w-8 h-8 p-0 border rounded-md"
+              title="Add Quiz Question"
+            >
+              <CircleHelp className="w-4 h-4" />
             </Button>
             {skriptId && (
               <Button

@@ -275,7 +275,7 @@ export function createMarkdownComponents(
     const single = (props['dataSingle'] as string) || (props['data-single'] as string)
     const solution = (props['dataSolution'] as string) || (props['data-solution'] as string)
 
-    const id = providedId || `editor-${hashCode(code)}-${language}`
+    const id = providedId || `editor-${hashCode(code + (solution || ''))}-${language}`
     const decodedCode = decodeHtmlEntities(code)
     const decodedSolution = solution ? decodeHtmlEntities(solution).replace(/\\n/g, '\n') : undefined
 
