@@ -16,7 +16,8 @@ import { basicSetup } from 'codemirror'
 import { autocompletion } from '@codemirror/autocomplete'
 import { pythonCompletions } from './python-completions'
 import { Button } from '@/components/ui/button'
-import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText, ZoomIn, ZoomOut, Save, History, Highlighter, MessageSquare, WrapText } from 'lucide-react'
+import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText, ZoomIn, ZoomOut, Save, History, Highlighter, MessageSquare, WrapText, Circle, CheckCircle2 } from 'lucide-react'
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import { useUserData, useCreateVersion, useVersionHistory, useRestoreVersion, useDeleteVersion, useUpdateVersionLabel } from '@/lib/userdata/hooks'
 import { useSyncedUserData, type SyncedUserDataOptions } from '@/lib/userdata/provider'
 import { useTeacherClass } from '@/contexts/teacher-class-context'
@@ -363,6 +364,9 @@ export const CodeEditor = memo(function CodeEditor({
 
   // Run button success flash state
   const [showSuccessFlash, setShowSuccessFlash] = useState(false)
+
+  // Database loading status (SQL editors with a db only)
+  const [dbStatus, setDbStatus] = useState<'idle' | 'loading' | 'ready'>('idle')
 
   // Python kernel state
   const [activeKernel, setActiveKernel] = useState<'skulpt' | 'pyodide' | null>(null)
@@ -1303,12 +1307,27 @@ export const CodeEditor = memo(function CodeEditor({
     if (language === 'sql' && db && mounted) {
       // Dynamic import to avoid SSR issues
       import('@/lib/sql-executor.client').then(({ loadDatabase }) => {
-        loadDatabase(db).catch((error) => {
+        loadDatabase(db).then(() => {
+          setDbStatus('ready')
+        }).catch((error) => {
           addOutput(`Failed to load database: ${error.message}`, OutputLevel.ERROR)
         })
       })
     }
   }, [language, db, mounted])
+
+  // Poll for cross-editor database cache hits (another editor may have loaded the same DB)
+  useEffect(() => {
+    if (language !== 'sql' || !db || dbStatus === 'ready') return
+    const interval = setInterval(() => {
+      import('@/lib/sql-executor.client').then(({ isDatabaseCached }) => {
+        if (isDatabaseCached(db)) {
+          setDbStatus('ready')
+        }
+      })
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [language, db, dbStatus])
 
   // Display schema image in graphics pane for SQL mode (if provided)
   // Note: Schemas are now Excalidraw drawings stored with databases in the file system
@@ -1898,7 +1917,9 @@ export const CodeEditor = memo(function CodeEditor({
       const { executeSqlQuery, loadDatabase } = await import('@/lib/sql-executor.client')
 
       // Ensure database is loaded before executing query
+      setDbStatus('loading')
       await loadDatabase(db)
+      setDbStatus('ready')
 
       // Run student query (with limit for display, without limit for verification)
       const result = await executeSqlQuery(query, db)
@@ -2671,6 +2692,32 @@ plots
                     <Square className="w-3 h-3 mr-1" />
                     Stop
                   </Button>
+                )}
+                {language === 'sql' && db && (
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="flex items-center justify-center w-5 h-5 cursor-default">
+                          {dbStatus === 'idle' && (
+                            <Circle className="w-3.5 h-3.5 text-muted-foreground/40" />
+                          )}
+                          {dbStatus === 'loading' && (
+                            <span
+                              className="block w-3.5 h-3.5 rounded-full animate-spin border-2 border-muted-foreground/30 border-t-muted-foreground/70"
+                            />
+                          )}
+                          {dbStatus === 'ready' && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-green-600/70" />
+                          )}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs">
+                        {dbStatus === 'idle' && 'Database loads on first run'}
+                        {dbStatus === 'loading' && 'Loading database...'}
+                        {dbStatus === 'ready' && 'Database ready'}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
               </div>
               {/* Floating Control Buttons - Bottom Right */}

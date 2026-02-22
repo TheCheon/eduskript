@@ -245,6 +245,13 @@ export async function getDatabaseSchema(dbPath: string): Promise<SqlExecutionRes
 }
 
 /**
+ * Check if a database is already cached (loaded)
+ */
+export function isDatabaseCached(dbPath: string): boolean {
+  return databaseCache.has(dbPath)
+}
+
+/**
  * Close a specific database connection
  */
 export function closeDatabase(dbPath: string): void {
