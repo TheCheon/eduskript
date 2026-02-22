@@ -10,6 +10,7 @@ import { AlertDialogModal } from '@/components/ui/alert-dialog-modal'
 import { useAlertDialog } from '@/hooks/use-alert-dialog'
 import { MarkdownEditor } from '@/components/dashboard/markdown-editor'
 import { FileBrowser } from '@/components/dashboard/file-browser'
+import { VideoBrowser } from '@/components/dashboard/video-browser'
 import { CollapsibleDrawer } from '@/components/ui/collapsible-drawer'
 import { PublishToggle } from '@/components/dashboard/publish-toggle'
 import { VersionHistory } from '@/components/dashboard/version-history'
@@ -17,7 +18,7 @@ import { ExcalidrawEditor } from '@/components/dashboard/excalidraw-editor'
 import { EditModal } from '@/components/dashboard/edit-modal'
 import { CreatePageModal } from '@/components/dashboard/create-page-modal'
 import { SkriptAccessManager } from '@/components/permissions/SkriptAccessManager'
-import { ArrowLeft, Save, History, Files, Eye, Image as ImageIcon, Link2, FileCode, ClipboardCopy, Check, Shield, Lock, Unlock, Maximize2, Minimize2, BookA, BookOpen, FileText, FilePenLine, GripVertical, Trash2, Users, Wand2 } from 'lucide-react'
+import { ArrowLeft, Save, History, Files, Eye, Image as ImageIcon, Link2, FileCode, ClipboardCopy, Check, Shield, Lock, Unlock, Maximize2, Minimize2, BookA, BookOpen, FileText, FilePenLine, GripVertical, Trash2, Users, Wand2, Film } from 'lucide-react'
 import { AIEditModal } from '@/components/ai'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
@@ -351,6 +352,13 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
     } else {
       setContent((prev: string) => prev + '\n\n' + insertText)
     }
+    setHasUnsavedChanges(true)
+  }
+
+  const handleMuxVideoInsert = (video: VideoInfo) => {
+    // remarkMuxVideo plugin transforms ![](filename.mp4) into a Mux player
+    const insertText = `![](${video.filename})`
+    setContent((prev: string) => prev + '\n\n' + insertText)
     setHasUnsavedChanges(true)
   }
 
@@ -749,6 +757,7 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
             {[
               { id: 'pages', label: 'Pages', icon: <FileText className="w-3.5 h-3.5" /> },
               { id: 'files', label: 'Files', icon: <Files className="w-3.5 h-3.5" /> },
+              { id: 'videos', label: 'Videos', icon: <Film className="w-3.5 h-3.5" /> },
               { id: 'access', label: 'Access', icon: <Users className="w-3.5 h-3.5" /> },
             ].map(tab => (
               <button
@@ -837,6 +846,16 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
                 onUploadComplete={refreshFileList}
                 onFileRenamed={handleFileRenamed}
                 onExcalidrawEdit={handleExcalidrawEdit}
+              />
+            </div>
+          )}
+
+          {activeSkriptTab === 'videos' && (
+            <div className="border-t">
+              <VideoBrowser
+                videos={videoList}
+                loading={fileListLoading}
+                onVideoSelect={handleMuxVideoInsert}
               />
             </div>
           )}
