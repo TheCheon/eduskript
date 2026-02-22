@@ -4,11 +4,15 @@
  */
 
 import { S3Client, PutBucketCorsCommand, GetBucketCorsCommand } from '@aws-sdk/client-s3'
-import 'dotenv/config'
+import dotenv from 'dotenv'
+dotenv.config({ path: '.env.local' })
+dotenv.config() // fallback to .env
 
 const REGION = process.env.SCALEWAY_REGION || process.env.SCW_REGION || 'fr-par'
 const ENDPOINT = process.env.SCALEWAY_ENDPOINT || `https://s3.${REGION}.scw.cloud`
-const BUCKET = process.env.SCALEWAY_BUCKET || process.env.SCW_USER_BUCKET
+const BUCKET = process.argv[2] === '--teacher'
+  ? process.env.SCW_TEACHER_BUCKET
+  : (process.env.SCALEWAY_BUCKET || process.env.SCW_USER_BUCKET)
 const ACCESS_KEY = process.env.SCALEWAY_ACCESS_KEY_ID || process.env.SCW_ACCESS_KEY
 const SECRET_KEY = process.env.SCALEWAY_SECRET_ACCESS_KEY || process.env.SCW_SECRET_KEY
 
@@ -25,7 +29,7 @@ const s3Client = new S3Client({
 const corsConfig = {
   CORSRules: [
     {
-      AllowedOrigins: ['http://localhost:3000', 'https://eduskript.org'],
+      AllowedOrigins: ['*'],
       AllowedHeaders: ['*'],
       AllowedMethods: ['GET', 'PUT'],
       MaxAgeSeconds: 3000,

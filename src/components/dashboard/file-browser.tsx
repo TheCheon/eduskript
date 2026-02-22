@@ -47,6 +47,7 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
   const [updateLinks, setUpdateLinks] = useState(true)
   const [duplicateUpload, setDuplicateUpload] = useState<{file: File, existingFile: FileItem} | null>(null)
   const [newUploadName, setNewUploadName] = useState('')
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null) // 0-100 or null
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { resolvedTheme } = useTheme()
   const alert = useAlertDialog()
@@ -215,6 +216,7 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
       }
     }
 
+    setUploadProgress(0)
     const uploadPromises = fileList.map(async (file) => {
       try {
         // For large files, use direct S3 upload via presigned URL
@@ -236,6 +238,7 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
     })
 
     await Promise.all(uploadPromises)
+    setUploadProgress(null)
   }
 
   // Upload large files directly to S3 via presigned URL
@@ -259,18 +262,26 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
 
     const { uploadUrl, uploadToken, uploadData, signature } = await presignedResponse.json()
 
-    // Step 2: Upload directly to S3
-    const s3Response = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': file.type || 'application/octet-stream'
-      },
-      body: file
+    // Step 2: Upload directly to S3 (XMLHttpRequest for progress tracking)
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('PUT', uploadUrl)
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          setUploadProgress(Math.round((e.loaded / e.total) * 100))
+        }
+      }
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve()
+        } else {
+          reject(new Error(`S3 upload failed: ${xhr.status} ${xhr.statusText}`))
+        }
+      }
+      xhr.onerror = () => reject(new Error('Network error during upload'))
+      xhr.send(file)
     })
-
-    if (!s3Response.ok) {
-      throw new Error(`S3 upload failed: ${s3Response.status} ${s3Response.statusText}`)
-    }
 
     // Step 3: Confirm upload and create database record
     const confirmResponse = await fetch('/api/upload/confirm', {
@@ -380,7 +391,7 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
       {skriptId && (
         <div>
           <div
-            className={`border-2 border-dashed rounded-lg p-3 transition-colors cursor-pointer ${
+            className={`border-2 border-dashed rounded-lg p-3 transition-colors cursor-pointer relative ${
               dragOver ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/10' : 'border-border'
             }`}
             onDragOver={handleDragOver}
@@ -394,6 +405,26 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
             }}
             data-upload-zone
           >
+            {/* Upload progress overlay */}
+            {uploadProgress !== null && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/70 backdrop-blur-[1px]">
+                <svg width="40" height="40" viewBox="0 0 40 40" className="text-primary">
+                  <circle cx="20" cy="20" r="16" fill="none" stroke="currentColor" strokeWidth="3" opacity="0.15" />
+                  <circle
+                    cx="20" cy="20" r="16"
+                    fill="none" stroke="currentColor" strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeDasharray={`${2 * Math.PI * 16}`}
+                    strokeDashoffset={`${2 * Math.PI * 16 * (1 - uploadProgress / 100)}`}
+                    transform="rotate(-90 20 20)"
+                    className="transition-[stroke-dashoffset] duration-200"
+                  />
+                  <text x="20" y="20" textAnchor="middle" dominantBaseline="central" fill="currentColor" fontSize="10" fontWeight="500">
+                    {uploadProgress}%
+                  </text>
+                </svg>
+              </div>
+            )}
             {getDisplayFiles().length === 0 ? (
               <div className="text-center py-2 text-muted-foreground text-sm" data-upload-zone>
                 Drop files here or click to upload
