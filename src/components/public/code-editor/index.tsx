@@ -1692,6 +1692,21 @@ export const CodeEditor = memo(function CodeEditor({
 
     editorViewRef.current = view
 
+    // Debug: track focus/blur events to detect what steals focus
+    const cmContent = view.contentDOM
+    const onBlur = () => {
+      const active = document.activeElement
+      log.warn('EDITOR BLUR — focus lost', {
+        id,
+        cursor: view.state.selection.main.head,
+        newFocusElement: active?.tagName,
+        newFocusClass: active?.className?.toString().slice(0, 80),
+        newFocusId: (active as HTMLElement)?.id,
+      })
+      console.trace('[editor:codemirror] blur stack trace')
+    }
+    cmContent.addEventListener('blur', onBlur)
+
     // Re-apply highlights after editor creation
     // Use displayHighlightsRef to include both student and teacher highlights
     const currentHighlights = displayHighlightsRef.current
@@ -1717,6 +1732,7 @@ export const CodeEditor = memo(function CodeEditor({
     }
 
     return () => {
+      cmContent.removeEventListener('blur', onBlur)
       if (editorViewRef.current) {
         editorViewRef.current.destroy()
         editorViewRef.current = null
