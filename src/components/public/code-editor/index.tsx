@@ -8,9 +8,6 @@ import { EditorView, keymap } from '@codemirror/view'
 import { EditorState, Annotation, Compartment } from '@codemirror/state'
 import { indentUnit } from '@codemirror/language'
 import { indentWithTab, undo } from '@codemirror/commands'
-import { createLogger } from '@/lib/logger'
-
-const log = createLogger('editor:codemirror')
 import { python } from '@codemirror/lang-python'
 import { javascript } from '@codemirror/lang-javascript'
 import { sql } from '@codemirror/lang-sql'
@@ -590,27 +587,28 @@ export const CodeEditor = memo(function CodeEditor({
   const contentSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const debouncedSaveContent = useCallback(() => {
-    if (!editorViewRef.current) return
+    if (!editorViewRef.current || !pageId) return
 
-    const view = editorViewRef.current
-    const cursor = view.state.selection.main.head
-    log('debounced save — syncing content to files state', { id, cursor })
+    const content = editorViewRef.current.state.doc.toString()
 
-    const content = view.state.doc.toString()
-    setFiles(prev => prev.map((file, idx) =>
+    // Update the ref (not state!) so persistence reads the latest content.
+    // We deliberately avoid setFiles() here — updating React state triggers a re-render
+    // which causes DOM reconciliation that makes CodeMirror lose focus.
+    filesRef.current = filesRef.current.map((file, idx) =>
       idx === activeFileIndex ? { ...file, content } : file
-    ))
+    )
 
-    // Check cursor after state update (next microtask)
-    queueMicrotask(() => {
-      if (editorViewRef.current) {
-        const newCursor = editorViewRef.current.state.selection.main.head
-        if (newCursor !== cursor) {
-          log.warn('CURSOR MOVED after debounced save!', { before: cursor, after: newCursor })
-        }
-      }
+    // Persist directly to IndexedDB, bypassing the React state → persistence effect chain
+    savePersistentData({
+      files: filesRef.current,
+      activeFileIndex,
+      fontSize,
+      lineWrapping,
+      editorWidth,
+      canvasTransform,
+      highlights,
     })
-  }, [activeFileIndex, id])
+  }, [activeFileIndex, pageId, fontSize, lineWrapping, editorWidth, canvasTransform, highlights, savePersistentData])
 
   // Ref to avoid debouncedSaveContent as a dependency in the editor effect
   const debouncedSaveContentRef = useRef(debouncedSaveContent)
@@ -1533,7 +1531,6 @@ export const CodeEditor = memo(function CodeEditor({
 
   useEffect(() => {
     if (!editorRef.current || !mounted) return
-    log('EDITOR CREATE — destroying and recreating editor', { id, language, activeFileIndex })
 
     const isDark = resolvedTheme === 'dark'
 
@@ -1656,28 +1653,6 @@ export const CodeEditor = memo(function CodeEditor({
       })
     )
 
-    // Debug: detect any significant backward cursor jumps
-    let lastCursor = -1
-    extensions.push(
-      EditorView.updateListener.of((update) => {
-        const cursor = update.state.selection.main.head
-        // Detect backward jump of >10 chars (ignoring small movements)
-        if (lastCursor > 10 && cursor < lastCursor - 10) {
-          log.warn('CURSOR JUMPED BACKWARD!', {
-            id,
-            from: lastCursor,
-            to: cursor,
-            docChanged: update.docChanged,
-            focused: update.view.hasFocus,
-            transactions: update.transactions.length,
-            isProgrammatic: update.transactions.some(tr => tr.annotation(programmaticChange)),
-          })
-          console.trace('[editor:codemirror] cursor jump stack trace')
-        }
-        lastCursor = cursor
-      })
-    )
-
     // Clean up previous editor
     if (editorViewRef.current) {
       editorViewRef.current.destroy()
@@ -1694,21 +1669,6 @@ export const CodeEditor = memo(function CodeEditor({
     })
 
     editorViewRef.current = view
-
-    // Debug: track focus/blur events to detect what steals focus
-    const cmContent = view.contentDOM
-    const onBlur = () => {
-      const active = document.activeElement
-      log.warn('EDITOR BLUR — focus lost', {
-        id,
-        cursor: view.state.selection.main.head,
-        newFocusElement: active?.tagName,
-        newFocusClass: active?.className?.toString().slice(0, 80),
-        newFocusId: (active as HTMLElement)?.id,
-      })
-      console.trace('[editor:codemirror] blur stack trace')
-    }
-    cmContent.addEventListener('blur', onBlur)
 
     // Re-apply highlights after editor creation
     // Use displayHighlightsRef to include both student and teacher highlights
@@ -1735,7 +1695,6 @@ export const CodeEditor = memo(function CodeEditor({
     }
 
     return () => {
-      cmContent.removeEventListener('blur', onBlur)
       if (editorViewRef.current) {
         editorViewRef.current.destroy()
         editorViewRef.current = null
