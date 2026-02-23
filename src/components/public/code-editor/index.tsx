@@ -5,7 +5,7 @@ import { nanoid } from 'nanoid'
 import { createPortal } from 'react-dom'
 import { useTheme } from 'next-themes'
 import { EditorView, keymap } from '@codemirror/view'
-import { EditorState, Annotation } from '@codemirror/state'
+import { EditorState, Annotation, Compartment } from '@codemirror/state'
 import { indentWithTab, undo } from '@codemirror/commands'
 import { python } from '@codemirror/lang-python'
 import { javascript } from '@codemirror/lang-javascript'
@@ -566,6 +566,12 @@ export const CodeEditor = memo(function CodeEditor({
   const editorRef = useRef<HTMLDivElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
   const createVersionSnapshotRef = useRef<(isManualSave?: boolean) => Promise<void>>(() => Promise.resolve())
+
+  // CodeMirror compartments for dynamic reconfiguration without destroying the editor
+  const themeCompartment = useRef(new Compartment())
+  const fontSizeCompartment = useRef(new Compartment())
+  const lineWrappingCompartment = useRef(new Compartment())
+
   const canvasRef = useRef<HTMLDivElement>(null)
   const canvasContainerRef = useRef<HTMLDivElement>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -587,6 +593,9 @@ export const CodeEditor = memo(function CodeEditor({
       idx === activeFileIndex ? { ...file, content } : file
     ))
   }, [activeFileIndex])
+
+  // Ref to avoid debouncedSaveContent as a dependency in the editor effect
+  const debouncedSaveContentRef = useRef(debouncedSaveContent)
 
   // Save data to IndexedDB when anything changes
   // Files changes are debounced via the update listener, settings changes are immediate
@@ -677,10 +686,14 @@ export const CodeEditor = memo(function CodeEditor({
     }
   }, [pageId, files, activeFileIndex, fontSize, lineWrapping, editorWidth, canvasTransform, highlights, createVersion, refreshVersions, initialCode])
 
-  // Keep ref in sync with callback (avoids dependency in CodeMirror effect)
+  // Keep refs in sync with callbacks (avoids dependencies in CodeMirror effect)
   useEffect(() => {
     createVersionSnapshotRef.current = createVersionSnapshot
   }, [createVersionSnapshot])
+
+  useEffect(() => {
+    debouncedSaveContentRef.current = debouncedSaveContent
+  }, [debouncedSaveContent])
 
   // Highlight handlers
   const handleApplyHighlight = useCallback((color?: HighlightColor) => {
@@ -1489,7 +1502,17 @@ export const CodeEditor = memo(function CodeEditor({
     }
   }
 
-  // Initialize CodeMirror
+  // Initialize CodeMirror editor.
+  // IMPORTANT: This effect only runs when language or activeFileIndex changes (true recreation needed).
+  // Theme, fontSize, and lineWrapping are reconfigured via Compartments in separate effects below,
+  // which avoids destroying/recreating the editor and losing cursor position + focus.
+  // `files` is read via ref to avoid the destructive feedback loop where debounced save → files state
+  // change → editor recreation → cursor/focus loss.
+  const filesRef = useRef(files)
+  useLayoutEffect(() => { filesRef.current = files }, [files])
+  const activeFileIndexRef = useRef(activeFileIndex)
+  useLayoutEffect(() => { activeFileIndexRef.current = activeFileIndex }, [activeFileIndex])
+
   useEffect(() => {
     if (!editorRef.current || !mounted) return
 
@@ -1517,10 +1540,13 @@ export const CodeEditor = memo(function CodeEditor({
         '.cm-scroller': {
           overflow: 'auto'
         },
-        '.cm-content': {
-          fontSize: `${fontSize}px`
-        }
-      }, { dark: isDark }),
+      }),
+      // Dynamic compartments — reconfigured without destroying the editor
+      fontSizeCompartment.current.of(EditorView.theme({
+        '.cm-content': { fontSize: `${fontSize}px` }
+      })),
+      themeCompartment.current.of(isDark ? vsCodeDark : vsCodeLight),
+      lineWrappingCompartment.current.of(lineWrapping ? EditorView.lineWrapping : []),
     ]
 
     // Add Python autocomplete for Python files
@@ -1536,14 +1562,6 @@ export const CodeEditor = memo(function CodeEditor({
       )
     }
 
-    // Add VSCode theme (light or dark)
-    extensions.push(isDark ? vsCodeDark : vsCodeLight)
-
-    // Add line wrapping if enabled
-    if (lineWrapping) {
-      extensions.push(EditorView.lineWrapping)
-    }
-
     // Add code highlighting extension
     extensions.push(...codeHighlighting())
 
@@ -1554,7 +1572,7 @@ export const CodeEditor = memo(function CodeEditor({
       EditorView.updateListener.of((update) => {
         if (update.docChanged && update.state.field(highlightField).size > 0) {
           // Extract current positions from CodeMirror decorations
-          const extracted = extractHighlights(update.view, activeFileIndex)
+          const extracted = extractHighlights(update.view, activeFileIndexRef.current)
           // Only update positions for highlights that already exist in student state
           // Don't add new ones - those are teacher highlights that should stay separate
           setHighlights(prev => {
@@ -1608,7 +1626,7 @@ export const CodeEditor = memo(function CodeEditor({
 
             // Debounce save by 2 seconds after typing stops
             contentSaveTimeoutRef.current = setTimeout(() => {
-              debouncedSaveContent()
+              debouncedSaveContentRef.current()
             }, 2000)
           }
         }
@@ -1622,7 +1640,7 @@ export const CodeEditor = memo(function CodeEditor({
     }
 
     const state = EditorState.create({
-      doc: files[activeFileIndex]?.content || initialCode,
+      doc: filesRef.current[activeFileIndex]?.content || initialCode,
       extensions,
     })
 
@@ -1667,7 +1685,40 @@ export const CodeEditor = memo(function CodeEditor({
         clearTimeout(contentSaveTimeoutRef.current)
       }
     }
-  }, [mounted, resolvedTheme, language, initialCode, fontSize, lineWrapping, debouncedSaveContent, activeFileIndex, files])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- theme/fontSize/lineWrapping use Compartments below; files/debouncedSaveContent use refs
+  }, [mounted, language, initialCode, activeFileIndex])
+
+  // Reconfigure theme without destroying the editor
+  useEffect(() => {
+    const view = editorViewRef.current
+    if (!view) return
+    const isDark = resolvedTheme === 'dark'
+    view.dispatch({
+      effects: themeCompartment.current.reconfigure(isDark ? vsCodeDark : vsCodeLight)
+    })
+  }, [resolvedTheme])
+
+  // Reconfigure font size without destroying the editor
+  useEffect(() => {
+    const view = editorViewRef.current
+    if (!view) return
+    view.dispatch({
+      effects: fontSizeCompartment.current.reconfigure(
+        EditorView.theme({ '.cm-content': { fontSize: `${fontSize}px` } })
+      )
+    })
+  }, [fontSize])
+
+  // Reconfigure line wrapping without destroying the editor
+  useEffect(() => {
+    const view = editorViewRef.current
+    if (!view) return
+    view.dispatch({
+      effects: lineWrappingCompartment.current.reconfigure(
+        lineWrapping ? EditorView.lineWrapping : []
+      )
+    })
+  }, [lineWrapping])
 
   // Attach non-passive wheel event listener to prevent page scroll
   useEffect(() => {
