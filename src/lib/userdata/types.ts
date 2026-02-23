@@ -57,6 +57,7 @@ export interface CodeEditorData {
     scale: number
   }
   highlights?: CodeHighlight[]  // Code highlights (per-file)
+  initialCode?: string      // Markdown source at time of save — compared on load to detect teacher edits
 }
 
 /**

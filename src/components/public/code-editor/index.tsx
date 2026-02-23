@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText, ZoomIn, ZoomOut, Save, History, Highlighter, MessageSquare, WrapText, Circle, CheckCircle2 } from 'lucide-react'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import { useUserData, useCreateVersion, useVersionHistory, useRestoreVersion, useDeleteVersion, useUpdateVersionLabel } from '@/lib/userdata/hooks'
+import { userDataService } from '@/lib/userdata'
 import { useSyncedUserData, type SyncedUserDataOptions } from '@/lib/userdata/provider'
 import { useTeacherClass } from '@/contexts/teacher-class-context'
 import { useTeacherBroadcast } from '@/hooks/use-teacher-broadcast'
@@ -503,11 +504,11 @@ export const CodeEditor = memo(function CodeEditor({
     if (!isLoading && savedData && !hasLoadedData.current) {
       hasLoadedData.current = true
 
-      // Check if the markdown content has changed since the data was saved
-      // If the first file's content from saved data matches the original initialCode,
-      // it's safe to restore. Otherwise, prefer the new markdown content.
-      const savedFirstFileContent = savedData.files?.[0]?.content
-      const markdownHasChanged = savedFirstFileContent && savedFirstFileContent !== initialCode
+      // Detect if the teacher changed the markdown since the student last saved.
+      // We compare the initialCode that was active at save time against the current prop.
+      // If they differ, the teacher edited the markdown and we should reset content.
+      const markdownHasChanged = savedData.initialCode !== undefined
+        && savedData.initialCode !== initialCode
 
       if (markdownHasChanged) {
         // Markdown was updated - don't restore old saved content
@@ -598,8 +599,9 @@ export const CodeEditor = memo(function CodeEditor({
       idx === activeFileIndex ? { ...file, content } : file
     )
 
-    // Persist directly to IndexedDB, bypassing the React state → persistence effect chain
-    savePersistentData({
+    // Persist directly to IndexedDB via the service singleton, bypassing the
+    // useUserData hook's updateData which calls setData and triggers a re-render.
+    userDataService.save(pageId, componentId, {
       files: filesRef.current,
       activeFileIndex,
       fontSize,
@@ -607,8 +609,9 @@ export const CodeEditor = memo(function CodeEditor({
       editorWidth,
       canvasTransform,
       highlights,
+      initialCode,
     })
-  }, [activeFileIndex, pageId, fontSize, lineWrapping, editorWidth, canvasTransform, highlights, savePersistentData])
+  }, [activeFileIndex, pageId, componentId, fontSize, lineWrapping, editorWidth, canvasTransform, highlights, initialCode])
 
   // Ref to avoid debouncedSaveContent as a dependency in the editor effect
   const debouncedSaveContentRef = useRef(debouncedSaveContent)
@@ -648,6 +651,7 @@ export const CodeEditor = memo(function CodeEditor({
         editorWidth,
         canvasTransform,
         highlights: savedData?.highlights || [], // Preserve personal highlights
+        initialCode,
       }
       savePersistentData(personalData, { immediate: true })
     } else {
@@ -660,10 +664,11 @@ export const CodeEditor = memo(function CodeEditor({
         editorWidth,
         canvasTransform,
         highlights,
+        initialCode,
       }
       savePersistentData(dataToSave, { immediate: true })
     }
-  }, [activeFileIndex, fontSize, lineWrapping, editorWidth, canvasTransform, pageId, savePersistentData, files, componentId, isLoading, highlights, isBroadcastMode, updateBroadcastHighlights, savedData?.highlights])
+  }, [activeFileIndex, fontSize, lineWrapping, editorWidth, canvasTransform, pageId, savePersistentData, files, componentId, isLoading, highlights, isBroadcastMode, updateBroadcastHighlights, savedData?.highlights, initialCode])
 
   // Helper function to create a version snapshot
   const createVersionSnapshot = useCallback(async (isManualSave = false) => {
@@ -1530,7 +1535,9 @@ export const CodeEditor = memo(function CodeEditor({
   useLayoutEffect(() => { activeFileIndexRef.current = activeFileIndex }, [activeFileIndex])
 
   useEffect(() => {
-    if (!editorRef.current || !mounted) return
+    // Wait for saved data to load before creating the editor so we can
+    // use the restored content instead of the default initialCode.
+    if (!editorRef.current || !mounted || isLoading) return
 
     const isDark = resolvedTheme === 'dark'
 
@@ -1695,17 +1702,21 @@ export const CodeEditor = memo(function CodeEditor({
     }
 
     return () => {
+      // Flush pending content to IndexedDB before destroying the editor.
+      // This catches edits made in the last 2 seconds before unmount/navigation.
+      if (contentSaveTimeoutRef.current) {
+        clearTimeout(contentSaveTimeoutRef.current)
+        contentSaveTimeoutRef.current = null
+      }
+      debouncedSaveContentRef.current()
+
       if (editorViewRef.current) {
         editorViewRef.current.destroy()
         editorViewRef.current = null
       }
-      // Clear any pending auto-save
-      if (contentSaveTimeoutRef.current) {
-        clearTimeout(contentSaveTimeoutRef.current)
-      }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- theme/fontSize/lineWrapping use Compartments below; files/debouncedSaveContent use refs
-  }, [mounted, language, initialCode, activeFileIndex])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- theme/fontSize/lineWrapping use Compartments below; files/debouncedSaveContent use refs; isLoading gates creation until savedData is ready
+  }, [mounted, language, initialCode, activeFileIndex, isLoading])
 
   // Reconfigure theme without destroying the editor
   useEffect(() => {
