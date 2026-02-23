@@ -240,11 +240,8 @@ export default function ClassesPage() {
     try {
       setImporting({ ...importing, [classId]: true })
 
-      // Parse emails
-      const emails = emailInput
-        .split(/[\n,;\s]+/)
-        .map((e) => e.trim())
-        .filter((e) => e.length > 0 && e.includes('@'))
+      // Extract emails: find all @-containing patterns via RFC 5322 local-part + domain regex
+      const emails = (emailInput.match(/[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*/g) ?? [])
 
       if (emails.length === 0) {
         setDialogType('error')
@@ -807,7 +804,7 @@ export default function ClassesPage() {
                                 [classItem.id]: e.target.value,
                               })
                             }
-                            placeholder="Paste student emails, separated by newlines, commas, semicolons, or spaces"
+                            placeholder="Paste text containing student emails (formatting doesn't matter much, we usually find them)"
                             rows={4}
                             className="font-mono text-sm"
                           />
