@@ -40,23 +40,18 @@ export async function getSkriptFiles(skriptId: string): Promise<SkriptFilesData>
     },
   })
 
-  // Build files record
+  // Build files record — all URLs point directly to S3 (public bucket)
   const files: Record<string, SkriptFile> = {}
   for (const file of dbFiles) {
-    // Use S3 URL directly when hash is available (avoids 302 redirect
-    // through /api/files/, which breaks Next.js image optimization).
     const ext = file.name.split('.').pop() || ''
     const url = file.hash
       ? getTeacherFileUrl(getS3Key(file.hash, ext))
       : `/api/files/${file.id}`
 
-    const s3Url = file.hash ? getTeacherFileUrl(getS3Key(file.hash, ext)) : undefined
-
     files[file.name] = {
       id: file.id,
       name: file.name,
       url,
-      s3Url,
       width: file.width ?? undefined,
       height: file.height ?? undefined,
     }

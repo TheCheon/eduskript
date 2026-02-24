@@ -40,8 +40,7 @@ let scriptLoading: Promise<void> | null = null
 const databaseCache = new Map<string, SqlJsDatabase>()
 
 // In-flight load deduplication: prevents N SQL editors on the same page from
-// triggering N parallel server-side downloads of the same database file.
-// Without this, each ?proxy=true request buffers the entire DB in server memory → OOM.
+// triggering N parallel fetches of the same database file from S3.
 const pendingLoads = new Map<string, Promise<SqlJsDatabase>>()
 
 export interface SqlResultSet {

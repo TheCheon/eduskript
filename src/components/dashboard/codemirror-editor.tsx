@@ -31,7 +31,7 @@ interface CodeMirrorEditorProps {
   pageId?: string
   domain?: string
   isReadOnly?: boolean
-  fileList?: Array<{id: string, name: string, url?: string, s3Url?: string, isDirectory?: boolean, updatedAt?: string | Date, width?: number, height?: number}>
+  fileList?: Array<{id: string, name: string, url?: string, isDirectory?: boolean, updatedAt?: string | Date, width?: number, height?: number}>
   videoList?: VideoInfo[]
   fileListLoading?: boolean
   onFileUpload?: () => void
@@ -972,9 +972,11 @@ const CodeMirrorEditor = function CodeMirrorEditor({
     }
 
     try {
-      // Fetch the .excalidraw file data via the file proxy endpoint
-      // Using proxy=true to avoid CORS issues with S3 redirects
-      const fileUrl = `/api/files/${fileId}?proxy=true&v=${Date.now()}`
+      // Fetch the .excalidraw file data (direct S3 URL, CORS configured)
+      const file = fileList?.find(f => f.id === fileId)
+      const baseUrl = file?.url || `/api/files/${fileId}`
+      const separator = baseUrl.includes('?') ? '&' : '?'
+      const fileUrl = `${baseUrl}${separator}v=${Date.now()}`
       const response = await fetch(fileUrl)
       if (!response.ok) {
         throw new Error(`Failed to fetch drawing data (${response.status})`)

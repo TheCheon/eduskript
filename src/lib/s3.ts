@@ -245,20 +245,28 @@ export async function deleteFromS3(key: string, bucket?: string): Promise<void> 
   }))
 }
 
+// File types that should display inline in browsers rather than triggering download
+const INLINE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'pdf'])
+
 /**
  * Upload a teacher file to S3 (images, databases, etc.)
+ *
+ * Sets Content-Disposition so browsers suggest the original filename on download.
+ * Inline types (images, PDFs) get `inline`; everything else gets `attachment`.
  *
  * @param hash - Content hash (for deduplication and content-addressed storage)
  * @param extension - File extension
  * @param buffer - File contents
  * @param contentType - MIME type
+ * @param filename - Original filename (for Content-Disposition header)
  * @returns S3 key for the uploaded file
  */
 export async function uploadTeacherFile(
   hash: string,
   extension: string,
   buffer: Buffer,
-  contentType: string
+  contentType: string,
+  filename?: string,
 ): Promise<string> {
   if (!isTeacherS3Configured()) {
     throw new Error('Teacher S3 bucket not configured. Set SCW_TEACHER_BUCKET.')
@@ -269,6 +277,9 @@ export async function uploadTeacherFile(
   // Store files by hash for deduplication: files/{hash}.{extension}
   const key = `files/${hash}.${extension}`
 
+  const disposition = INLINE_EXTENSIONS.has(extension.toLowerCase()) ? 'inline' : 'attachment'
+  const safeName = filename?.replace(/["\\\n\r]/g, '_')
+
   await client.send(new PutObjectCommand({
     Bucket: SCALEWAY_TEACHER_BUCKET,
     Key: key,
@@ -278,6 +289,7 @@ export async function uploadTeacherFile(
     ACL: 'public-read',
     // Cache for 1 year (content-addressed by hash, so immutable)
     CacheControl: 'public, max-age=31536000, immutable',
+    ...(safeName && { ContentDisposition: `${disposition}; filename="${safeName}"` }),
   }))
 
   return key

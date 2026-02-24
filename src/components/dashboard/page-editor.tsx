@@ -174,7 +174,6 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
     name: string
     size?: number
     url?: string
-    s3Url?: string
     isDirectory?: boolean
     contentType?: string
     createdAt: Date
@@ -411,11 +410,10 @@ export function PageEditor({ skript, page, canEdit, userPermissions, currentUser
         return
       }
 
-      // Fetch the existing .excalidraw file data with cache busting
-      // Use proxy=true to avoid CORS issues with S3 redirects
+      // Fetch the existing .excalidraw file data (direct S3 URL, CORS configured)
       const baseUrl = file.url || `/api/files/${file.id}`
       const separator = baseUrl.includes('?') ? '&' : '?'
-      const fileUrl = `${baseUrl}${separator}proxy=true&v=${Date.now()}`
+      const fileUrl = `${baseUrl}${separator}v=${Date.now()}`
       const response = await fetch(fileUrl)
 
       if (response.ok) {

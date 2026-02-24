@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
 
     if (!existsInS3) {
       // Upload to content-addressed location
-      await uploadTeacherFile(hash, extension, buffer, contentType)
+      await uploadTeacherFile(hash, extension, buffer, contentType, filename)
     }
 
     // Delete the temp file
@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
         size,
         type: contentType,
         hash,
-        url: `/api/files/${existingFile.id}`,
+        url: getTeacherFileUrl(`files/${hash}.${extension}`),
         uploadType: 'skript',
         skriptId,
         uploadedAt: new Date().toISOString(),
@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
       size,
       type: contentType,
       hash,
-      url: `/api/files/${savedFile.id}`,
+      url: getTeacherFileUrl(`files/${hash}.${extension}`),
       uploadType: 'skript',
       skriptId,
       uploadedAt: new Date().toISOString()

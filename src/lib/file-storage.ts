@@ -71,7 +71,6 @@ import { prisma } from './prisma'
 import {
   isTeacherS3Configured,
   uploadTeacherFile,
-  downloadTeacherFile,
   deleteTeacherFile,
   getTeacherFileUrl,
   teacherFileExists,
@@ -230,7 +229,7 @@ export async function saveFile({
 
   // Upload to S3 if it doesn't exist (deduplication)
   if (!fileExistsInS3) {
-    await uploadTeacherFile(hash, extension, buffer, mimeType)
+    await uploadTeacherFile(hash, extension, buffer, mimeType, filename)
   }
 
   // Create or update database record
@@ -273,7 +272,7 @@ export async function saveFile({
   return {
     id: file.id,
     hash,
-    url: `/api/files/${file.id}`,
+    url: getTeacherFileUrl(getS3Key(hash, extension)),
     size: buffer.length
   }
 }
@@ -499,17 +498,23 @@ export async function listFiles({
     ]
   })
 
-  return files.map(file => ({
-    id: file.id,
-    name: file.name,
-    isDirectory: file.isDirectory,
-    size: file.size ? Number(file.size) : undefined,
-    contentType: file.contentType || undefined,
-    createdAt: file.createdAt,
-    updatedAt: file.updatedAt,
-    // Include updatedAt as cache-buster to ensure fresh content after file updates
-    url: file.isDirectory ? undefined : `/api/files/${file.id}?v=${file.updatedAt.getTime()}`
-  }))
+  return files.map(file => {
+    let url: string | undefined
+    if (!file.isDirectory && file.hash) {
+      const ext = getFileExtension(file.name)
+      if (ext) url = getTeacherFileUrl(getS3Key(file.hash, ext))
+    }
+    return {
+      id: file.id,
+      name: file.name,
+      isDirectory: file.isDirectory,
+      size: file.size ? Number(file.size) : undefined,
+      contentType: file.contentType || undefined,
+      createdAt: file.createdAt,
+      updatedAt: file.updatedAt,
+      url,
+    }
+  })
 }
 
 /**
@@ -556,17 +561,23 @@ export async function listAllFiles({
     ]
   })
 
-  return files.map(file => ({
-    id: file.id,
-    name: file.name,
-    isDirectory: file.isDirectory,
-    size: file.size ? Number(file.size) : undefined,
-    contentType: file.contentType || undefined,
-    createdAt: file.createdAt,
-    updatedAt: file.updatedAt,
-    // Include updatedAt as cache-buster to ensure fresh content after file updates
-    url: file.isDirectory ? undefined : `/api/files/${file.id}?v=${file.updatedAt.getTime()}`
-  }))
+  return files.map(file => {
+    let url: string | undefined
+    if (!file.isDirectory && file.hash) {
+      const ext = getFileExtension(file.name)
+      if (ext) url = getTeacherFileUrl(getS3Key(file.hash, ext))
+    }
+    return {
+      id: file.id,
+      name: file.name,
+      isDirectory: file.isDirectory,
+      size: file.size ? Number(file.size) : undefined,
+      contentType: file.contentType || undefined,
+      createdAt: file.createdAt,
+      updatedAt: file.updatedAt,
+      url,
+    }
+  })
 }
 
 /**

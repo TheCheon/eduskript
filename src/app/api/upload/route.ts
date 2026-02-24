@@ -193,12 +193,12 @@ export async function GET(request: NextRequest) {
     })
 
     const mappedFiles = files.map(file => {
-      // Compute direct S3 URL for files with a hash (avoids proxy overhead)
-      let s3Url: string | undefined
+      // Compute direct S3 URL from hash (no proxy needed, bucket is public)
+      let url: string | undefined
       if (!file.isDirectory && file.hash) {
         const ext = getFileExtension(file.name)
         if (ext) {
-          s3Url = getTeacherFileUrl(getS3Key(file.hash, ext))
+          url = getTeacherFileUrl(getS3Key(file.hash, ext))
         }
       }
 
@@ -212,8 +212,7 @@ export async function GET(request: NextRequest) {
         height: file.height ?? undefined,
         createdAt: file.createdAt,
         updatedAt: file.updatedAt,
-        url: file.isDirectory ? undefined : `/api/files/${file.id}`,
-        s3Url,
+        url,
       }
     })
 

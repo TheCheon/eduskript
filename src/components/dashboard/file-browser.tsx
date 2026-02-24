@@ -164,12 +164,11 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
   }
 
   const getExcalidrawPreviewUrl = (file: FileItem) => {
-    // Get the theme-appropriate SVG variant for the preview
-    // The file URL is like /api/files/[fileId]
-    // We need /api/files/[fileId].light.svg or .dark.svg
-    const fileUrl = getFileUrl(file)
+    // Find the theme-appropriate SVG variant by matching filename in the file list
     const variant = resolvedTheme === 'dark' ? 'dark' : 'light'
-    return `${fileUrl}.${variant}.svg`
+    const svgName = `${getFileName(file)}.${variant}.svg`
+    const svgFile = files.find(f => getFileName(f) === svgName)
+    return svgFile ? getFileUrl(svgFile) : undefined
   }
 
   const openFileLink = (url: string) => {
@@ -451,10 +450,10 @@ export function FileBrowser({ skriptId, onFileSelect, className = '', onUploadCo
                             className="object-cover"
                           />
                         </div>
-                      ) : isExcalidrawFile(getFileName(file)) ? (
+                      ) : isExcalidrawFile(getFileName(file)) && getExcalidrawPreviewUrl(file) ? (
                         <div className="w-8 h-8 rounded overflow-hidden bg-muted flex items-center justify-center">
                           <Image
-                            src={getExcalidrawPreviewUrl(file)}
+                            src={getExcalidrawPreviewUrl(file)!}
                             alt={getFileName(file)}
                             width={32}
                             height={32}

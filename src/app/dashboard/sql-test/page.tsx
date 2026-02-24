@@ -33,7 +33,7 @@ LIMIT 15;`
             id="sql-test"
             language="sql"
             initialCode={defaultSqlQuery}
-            db="/api/files/cmiac73tj0002ubg3v2hcu6fo"
+            db="netflix.db"
             showCanvas={true}
           />
         </div>

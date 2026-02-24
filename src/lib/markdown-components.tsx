@@ -288,12 +288,8 @@ export function createMarkdownComponents(
       // Try to find file with this name (with or without extension)
       const dbBasename = db.replace(/\.(sqlite|db)$/i, '')
       const dbFile = resolveFile(files, db) || resolveFile(files, `${dbBasename}.db`) || resolveFile(files, `${dbBasename}.sqlite`)
-      // Use direct S3 URL to avoid proxying multi-MB database files through the server.
-      // Falls back to proxy if S3 URL unavailable (e.g. SSR without hash).
-      if (dbFile?.s3Url) {
-        dbUrl = dbFile.s3Url
-      } else if (dbFile?.id) {
-        dbUrl = `/api/files/${dbFile.id}?proxy=true`
+      if (dbFile?.url) {
+        dbUrl = dbFile.url
       }
 
       // Auto-detect schema image (Excalidraw with light/dark variants)
@@ -540,14 +536,12 @@ export function createMarkdownComponents(
     const originalHref = (props['data-original-href'] as string) || (props['dataOriginalHref'] as string)
 
     if (originalHref) {
-      // This is a relative file link — resolve via SkriptFiles
-      // Always use /api/files/{id} for downloads (not direct S3 URLs) so
-      // the API can set Content-Disposition: attachment with the original filename
+      // This is a relative file link — resolve via SkriptFiles.
+      // S3 objects have Content-Disposition set at upload time, so direct URL works.
       const file = resolveFile(files, originalHref)
       if (file) {
-        const downloadUrl = `/api/files/${file.id}?download=${encodeURIComponent(originalHref)}`
         return (
-          <a href={downloadUrl} download={originalHref} {...props}>
+          <a href={file.url} download={originalHref} {...props}>
             {children}
           </a>
         )
