@@ -19,6 +19,10 @@ const nextConfig: NextConfig = {
     return []
   },
   images: {
+    // Disable server-side image optimization to prevent OOM on small instances.
+    // Broken/missing images cause the optimizer to leak memory and crash.
+    // S3 serves images directly — no optimization needed.
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
