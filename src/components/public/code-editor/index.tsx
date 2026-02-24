@@ -2941,30 +2941,9 @@ plots
         {/* Panel Content */}
         {activePanel === 'output' ? (
           <div ref={outputPanelRef} className="flex-1 overflow-auto p-2 font-mono text-sm" style={{ overscrollBehaviorY: 'contain' }}>
-            {/* SQL verification feedback banner */}
-            {verificationResult !== null && (
-              <div className={`mb-2 rounded px-3 py-2 text-sm font-sans ${verificationResult.isCorrect ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200'}`}>
-                {verificationResult.isCorrect ? (
-                  <span>&#10003; Korrekt!</span>
-                ) : (
-                  <div className="flex flex-col gap-1">
-                    <span>&#10007; Die Ergebnisse stimmen nicht überein.</span>
-                    <button
-                      className="underline text-left text-xs opacity-80 hover:opacity-100"
-                      onClick={() => setVerificationResult(prev => prev ? { ...prev, showSolution: !prev.showSolution } : prev)}
-                    >
-                      {verificationResult.showSolution ? 'Lösung verbergen' : 'Lösung anzeigen'}
-                    </button>
-                    {verificationResult.showSolution && solution && (
-                      <pre className="mt-1 bg-black/10 dark:bg-white/10 rounded px-2 py-1 text-xs overflow-x-auto">{solution}</pre>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
             {output.map((entry, index) => (
                 <div key={index} className="mb-2">
-                  {/* Text message */}
+                  {/* Stats line with inline verification result */}
                   <div
                     className={`${entry.isHtml ? '' : 'whitespace-pre-wrap'} ${
                       entry.level === OutputLevel.ERROR
@@ -2979,7 +2958,29 @@ plots
                     ) : (
                       entry.message
                     )}
+                    {verificationResult !== null && (
+                      <>
+                        {verificationResult.isCorrect ? (
+                          <span className="text-green-600 dark:text-green-400"> · &#10003; Korrekt!</span>
+                        ) : (
+                          <>
+                            <span className="text-red-600 dark:text-red-400"> · &#10007; Nicht korrekt.</span>
+                            {' '}
+                            <button
+                              className="text-red-600 dark:text-red-400 underline text-xs opacity-80 hover:opacity-100"
+                              onClick={() => setVerificationResult(prev => prev ? { ...prev, showSolution: !prev.showSolution } : prev)}
+                            >
+                              {verificationResult.showSolution ? 'Lösung verbergen' : 'Lösung anzeigen'}
+                            </button>
+                          </>
+                        )}
+                      </>
+                    )}
                   </div>
+                  {/* Solution reveal (below the stats line) */}
+                  {verificationResult?.showSolution && solution && (
+                    <pre className="mt-1 bg-black/10 dark:bg-white/10 rounded px-2 py-1 text-xs overflow-x-auto">{solution}</pre>
+                  )}
 
                   {/* SQL Results Table */}
                   {entry.sqlResults && entry.sqlResults.length > 0 && (
@@ -3004,7 +3005,7 @@ plots
                                 {row.map((cell, cellIdx) => (
                                   <td
                                     key={cellIdx}
-                                    className="border border-border text-[0.7rem] text-center p-[0.2rem]"
+                                    className="border border-border !text-[0.7rem] !text-center !p-[0.2rem]"
                                   >
                                     {cell === null ? (
                                       <span className="text-muted-foreground italic">NULL</span>

@@ -404,7 +404,7 @@ article.prose-theme > div > :first-child {
 }
 
 .prose-theme h2 {
-  @apply text-2xl mt-8 mb-4;
+  @apply text-2xl mt-14 mb-4;
 }
 
 .prose-theme h3 {
