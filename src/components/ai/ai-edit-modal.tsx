@@ -157,7 +157,19 @@ export function AIEditModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-5xl h-[80vh] flex flex-col p-0 gap-0">
+      <DialogContent
+        className="max-w-5xl h-[80vh] flex flex-col p-0 gap-0"
+        onInteractOutside={(e) => {
+          if (isLoading || proposal || completedEdits.length > 0 || instruction.trim()) {
+            e.preventDefault()
+          }
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isLoading || proposal || completedEdits.length > 0 || instruction.trim()) {
+            e.preventDefault()
+          }
+        }}
+      >
         {showProgressiveView ? (
           // Progressive view - show edits as they complete
           <div className="flex flex-col h-full">
