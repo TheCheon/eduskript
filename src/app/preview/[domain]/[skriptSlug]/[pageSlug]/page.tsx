@@ -78,9 +78,8 @@ export default async function PreviewPage({ params }: PageProps) {
 
   const allPages = skriptData.pages
 
-  // Check what's unpublished
-  const collectionPublished = collection ? collection.isPublished : true
-  const isPreviewMode = !collectionPublished || !skriptData.isPublished || !page.isPublished
+  // Check what's unpublished (collections no longer have publishing status)
+  const isPreviewMode = !skriptData.isPublished || !page.isPublished
 
   // If everything is published, redirect to the public URL
   if (!isPreviewMode) {
@@ -154,7 +153,6 @@ export default async function PreviewPage({ params }: PageProps) {
           </svg>
           <span>
             <span className="font-semibold">Preview:</span>
-            {collection && !collection.isPublished && ' Collection'}
             {!skript.isPublished && ' Skript'}
             {!page.isPublished && ' Page'}
             {' not published. Only you can see this.'}
