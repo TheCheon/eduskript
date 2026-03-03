@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useLayoutEffect, useRef, useDeferredValue, memo, useMemo, type ReactNode } from 'react'
+import React, { useState, useEffect, useLayoutEffect, useRef, useDeferredValue, useCallback, memo, useMemo, type ReactNode } from 'react'
 import { compileMarkdown } from '@/lib/markdown-compiler'
 import { createMarkdownComponents } from '@/lib/markdown-components'
 import { createSkriptFiles, createEmptySkriptFiles, type SkriptFilesData } from '@/lib/skript-files'
@@ -37,6 +37,64 @@ function MarkdownRendererInner({ content, fileList, videoList, pageId, onContent
   const hasRestoredScroll = useRef(false)
   const processingRef = useRef(0)
 
+  // Refs for values that change every keystroke — keeps the components memo stable
+  const contentRef = useRef(deferredContent)
+  const onContentChangeRef = useRef(onContentChange)
+  const onExcalidrawEditRef = useRef(onExcalidrawEdit)
+
+  // Sync refs after render (useEffect to satisfy react-hooks/refs lint rule)
+  useEffect(() => {
+    contentRef.current = deferredContent
+    onContentChangeRef.current = onContentChange
+    onExcalidrawEditRef.current = onExcalidrawEdit
+  })
+
+  // Stable callback: find/replace image markdown in content, then notify parent.
+  // Reads from refs so it always sees the latest content and callback.
+  const stableOnImageWidthChange = useCallback((srcForMatching: string, newMarkdown: string) => {
+    const currentContent = contentRef.current
+    const notify = onContentChangeRef.current
+    if (!notify || !currentContent || !srcForMatching) return
+
+    const escapedSrc = srcForMatching.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const baseName = srcForMatching.replace(/\.excalidraw$/, '')
+    const escapedBaseName = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+    const imageComponentPattern = new RegExp(`<img[^>]*src="${escapedSrc}"[^>]*/?>`, 'g')
+    const excaliPattern = new RegExp(`<excali[^>]*src="${escapedBaseName}"[^>]*/?>`, 'g')
+    const markdownPattern = new RegExp(`!\\[([^\\]]*)\\]\\(${escapedSrc}\\)(\\{[^}]*\\})?`, 'g')
+
+    let newContent = currentContent
+    if (excaliPattern.test(currentContent)) {
+      newContent = currentContent.replace(excaliPattern, newMarkdown)
+    } else if (imageComponentPattern.test(currentContent)) {
+      newContent = currentContent.replace(imageComponentPattern, newMarkdown)
+    } else {
+      newContent = currentContent.replace(markdownPattern, newMarkdown)
+    }
+
+    if (newContent !== currentContent) {
+      notify(newContent)
+    }
+  }, [])
+
+  const stableOnExcalidrawEdit = useCallback((filename: string, fileId: string) => {
+    onExcalidrawEditRef.current?.(filename, fileId)
+  }, [])
+
+  // Memoize the components map — only recreated when files or pageId change.
+  // Callbacks are stable (empty deps) so they don't bust the memo.
+  // The callbacks read refs internally but only when invoked from event handlers,
+  // never during the useMemo computation itself.
+  const components = useMemo(() => {
+    // eslint-disable-next-line react-hooks/refs -- callbacks read refs in event handlers, not during render
+    return createMarkdownComponents(files, {
+      pageId,
+      onImageWidthChange: stableOnImageWidthChange,
+      onExcalidrawEdit: stableOnExcalidrawEdit,
+    })
+  }, [files, pageId, stableOnImageWidthChange, stableOnExcalidrawEdit])
+
   // Capture scroll position before any DOM changes
   useLayoutEffect(() => {
     const scrollContainer = document.getElementById('markdown-preview-scroll-container')
@@ -60,14 +118,6 @@ function MarkdownRendererInner({ content, fileList, videoList, pageId, onContent
       try {
         setError(null)
 
-        // Create components with files and editor callbacks bound
-        const components = createMarkdownComponents(files, {
-          pageId,
-          onContentChange,
-          onExcalidrawEdit,
-          content: deferredContent,
-        })
-
         // Compile markdown using safe unified pipeline (no JS execution)
         const rendered = await compileMarkdown(deferredContent, { components })
 
@@ -86,7 +136,7 @@ function MarkdownRendererInner({ content, fileList, videoList, pageId, onContent
     }
 
     processContent()
-  }, [deferredContent, files, pageId, onContentChange, onExcalidrawEdit])
+  }, [deferredContent, components])
 
   // Restore scroll position after DOM updates
   useLayoutEffect(() => {

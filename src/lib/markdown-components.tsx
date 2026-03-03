@@ -155,8 +155,7 @@ function BlockquoteComponent({ children, className, ...props }: React.HTMLAttrib
 
 interface CreateMarkdownComponentsOptions {
   pageId?: string
-  onContentChange?: (newContent: string) => void
-  content?: string  // For editor mode, to find/replace content
+  onImageWidthChange?: (srcForMatching: string, newMarkdown: string) => void  // Stable callback for image resize
   organizationSlug?: string  // For organization pages (OurTeachers component)
   onExcalidrawEdit?: (filename: string, fileId: string) => void  // Callback to edit Excalidraw drawings
   optimizeImages?: boolean  // Enable Next.js Image optimization (only safe for public pages)
@@ -172,7 +171,7 @@ export function createMarkdownComponents(
   files: SkriptFilesData,
   options?: CreateMarkdownComponentsOptions
 ): Record<string, ComponentType<any>> {
-  const { pageId, onContentChange, content, organizationSlug, onExcalidrawEdit, optimizeImages } = options ?? {}
+  const { pageId, onImageWidthChange, organizationSlug, onExcalidrawEdit, optimizeImages } = options ?? {}
 
   // Img element handler - handles <img> elements from markdown with data-* attributes
   function ImgElementComponent({ src, alt, title, style, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) {
@@ -198,7 +197,7 @@ export function createMarkdownComponents(
           align={dataAlign as 'left' | 'center' | 'right'}
           wrap={dataWrap === 'true'}
           files={files}
-          onWidthChange={onContentChange ? (markdown) => handleImageWidthChange(dataExcalidraw, markdown) : undefined}
+          onWidthChange={onImageWidthChange ? (markdown) => onImageWidthChange(dataExcalidraw, markdown) : undefined}
           onEdit={onExcalidrawEdit}
           sourceLineStart={sourceLineStart}
           sourceLineEnd={sourceLineEnd}
@@ -229,39 +228,11 @@ export function createMarkdownComponents(
         saturate={dataSaturate}
         files={files}
         optimizeImages={optimizeImages}
-        onWidthChange={onContentChange ? (markdown) => handleImageWidthChange(originalSrc || srcStr, markdown) : undefined}
+        onWidthChange={onImageWidthChange ? (markdown) => onImageWidthChange(originalSrc || srcStr, markdown) : undefined}
         sourceLineStart={sourceLineStart}
         sourceLineEnd={sourceLineEnd}
       />
     )
-  }
-
-  // Handle image width change in editor mode
-  function handleImageWidthChange(srcForMatching: string, newMarkdown: string) {
-    if (!onContentChange || !content || !srcForMatching) return
-
-    const escapedSrc = srcForMatching.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    // Also match without .excalidraw extension for <excali> component
-    const baseName = srcForMatching.replace(/\.excalidraw$/, '')
-    const escapedBaseName = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-    // Match <img> and <excali> components
-    const imageComponentPattern = new RegExp(`<img[^>]*src="${escapedSrc}"[^>]*/?>`, 'g')
-    const excaliPattern = new RegExp(`<excali[^>]*src="${escapedBaseName}"[^>]*/?>`, 'g')
-    const markdownPattern = new RegExp(`!\\[([^\\]]*)\\]\\(${escapedSrc}\\)(\\{[^}]*\\})?`, 'g')
-
-    let newContent = content
-    if (excaliPattern.test(content)) {
-      newContent = content.replace(excaliPattern, newMarkdown)
-    } else if (imageComponentPattern.test(content)) {
-      newContent = content.replace(imageComponentPattern, newMarkdown)
-    } else {
-      newContent = content.replace(markdownPattern, newMarkdown)
-    }
-
-    if (newContent !== content) {
-      onContentChange(newContent)
-    }
   }
 
   // Code editor component
@@ -390,7 +361,7 @@ export function createMarkdownComponents(
         align={dataAlign as 'left' | 'center' | 'right'}
         wrap={dataWrap === 'true'}
         files={files}
-        onWidthChange={onContentChange ? (markdown) => handleImageWidthChange(src, markdown) : undefined}
+        onWidthChange={onImageWidthChange ? (markdown) => onImageWidthChange(src, markdown) : undefined}
         onEdit={onExcalidrawEdit}
         sourceLineStart={sourceLineStart}
         sourceLineEnd={sourceLineEnd}
@@ -523,7 +494,7 @@ export function createMarkdownComponents(
           align={align}
           wrap={wrap}
           files={files}
-          onWidthChange={onContentChange ? (markdown) => handleImageWidthChange(src, markdown) : undefined}
+          onWidthChange={onImageWidthChange ? (markdown) => onImageWidthChange(src, markdown) : undefined}
           onEdit={onExcalidrawEdit}
           sourceLineStart={sourceLineStart}
           sourceLineEnd={sourceLineEnd}
@@ -542,7 +513,7 @@ export function createMarkdownComponents(
         saturate={saturate}
         files={files}
         optimizeImages={optimizeImages}
-        onWidthChange={onContentChange ? (markdown) => handleImageWidthChange(src, markdown) : undefined}
+        onWidthChange={onImageWidthChange ? (markdown) => onImageWidthChange(src, markdown) : undefined}
         sourceLineStart={sourceLineStart}
         sourceLineEnd={sourceLineEnd}
       />
@@ -633,7 +604,7 @@ export function createMarkdownComponents(
           align={align}
           wrap={wrap}
           files={files}
-          onWidthChange={onContentChange ? (markdown) => handleImageWidthChange(filename, markdown) : undefined}
+          onWidthChange={onImageWidthChange ? (markdown) => onImageWidthChange(filename, markdown) : undefined}
           onEdit={onExcalidrawEdit}
         />
       )
