@@ -26,8 +26,8 @@ export function AdminPageBuilderPlaceholder({ canSeed }: Props) {
       }
 
       setResult(data.data)
-      // Reload so the sidebar picks up the new org membership
-      window.location.reload()
+      // Refresh sidebar without full page reload (preserves success message)
+      window.dispatchEvent(new Event('sidebar:refresh'))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -54,7 +54,8 @@ export function AdminPageBuilderPlaceholder({ canSeed }: Props) {
       {result ? (
         <div className="rounded-md bg-green-500/10 px-4 py-3 text-sm text-green-700 dark:text-green-400 w-full space-y-2">
           <p className="font-medium">Sample data created!</p>
-          <p>Teacher: teacher@eduskript.org / teacher</p>
+          <p>Email: <code className="bg-green-500/10 px-1 rounded">teacher@eduskript.org</code></p>
+          <p>Password: <code className="bg-green-500/10 px-1 rounded">teacher</code></p>
           <Link
             href={`/dashboard/org/${result.orgId}/page-builder`}
             className="inline-block underline font-medium"

@@ -39,6 +39,7 @@ export async function POST(request: Request) {
         pageSlug: 'teacher',
         accountType: 'teacher',
         hashedPassword: hashedPassword,
+        emailVerified: new Date(),
         requirePasswordReset: false,
       },
     })
@@ -67,7 +68,6 @@ export async function POST(request: Request) {
         title: 'Eduskript Tutorial',
         slug: 'eduskript-tutorial',
         description: 'Learn how to use all of Eduskript\'s features',
-        isPublished: true,
         authors: {
           create: {
             userId: teacherUser.id,
@@ -357,6 +357,30 @@ console.log("Even numbers:", evens);
 `,
         authors: {
           create: { userId: teacherUser.id, permission: 'author' },
+        },
+      },
+    })
+
+    // Add collection to teacher's public page layout
+    await prisma.pageLayout.upsert({
+      where: { userId: teacherUser.id },
+      create: {
+        userId: teacherUser.id,
+        items: {
+          create: {
+            type: 'collection',
+            contentId: tutorialCollection.id,
+            order: 0,
+          },
+        },
+      },
+      update: {
+        items: {
+          create: {
+            type: 'collection',
+            contentId: tutorialCollection.id,
+            order: 0,
+          },
         },
       },
     })

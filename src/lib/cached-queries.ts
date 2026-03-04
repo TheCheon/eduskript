@@ -222,7 +222,6 @@ export const getFullSiteStructure = (teacherId: string, pageSlug: string) =>
           title: true,
           slug: true,
           accentColor: true,
-          isPublished: true,
           updatedAt: true,
           collectionSkripts: {
             where: {
@@ -280,18 +279,20 @@ export const getPublishedPage = (
 ) =>
   unstable_cache(
     async () => {
-      // Skript slugs are globally unique, so query directly
-      const skript = await prisma.skript.findUnique({
-        where: { slug: skriptSlug },
+      // Skript slugs are scoped per-user, so query by slug + author
+      const skript = await prisma.skript.findFirst({
+        where: {
+          slug: skriptSlug,
+          isPublished: true,
+          OR: [
+            { authors: { some: { userId: teacherId } } },
+            { collectionSkripts: { some: { collection: { authors: { some: { userId: teacherId } } } } } }
+          ]
+        },
         include: {
-          authors: { where: { userId: teacherId }, select: { userId: true } },
           collectionSkripts: {
             include: {
-              collection: {
-                include: {
-                  authors: { where: { userId: teacherId }, select: { userId: true } }
-                }
-              }
+              collection: true
             },
             orderBy: { order: 'asc' },
             take: 1,
@@ -313,12 +314,7 @@ export const getPublishedPage = (
         }
       })
 
-      if (!skript || !skript.isPublished) return null
-
-      // Verify teacher is an author (direct skript author or collection author)
-      const isAuthor = skript.authors.length > 0 ||
-        skript.collectionSkripts.some(cs => (cs.collection?.authors?.length ?? 0) > 0)
-      if (!isAuthor) return null
+      if (!skript) return null
 
       const page = skript.pages.find(p => p.slug === contentPageSlug)
       if (!page) return null
@@ -333,7 +329,6 @@ export const getPublishedPage = (
           title: collection.title,
           slug: collection.slug,
           description: collection.description,
-          isPublished: collection.isPublished,
           accentColor: collection.accentColor,
         } : null,
         skript: {
@@ -347,7 +342,7 @@ export const getPublishedPage = (
         allPages: skript.pages,
       }
     },
-    [`published-page-${skriptSlug}-${contentPageSlug}`],
+    [`published-page-${teacherId}-${skriptSlug}-${contentPageSlug}`],
     {
       tags: ownerPageSlug ? [
         CACHE_TAGS.pageBySlug(ownerPageSlug, skriptSlug, contentPageSlug),
@@ -524,17 +519,18 @@ export const getCollectionForPreview = async (teacherId: string, collectionSlug:
  * Verifies teacher authorship via skript or collection authors.
  */
 export const getSkriptForPreview = async (teacherId: string, skriptSlug: string) => {
-  const skript = await prisma.skript.findUnique({
-    where: { slug: skriptSlug },
+  const skript = await prisma.skript.findFirst({
+    where: {
+      slug: skriptSlug,
+      OR: [
+        { authors: { some: { userId: teacherId } } },
+        { collectionSkripts: { some: { collection: { authors: { some: { userId: teacherId } } } } } }
+      ]
+    },
     include: {
-      authors: { where: { userId: teacherId }, select: { userId: true } },
       collectionSkripts: {
         include: {
-          collection: {
-            include: {
-              authors: { where: { userId: teacherId }, select: { userId: true } }
-            }
-          }
+          collection: true
         },
         orderBy: { order: 'asc' },
         take: 1,
@@ -557,11 +553,6 @@ export const getSkriptForPreview = async (teacherId: string, skriptSlug: string)
   })
 
   if (!skript) return null
-
-  // Verify teacher is an author
-  const isAuthor = skript.authors.length > 0 ||
-    skript.collectionSkripts.some(cs => (cs.collection?.authors?.length ?? 0) > 0)
-  if (!isAuthor) return null
 
   return skript
 }
@@ -649,7 +640,6 @@ export const getOrgFullSiteStructure = (orgId: string, orgSlug: string) =>
           title: true,
           slug: true,
           accentColor: true,
-          isPublished: true,
           updatedAt: true,
           collectionSkripts: {
             where: {
@@ -726,18 +716,20 @@ export const getOrgPublishedPage = (
       })
       const adminUserIds = adminMembers.map(m => m.userId)
 
-      // Find skript by unique slug
-      const skript = await prisma.skript.findUnique({
-        where: { slug: skriptSlug },
+      // Find skript by slug scoped to org admins
+      const skript = await prisma.skript.findFirst({
+        where: {
+          slug: skriptSlug,
+          isPublished: true,
+          OR: [
+            { authors: { some: { userId: { in: adminUserIds } } } },
+            { collectionSkripts: { some: { collection: { authors: { some: { userId: { in: adminUserIds } } } } } } }
+          ]
+        },
         include: {
-          authors: { where: { userId: { in: adminUserIds } }, select: { userId: true } },
           collectionSkripts: {
             include: {
-              collection: {
-                include: {
-                  authors: { where: { userId: { in: adminUserIds } }, select: { userId: true } }
-                }
-              }
+              collection: true
             },
             orderBy: { order: 'asc' },
             take: 1,
@@ -759,12 +751,7 @@ export const getOrgPublishedPage = (
         }
       })
 
-      if (!skript || !skript.isPublished) return null
-
-      // Verify an org admin is an author
-      const isAuthor = skript.authors.length > 0 ||
-        skript.collectionSkripts.some(cs => (cs.collection?.authors?.length ?? 0) > 0)
-      if (!isAuthor) return null
+      if (!skript) return null
 
       // Verify the skript's collection is in the org's page layout
       const collectionSkript = skript.collectionSkripts[0]
@@ -793,7 +780,6 @@ export const getOrgPublishedPage = (
           title: collection.title,
           slug: collection.slug,
           description: collection.description,
-          isPublished: collection.isPublished,
           accentColor: collection.accentColor,
         } : null,
         skript: {
@@ -858,7 +844,6 @@ export const getOrgHomepageContent = (
           const collection = await prisma.collection.findFirst({
             where: {
               id: item.contentId,
-              isPublished: true,
               authors: { some: { userId: { in: adminUserIds } } }
             },
             include: {
