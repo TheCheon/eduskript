@@ -4,7 +4,6 @@
  */
 
 import { CompletionContext, CompletionResult } from '@codemirror/autocomplete'
-import { syntaxTree } from '@codemirror/language'
 
 // Python keywords
 export const PYTHON_KEYWORDS = [
@@ -109,6 +108,53 @@ export const PYTHON_MODULES: Record<string, Array<{ label: string, type: string,
   ]
 }
 
+// --- Types for import-aware completions ---
+
+export interface NamedSource {
+  name: string
+  content: string
+}
+
+interface ParsedImport {
+  module: string
+  alias: string | null
+  names: string[] | '*' | null
+}
+
+/**
+ * Parse import statements from Python code.
+ * Handles: import mod, import mod as alias, from mod import a,b, from mod import *
+ */
+function parseImports(code: string): ParsedImport[] {
+  const imports: ParsedImport[] = []
+  let match
+
+  // from module import name1, name2 / from module import *
+  const fromImportRegex = /^from\s+(\w+)\s+import\s+(.+)$/gm
+  while ((match = fromImportRegex.exec(code)) !== null) {
+    const module = match[1]
+    const namesStr = match[2].split('#')[0].trim()
+    if (namesStr === '*') {
+      imports.push({ module, alias: null, names: '*' })
+    } else {
+      const names = namesStr.split(',').map(n => n.trim()).filter(Boolean)
+      imports.push({ module, alias: null, names })
+    }
+  }
+
+  // import module / import module as alias (^ + m flag = line start)
+  const importRegex = /^import\s+(\w+)(?:\s+as\s+(\w+))?/gm
+  while ((match = importRegex.exec(code)) !== null) {
+    imports.push({
+      module: match[1],
+      alias: match[2] || null,
+      names: null
+    })
+  }
+
+  return imports
+}
+
 /**
  * Extract user-defined variables, functions, and classes from code
  */
@@ -154,20 +200,23 @@ function extractUserDefinitions(code: string): Array<{ label: string, type: stri
 }
 
 /**
+ * Create a completion function that also indexes symbols from extra code sources
+ * (other files in the editor, global/skript import files).
+ */
+export function createPythonCompletions(getExtraSources: () => NamedSource[]) {
+  return (context: CompletionContext) => pythonCompletions(context, getExtraSources())
+}
+
+/**
  * Main completion function for Python
  */
-export function pythonCompletions(context: CompletionContext): CompletionResult | null {
+export function pythonCompletions(context: CompletionContext, extraSources: NamedSource[] = []): CompletionResult | null {
   const word = context.matchBefore(/\w*/)
   const code = context.state.doc.toString()
   const beforeCursor = code.slice(0, context.pos)
 
-  // Check if we just typed a dot (for attribute access)
   const afterDot = beforeCursor.match(/(\w+)\.$/)
 
-  // Show completions if:
-  // 1. We have a word to complete
-  // 2. User explicitly requested (Ctrl+Space)
-  // 3. We just typed a dot for attribute access
   if (!word && !afterDot) {
     return null
   }
@@ -176,17 +225,38 @@ export function pythonCompletions(context: CompletionContext): CompletionResult 
     return null
   }
 
-  // Check if we're after a dot (attribute access)
+  // Parse imports from the current file
+  const imports = parseImports(code)
+
+  // Build module name → definitions map for user sources
+  const sourceMap = new Map<string, Array<{ label: string, type: string, info: string }>>()
+  for (const source of extraSources) {
+    sourceMap.set(source.name, extractUserDefinitions(source.content))
+  }
+
+  // --- Dot-access completions (object.attr) ---
   const dotMatch = beforeCursor.match(/(\w+)\.(\w*)$/)
   if (dotMatch) {
     const objectName = dotMatch[1]
-    const partialAttr = dotMatch[2]
-
-    // Determine the correct starting position for completions
-    // If there's partial text after the dot, use word.from, otherwise use current position
     const from = word && word.from !== word.to ? word.from : context.pos
 
-    // Check if it's a known module
+    // Check imported user modules first (local modules shadow built-ins)
+    for (const imp of imports) {
+      if (imp.names !== null) continue
+      const accessName = imp.alias || imp.module
+      if (accessName === objectName && sourceMap.has(imp.module)) {
+        return {
+          from,
+          options: sourceMap.get(imp.module)!.map(item => ({
+            label: item.label,
+            type: item.type,
+            detail: item.info
+          }))
+        }
+      }
+    }
+
+    // Check built-in modules
     if (PYTHON_MODULES[objectName]) {
       return {
         from,
@@ -198,8 +268,7 @@ export function pythonCompletions(context: CompletionContext): CompletionResult 
       }
     }
 
-    // For turtle objects, provide turtle methods
-    // Simple heuristic: if variable contains 'turtle' or 't' after 'import turtle'
+    // Turtle variable heuristic (e.g. t = turtle.Turtle(); t.forward)
     if (code.includes('import turtle') && (objectName.toLowerCase().includes('turtle') || objectName === 't')) {
       return {
         from,
@@ -211,15 +280,41 @@ export function pythonCompletions(context: CompletionContext): CompletionResult 
       }
     }
 
-    // Return common object methods for strings, lists, etc.
     return null
   }
 
-  // Check if we're after 'import'
-  if (beforeCursor.match(/import\s+\w*$/)) {
+  // --- "from <module> import <name>" — suggest module members ---
+  const fromImportMatch = beforeCursor.match(/from\s+(\w+)\s+import\s+\w*$/)
+  if (fromImportMatch) {
+    const moduleName = fromImportMatch[1]
+    const options: Array<{ label: string, type: string, detail?: string }> = []
+
+    if (PYTHON_MODULES[moduleName]) {
+      options.push(...PYTHON_MODULES[moduleName].map(item => ({
+        label: item.label, type: item.type, detail: item.info
+      })))
+    }
+    if (sourceMap.has(moduleName)) {
+      options.push(...sourceMap.get(moduleName)!.map(item => ({
+        label: item.label, type: item.type, detail: item.info
+      })))
+    }
+    if (options.length > 0) {
+      options.push({ label: '*', type: 'keyword', detail: 'Import all names' })
+    }
+
+    return options.length > 0 ? { from: word?.from ?? context.pos, options } : null
+  }
+
+  // --- "import <module>" or "from <module>" — suggest module names ---
+  if (beforeCursor.match(/import\s+\w*$/) || beforeCursor.match(/from\s+\w*$/)) {
+    const moduleNames = new Set([
+      ...Object.keys(PYTHON_MODULES),
+      ...sourceMap.keys()
+    ])
     return {
       from: word?.from ?? context.pos,
-      options: Object.keys(PYTHON_MODULES).map(mod => ({
+      options: Array.from(moduleNames).map(mod => ({
         label: mod,
         type: 'module',
         detail: `module: ${mod}`
@@ -227,14 +322,47 @@ export function pythonCompletions(context: CompletionContext): CompletionResult 
     }
   }
 
-  // Get user-defined symbols
-  const userDefs = extractUserDefinitions(code)
+  // --- General completions ---
 
-  // Combine all completions
+  // Current file's own definitions (always available)
+  const currentFileDefs = extractUserDefinitions(code)
+
+  // Imported definitions from other sources
+  const importedDefs: Array<{ label: string, type: string, info: string }> = []
+
+  for (const imp of imports) {
+    // Resolve from user sources first, then built-in modules
+    const defs = sourceMap.get(imp.module) ?? PYTHON_MODULES[imp.module] ?? null
+
+    if (imp.names === null) {
+      // `import mod` or `import mod as alias` → add module name as completion
+      const accessName = imp.alias || imp.module
+      if (defs) {
+        importedDefs.push({ label: accessName, type: 'module', info: `module: ${imp.module}` })
+      }
+    } else if (imp.names === '*') {
+      // `from mod import *` → add all exports directly
+      if (defs) importedDefs.push(...defs)
+    } else {
+      // `from mod import a, b` → add only the named exports
+      if (defs) {
+        for (const name of imp.names) {
+          const def = defs.find(d => d.label === name)
+          if (def) {
+            importedDefs.push(def)
+          } else {
+            importedDefs.push({ label: name, type: 'variable', info: `from ${imp.module}` })
+          }
+        }
+      }
+    }
+  }
+
   const allCompletions = [
     ...PYTHON_KEYWORDS.map(kw => ({ label: kw, type: 'keyword' })),
     ...PYTHON_BUILTINS.map(b => ({ label: b.label, type: b.type, detail: b.info })),
-    ...userDefs.map(d => ({ label: d.label, type: d.type, detail: d.info }))
+    ...currentFileDefs.map(d => ({ label: d.label, type: d.type, detail: d.info })),
+    ...importedDefs.map(d => ({ label: d.label, type: d.type, detail: d.info }))
   ]
 
   return {

@@ -15,7 +15,7 @@ import { vsCodeDark } from '@fsegurai/codemirror-theme-vscode-dark'
 import { vsCodeLight } from '@fsegurai/codemirror-theme-vscode-light'
 import { basicSetup } from 'codemirror'
 import { autocompletion } from '@codemirror/autocomplete'
-import { pythonCompletions } from './python-completions'
+import { createPythonCompletions } from './python-completions'
 import { Button } from '@/components/ui/button'
 import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText, ZoomIn, ZoomOut, Save, History, Highlighter, MessageSquare, WrapText, Circle, CheckCircle2, Package, Trash2 } from 'lucide-react'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
@@ -1712,9 +1712,22 @@ export const CodeEditor = memo(function CodeEditor({
 
     // Add Python autocomplete for Python files
     if (language === 'python') {
+      // Reads other local files + import files from refs (avoids stale closures)
+      const completions = createPythonCompletions(() => {
+        const toSource = (f: { name: string, content: string }) => ({
+          name: f.name.replace(/\.py$/i, ''),
+          content: f.content
+        })
+        const otherFiles = filesRef.current
+          .filter((_, i) => i !== activeFileIndexRef.current)
+          .map(toSource)
+        const skriptFiles = (skriptImportsRef.current?.files || []).map(toSource)
+        const globalFiles = (globalImportsRef.current?.files || []).map(toSource)
+        return [...otherFiles, ...skriptFiles, ...globalFiles]
+      })
       extensions.push(
         autocompletion({
-          override: [pythonCompletions],
+          override: [completions],
           activateOnTyping: true,
           maxRenderedOptions: 20,
           // Trigger completion on dot for attribute access
