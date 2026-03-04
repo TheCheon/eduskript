@@ -48,6 +48,24 @@ export function HighlightLayer({ pageId, children }: HighlightLayerProps) {
   const [toolbar, setToolbar] = useState<ToolbarMode>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
   const [hoveredHighlightId, setHoveredHighlightId] = useState<string | null>(null)
+  const hoverDismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  /** Set hover immediately, cancelling any pending dismiss */
+  const showEditToolbar = useCallback((id: string) => {
+    if (hoverDismissTimer.current) {
+      clearTimeout(hoverDismissTimer.current)
+      hoverDismissTimer.current = null
+    }
+    setHoveredHighlightId(id)
+  }, [])
+
+  /** Dismiss hover after a short delay (lets cursor travel to the toolbar) */
+  const scheduleDismissEditToolbar = useCallback(() => {
+    hoverDismissTimer.current = setTimeout(() => {
+      setHoveredHighlightId(null)
+      hoverDismissTimer.current = null
+    }, 150)
+  }, [])
 
   // Find the article root (closest article.prose-theme ancestor)
   const getArticleRoot = useCallback((): Element | null => {
@@ -131,32 +149,51 @@ export function HighlightLayer({ pageId, children }: HighlightLayerProps) {
     return () => document.removeEventListener('pointerup', handlePointerUp)
   }, [isInsideCodeBlock])
 
-  // Track hover over highlight marks
+  // Track hover over highlight marks and the edit toolbar (portaled to body).
+  // Uses document-level listener so the portaled toolbar is included.
   useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-
     const handleMouseOver = (e: MouseEvent) => {
-      const mark = (e.target as HTMLElement).closest?.('mark.text-highlight')
+      const target = e.target as HTMLElement
+
+      // Entered a highlight mark
+      const mark = target.closest?.('mark.text-highlight')
       if (mark) {
-        setHoveredHighlightId((mark as HTMLElement).dataset.highlightId ?? null)
+        showEditToolbar((mark as HTMLElement).dataset.highlightId ?? '')
+        return
+      }
+
+      // Entered the edit toolbar (keeps it alive while cursor is on it)
+      if (target.closest?.('.highlight-edit-toolbar')) {
+        if (hoverDismissTimer.current) {
+          clearTimeout(hoverDismissTimer.current)
+          hoverDismissTimer.current = null
+        }
+        return
       }
     }
 
     const handleMouseOut = (e: MouseEvent) => {
-      const related = e.relatedTarget as HTMLElement | null
-      // Only clear if we're not moving to another mark with the same id or to the delete button
-      if (related?.closest?.('mark.text-highlight') || related?.closest?.('.highlight-delete-btn')) return
-      setHoveredHighlightId(null)
+      const from = e.target as HTMLElement
+      const to = e.relatedTarget as HTMLElement | null
+
+      // Only care about leaving marks or the toolbar
+      const leavingMark = !!from.closest?.('mark.text-highlight')
+      const leavingToolbar = !!from.closest?.('.highlight-edit-toolbar')
+      if (!leavingMark && !leavingToolbar) return
+
+      // Don't dismiss if moving to another mark or the toolbar
+      if (to?.closest?.('mark.text-highlight') || to?.closest?.('.highlight-edit-toolbar')) return
+
+      scheduleDismissEditToolbar()
     }
 
-    container.addEventListener('mouseover', handleMouseOver)
-    container.addEventListener('mouseout', handleMouseOut)
+    document.addEventListener('mouseover', handleMouseOver)
+    document.addEventListener('mouseout', handleMouseOut)
     return () => {
-      container.removeEventListener('mouseover', handleMouseOver)
-      container.removeEventListener('mouseout', handleMouseOut)
+      document.removeEventListener('mouseover', handleMouseOver)
+      document.removeEventListener('mouseout', handleMouseOut)
     }
-  }, [])
+  }, [showEditToolbar, scheduleDismissEditToolbar])
 
   // Dismiss toolbar on Escape
   useEffect(() => {
@@ -208,6 +245,26 @@ export function HighlightLayer({ pageId, children }: HighlightLayerProps) {
     [getArticleRoot, updateData],
   )
 
+  // Change a highlight's color
+  const updateHighlightColor = useCallback(
+    (id: string, color: TextHighlightColor) => {
+      const current = dataRef.current ?? { highlights: [] }
+      updateData({
+        highlights: current.highlights.map((h) =>
+          h.id === id ? { ...h, color } : h,
+        ),
+      })
+      // Update mark classes in the DOM immediately
+      const marks = document.querySelectorAll(`mark[data-highlight-id="${CSS.escape(id)}"]`)
+      marks.forEach((mark) => {
+        HIGHLIGHT_COLORS.forEach((c) => mark.classList.remove(`text-highlight-${c}`))
+        mark.classList.add(`text-highlight-${color}`)
+      })
+      setHoveredHighlightId(null)
+    },
+    [updateData],
+  )
+
   // Remove a highlight
   const deleteHighlight = useCallback(
     (id: string) => {
@@ -217,6 +274,7 @@ export function HighlightLayer({ pageId, children }: HighlightLayerProps) {
         highlights: current.highlights.filter((h) => h.id !== id),
       })
       setToolbar(null)
+      setHoveredHighlightId(null)
     },
     [updateData],
   )
@@ -236,11 +294,11 @@ export function HighlightLayer({ pageId, children }: HighlightLayerProps) {
         )}
       {hoveredHighlightId &&
         createPortal(
-          <HighlightDeleteButton
+          <HighlightEditToolbar
             highlightId={hoveredHighlightId}
+            currentColor={data?.highlights.find((h) => h.id === hoveredHighlightId)?.color}
+            onChangeColor={updateHighlightColor}
             onDelete={deleteHighlight}
-            onMouseEnter={() => setHoveredHighlightId(hoveredHighlightId)}
-            onMouseLeave={() => setHoveredHighlightId(null)}
           />,
           document.body,
         )}
@@ -296,40 +354,61 @@ const FloatingToolbar = forwardRef<HTMLDivElement, FloatingToolbarProps>(
   },
 )
 
-// --- Delete button (appears on highlight hover) ---
+// --- Edit toolbar (appears on highlight hover: color swatches + delete) ---
 
-interface HighlightDeleteButtonProps {
+interface HighlightEditToolbarProps {
   highlightId: string
+  currentColor?: TextHighlightColor
+  onChangeColor: (id: string, color: TextHighlightColor) => void
   onDelete: (id: string) => void
-  onMouseEnter: () => void
-  onMouseLeave: () => void
 }
 
-function HighlightDeleteButton({ highlightId, onDelete, onMouseEnter, onMouseLeave }: HighlightDeleteButtonProps) {
-  // Find the first mark element for this highlight to position the button
+function HighlightEditToolbar({
+  highlightId,
+  currentColor,
+  onChangeColor,
+  onDelete,
+}: HighlightEditToolbarProps) {
   const mark = document.querySelector(`mark[data-highlight-id="${CSS.escape(highlightId)}"]`)
   if (!mark) return null
 
   const rect = mark.getBoundingClientRect()
 
   return (
-    <button
-      type="button"
-      className="highlight-delete-btn fixed flex items-center justify-center h-4 w-4 rounded-full border border-muted-foreground/30 bg-background/80 text-muted-foreground/50 hover:border-red-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors shadow-sm"
+    <div
+      className="highlight-edit-toolbar fixed flex items-center gap-1.5 rounded-lg border border-border bg-popover px-2 py-1.5 shadow-lg"
       style={{
-        left: rect.right - 4,
-        top: rect.top - 4,
+        left: rect.left + rect.width / 2,
+        top: rect.top - 8,
+        transform: 'translate(-50%, -100%)',
         zIndex: 9997,
       }}
-      title="Remove highlight"
-      onClick={() => onDelete(highlightId)}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
     >
-      <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-        <line x1="1.5" y1="1.5" x2="6.5" y2="6.5" />
-        <line x1="6.5" y1="1.5" x2="1.5" y2="6.5" />
-      </svg>
-    </button>
+      {HIGHLIGHT_COLORS.map((color) => (
+        <button
+          key={color}
+          type="button"
+          className={`h-5 w-5 rounded-full border transition-transform hover:scale-125 focus:outline-none focus:ring-2 focus:ring-ring ${COLOR_SWATCH_CLASSES[color]} ${
+            color === currentColor
+              ? 'border-foreground/50 scale-110'
+              : 'border-black/10 dark:border-white/10'
+          }`}
+          title={`Change to ${color}`}
+          onClick={() => onChangeColor(highlightId, color)}
+        />
+      ))}
+      <div className="mx-0.5 h-4 w-px bg-border" />
+      <button
+        type="button"
+        className="flex items-center justify-center h-5 w-5 rounded-full text-muted-foreground/60 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-950/40 transition-colors"
+        title="Remove highlight"
+        onClick={() => onDelete(highlightId)}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+          <line x1="2" y1="2" x2="8" y2="8" />
+          <line x1="8" y1="2" x2="2" y2="8" />
+        </svg>
+      </button>
+    </div>
   )
 }

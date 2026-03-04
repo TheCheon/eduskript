@@ -240,14 +240,21 @@ export function extractContext(
   const textMap = buildTextMap(articleRoot)
   const selectedText = range.toString()
 
-  // Find where the selected text appears in the virtual string
-  const idx = textMap.text.indexOf(selectedText)
-  if (idx === -1) return { prefix: '', suffix: '' }
+  // Map the Range's actual DOM start position to the virtual-text offset
+  // so we extract context around the *correct* occurrence, not the first one.
+  let virtualStart = -1
+  for (const m of textMap.mapping) {
+    if (m.node === range.startContainer) {
+      virtualStart = m.start + range.startOffset
+      break
+    }
+  }
+  if (virtualStart === -1) return { prefix: '', suffix: '' }
 
-  const prefix = textMap.text.slice(Math.max(0, idx - CONTEXT_LENGTH), idx)
+  const prefix = textMap.text.slice(Math.max(0, virtualStart - CONTEXT_LENGTH), virtualStart)
   const suffix = textMap.text.slice(
-    idx + selectedText.length,
-    idx + selectedText.length + CONTEXT_LENGTH,
+    virtualStart + selectedText.length,
+    virtualStart + selectedText.length + CONTEXT_LENGTH,
   )
 
   return { prefix, suffix }
