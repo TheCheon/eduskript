@@ -446,7 +446,6 @@ async function performImport(
           title: collectionData.title,
           description: collectionData.description,
           slug: collectionData.slug,
-          isPublished: false,
           authors: {
             create: { userId, permission: 'author' }
           }

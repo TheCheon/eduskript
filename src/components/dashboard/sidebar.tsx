@@ -95,6 +95,11 @@ export function DashboardSidebar() {
     }
 
     fetchOrgs()
+
+    // Allow other components to trigger a sidebar refresh
+    const handler = () => fetchOrgs()
+    window.addEventListener('sidebar:refresh', handler)
+    return () => window.removeEventListener('sidebar:refresh', handler)
   }, [isTeacher, session?.user?.id])
 
   // Get user's display name

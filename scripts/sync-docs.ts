@@ -218,7 +218,6 @@ async function main() {
           title: collectionDef.title,
           slug: collectionDef.slug,
           description: collectionDef.description || null,
-          isPublished: true
         }
       })
       console.log(`   ✓ Created collection: ${collectionDef.slug}`)

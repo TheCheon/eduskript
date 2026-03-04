@@ -26,8 +26,8 @@ export function AdminPageBuilderPlaceholder({ canSeed }: Props) {
       }
 
       setResult(data.data)
-      // Reload so the sidebar picks up the new org membership
-      window.location.reload()
+      // Refresh sidebar without full page reload (preserves success message)
+      window.dispatchEvent(new Event('sidebar:refresh'))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {

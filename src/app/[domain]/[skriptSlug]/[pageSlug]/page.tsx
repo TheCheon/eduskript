@@ -120,7 +120,6 @@ export default async function PublicPage({ params, searchParams }: PageProps) {
     pageSlug,
     domain
   )
-
   // If the author visits a public URL for unpublished content, redirect to the preview URL
   // so they see the "not published" warning instead of a 404
   if (!content) {

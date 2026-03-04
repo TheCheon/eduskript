@@ -222,7 +222,6 @@ export const getFullSiteStructure = (teacherId: string, pageSlug: string) =>
           title: true,
           slug: true,
           accentColor: true,
-          isPublished: true,
           updatedAt: true,
           collectionSkripts: {
             where: {
@@ -343,7 +342,7 @@ export const getPublishedPage = (
         allPages: skript.pages,
       }
     },
-    [`published-page-${skriptSlug}-${contentPageSlug}`],
+    [`published-page-${teacherId}-${skriptSlug}-${contentPageSlug}`],
     {
       tags: ownerPageSlug ? [
         CACHE_TAGS.pageBySlug(ownerPageSlug, skriptSlug, contentPageSlug),
@@ -641,7 +640,6 @@ export const getOrgFullSiteStructure = (orgId: string, orgSlug: string) =>
           title: true,
           slug: true,
           accentColor: true,
-          isPublished: true,
           updatedAt: true,
           collectionSkripts: {
             where: {
@@ -846,7 +844,6 @@ export const getOrgHomepageContent = (
           const collection = await prisma.collection.findFirst({
             where: {
               id: item.contentId,
-              isPublished: true,
               authors: { some: { userId: { in: adminUserIds } } }
             },
             include: {
