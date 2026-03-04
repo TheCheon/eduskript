@@ -155,6 +155,7 @@ function BlockquoteComponent({ children, className, ...props }: React.HTMLAttrib
 
 interface CreateMarkdownComponentsOptions {
   pageId?: string
+  skriptId?: string  // For Python global imports (shared across editors in a skript)
   onImageWidthChange?: (srcForMatching: string, newMarkdown: string) => void  // Stable callback for image resize
   organizationSlug?: string  // For organization pages (OurTeachers component)
   onExcalidrawEdit?: (filename: string, fileId: string) => void  // Callback to edit Excalidraw drawings
@@ -171,7 +172,7 @@ export function createMarkdownComponents(
   files: SkriptFilesData,
   options?: CreateMarkdownComponentsOptions
 ): Record<string, ComponentType<any>> {
-  const { pageId, onImageWidthChange, organizationSlug, onExcalidrawEdit, optimizeImages } = options ?? {}
+  const { pageId, skriptId, onImageWidthChange, organizationSlug, onExcalidrawEdit, optimizeImages } = options ?? {}
 
   // Img element handler - handles <img> elements from markdown with data-* attributes
   function ImgElementComponent({ src, alt, title, style, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) {
@@ -308,6 +309,7 @@ export function createMarkdownComponents(
           key={id}
           id={id}
           pageId={pageId}
+          skriptId={skriptId}
           language={language as 'python' | 'javascript' | 'sql'}
           initialCode={decodedCode}
           initialFiles={initialFiles}

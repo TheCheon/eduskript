@@ -109,6 +109,16 @@ export interface PythonFile {
 }
 
 /**
+ * Global import files available across Python editors.
+ * Stored via useSyncedUserData with two scopes:
+ * - Skript-scoped: keyed by skriptId, shared across editors in one skript
+ * - Global: keyed by '__global__', shared across all skripts
+ */
+export interface GlobalImportsData {
+  files: PythonFile[]
+}
+
+/**
  * Code highlight color options
  */
 export type HighlightColor = 'red' | 'yellow' | 'green' | 'blue'

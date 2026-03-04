@@ -1711,6 +1711,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
                 fileList={fileList}
                 videoList={videoList}
                 pageId={pageId}
+                skriptId={skriptId}
                 onExcalidrawEdit={onExcalidrawEditProp ?? handleExcalidrawEdit}
               />
             </div>

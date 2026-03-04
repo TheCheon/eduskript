@@ -26,7 +26,7 @@ export async function ServerMarkdownRenderer({ content, skriptId, pageId, organi
   const files = skriptId ? await getSkriptFiles(skriptId) : createEmptySkriptFiles()
 
   // 2. Create components with files prop bound
-  const components = createMarkdownComponents(files, { pageId, organizationSlug, optimizeImages: true })
+  const components = createMarkdownComponents(files, { pageId, skriptId, organizationSlug, optimizeImages: true })
 
   // 3. Compile markdown (safe pipeline, no JS execution)
   let rendered: React.ReactNode

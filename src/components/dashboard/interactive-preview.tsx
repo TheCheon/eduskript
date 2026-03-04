@@ -9,6 +9,7 @@ interface InteractivePreviewProps {
   fileList?: Array<{ id: string; name: string; url?: string; isDirectory?: boolean; updatedAt?: string | Date; width?: number; height?: number }>
   videoList?: VideoInfo[]
   pageId?: string
+  skriptId?: string
   onExcalidrawEdit?: (filename: string, fileId: string) => void
 }
 
@@ -18,6 +19,7 @@ export function InteractivePreview({
   fileList,
   videoList,
   pageId,
+  skriptId,
   onExcalidrawEdit,
 }: InteractivePreviewProps) {
   // Filter out directories from the file list
@@ -30,6 +32,7 @@ export function InteractivePreview({
         fileList={filteredFileList}
         videoList={videoList}
         pageId={pageId}
+        skriptId={skriptId}
         onContentChange={onContentChange}
         onExcalidrawEdit={onExcalidrawEdit}
       />

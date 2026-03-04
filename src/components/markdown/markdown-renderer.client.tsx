@@ -18,7 +18,7 @@ interface MarkdownRendererProps {
 }
 
 // Inner component that does the actual rendering
-function MarkdownRendererInner({ content, fileList, videoList, pageId, onContentChange, onExcalidrawEdit }: MarkdownRendererProps) {
+function MarkdownRendererInner({ content, fileList, videoList, pageId, skriptId, onContentChange, onExcalidrawEdit }: MarkdownRendererProps) {
   // Create SkriptFiles from the file list
   const files: SkriptFilesData = useMemo(() => {
     if (fileList && fileList.length > 0) {
@@ -90,10 +90,11 @@ function MarkdownRendererInner({ content, fileList, videoList, pageId, onContent
     // eslint-disable-next-line react-hooks/refs -- callbacks read refs in event handlers, not during render
     return createMarkdownComponents(files, {
       pageId,
+      skriptId,
       onImageWidthChange: stableOnImageWidthChange,
       onExcalidrawEdit: stableOnExcalidrawEdit,
     })
-  }, [files, pageId, stableOnImageWidthChange, stableOnExcalidrawEdit])
+  }, [files, pageId, skriptId, stableOnImageWidthChange, stableOnExcalidrawEdit])
 
   // Capture scroll position before any DOM changes
   useLayoutEffect(() => {

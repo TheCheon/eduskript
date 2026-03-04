@@ -17,7 +17,7 @@ import { basicSetup } from 'codemirror'
 import { autocompletion } from '@codemirror/autocomplete'
 import { pythonCompletions } from './python-completions'
 import { Button } from '@/components/ui/button'
-import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText, ZoomIn, ZoomOut, Save, History, Highlighter, MessageSquare, WrapText, Circle, CheckCircle2 } from 'lucide-react'
+import { Play, Square, RotateCcw, Maximize2, Minimize2, Camera, X, Plus, FileText, ZoomIn, ZoomOut, Save, History, Highlighter, MessageSquare, WrapText, Circle, CheckCircle2, Package, Trash2 } from 'lucide-react'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import { useUserData, useCreateVersion, useVersionHistory, useRestoreVersion, useDeleteVersion, useUpdateVersionLabel } from '@/lib/userdata/hooks'
 import { userDataService } from '@/lib/userdata'
@@ -25,7 +25,7 @@ import { useSyncedUserData, type SyncedUserDataOptions } from '@/lib/userdata/pr
 import { useTeacherClass } from '@/contexts/teacher-class-context'
 import { useTeacherBroadcast } from '@/hooks/use-teacher-broadcast'
 import { useSession } from 'next-auth/react'
-import type { CodeEditorData, CodeHighlight, HighlightColor, HighlightComment, SqlVerificationData } from '@/lib/userdata/types'
+import type { CodeEditorData, CodeHighlight, HighlightColor, HighlightComment, SqlVerificationData, GlobalImportsData } from '@/lib/userdata/types'
 
 /** Data structure for broadcast highlights (separate from personal code data) */
 interface BroadcastHighlightsData {
@@ -54,6 +54,7 @@ import { SqlProgressBar } from './sql-progress-bar'
 interface CodeEditorProps {
   id?: string
   pageId?: string
+  skriptId?: string  // For Python global imports (shared across editors in a skript)
   language?: 'python' | 'javascript' | 'sql'
   initialCode?: string
   initialFiles?: PythonFile[] // Pre-populated multi-file content from markdown
@@ -188,6 +189,7 @@ function compareResultSets(a: SqlResultSet[], b: SqlResultSet[]): boolean {
 export const CodeEditor = memo(function CodeEditor({
   id = 'code-editor',
   pageId,
+  skriptId,
   language = 'python',
   initialCode = '# Write your code here\nprint("Hello, World!")',
   initialFiles,
@@ -414,6 +416,86 @@ export const CodeEditor = memo(function CodeEditor({
   const [renamingIndex, setRenamingIndex] = useState<number | null>(null)
   const [renameValue, setRenameValue] = useState('')
 
+  // Python global imports — shared files available across editors
+  // Skript-scoped: shared across all Python editors in this skript
+  // Global: shared across all Python editors in all skripts
+  //
+  // Uses userDataService directly instead of useSyncedUserData to avoid
+  // React state updates that cause CodeMirror focus loss (see commit 5d673d7).
+  // The sync engine picks up dirty records automatically.
+  const isPython = language === 'python'
+  const [skriptImports, setSkriptImports] = useState<GlobalImportsData>({ files: [] })
+  const [globalImports, setGlobalImports] = useState<GlobalImportsData>({ files: [] })
+
+  // Load import files from IndexedDB on mount
+  useEffect(() => {
+    if (!isPython) return
+    const loadImports = async () => {
+      if (skriptId) {
+        const record = await userDataService.get<GlobalImportsData>(skriptId, 'python-imports')
+        if (record?.data) setSkriptImports(record.data)
+      }
+      const globalRecord = await userDataService.get<GlobalImportsData>('__global__', 'python-imports')
+      if (globalRecord?.data) setGlobalImports(globalRecord.data)
+    }
+    loadImports()
+  }, [isPython, skriptId])
+
+  // Save helpers that write to IndexedDB directly (no React state update during typing)
+  const saveSkriptImports = useCallback((data: GlobalImportsData) => {
+    setSkriptImports(data)
+    if (skriptId) {
+      userDataService.save(skriptId, 'python-imports', data, { immediate: true })
+    }
+  }, [skriptId])
+
+  const saveGlobalImports = useCallback((data: GlobalImportsData) => {
+    setGlobalImports(data)
+    userDataService.save('__global__', 'python-imports', data, { immediate: true })
+  }, [])
+
+  // Which import files are currently open as tabs
+  const [openImports, setOpenImports] = useState<Array<{ name: string; scope: 'skript' | 'global' }>>([])
+  // Active tab: either a local file or an import file
+  const [activeTab, setActiveTab] = useState<
+    | { type: 'local'; index: number }
+    | { type: 'import'; scope: 'skript' | 'global'; name: string }
+  >({ type: 'local', index: 0 })
+  // Whether the imports dropdown is open
+  const [showImportsDropdown, setShowImportsDropdown] = useState(false)
+  const [importsDropdownPosition, setImportsDropdownPosition] = useState<{ top: number; left: number } | null>(null)
+  const importsDropdownRef = useRef<HTMLDivElement>(null)
+  const importsDropdownPortalRef = useRef<HTMLDivElement>(null)
+
+  // Close imports dropdown on outside click
+  useEffect(() => {
+    if (!showImportsDropdown) return
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (importsDropdownRef.current?.contains(target)) return
+      if (importsDropdownPortalRef.current?.contains(target)) return
+      setShowImportsDropdown(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showImportsDropdown])
+
+  // Tab context menu (right-click / long-press)
+  const [tabContextMenu, setTabContextMenu] = useState<{ index: number; x: number; y: number } | null>(null)
+  const tabContextMenuRef = useRef<HTMLDivElement>(null)
+  const tabLongPressRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Close tab context menu on outside click
+  useEffect(() => {
+    if (!tabContextMenu) return
+    const handleClick = (e: MouseEvent) => {
+      if (tabContextMenuRef.current?.contains(e.target as Node)) return
+      setTabContextMenu(null)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [tabContextMenu])
+
   // Highlighter state
   const [highlighterMode, setHighlighterMode] = useState(false)
   const [highlightColor, setHighlightColor] = useState<HighlightColor>('yellow')
@@ -464,7 +546,11 @@ export const CodeEditor = memo(function CodeEditor({
   const updateCommentIndicatorsRef = useRef<() => void>(() => {})
 
   // Calculate visibility based on width and detect graphics modules (turtle or matplotlib) or SQL schema
-  const currentCode = files[activeFileIndex]?.content || initialCode
+  const currentCode = activeTab.type === 'local'
+    ? (files[activeFileIndex]?.content || initialCode)
+    : (activeTab.type === 'import'
+      ? ((activeTab.scope === 'skript' ? skriptImports : globalImports)?.files.find(f => f.name === activeTab.name)?.content || '')
+      : initialCode)
   const hasTurtleModule = language === 'python' && /import\s+turtle|from\s+turtle/.test(currentCode)
   const hasMatplotlib = language === 'python' && /import\s+matplotlib|from\s+matplotlib/.test(currentCode)
   // SQL schema: provided via schemaImage/schemaImageDark props (auto-detected in markdown renderer)
@@ -601,6 +687,24 @@ export const CodeEditor = memo(function CodeEditor({
     if (!editorViewRef.current || !pageId) return
 
     const content = editorViewRef.current.state.doc.toString()
+    const currentTab = activeTabRef.current
+
+    // If editing an import file, save to the import store
+    if (currentTab.type === 'import') {
+      const { scope, name } = currentTab
+      const store = scope === 'skript' ? skriptImportsRef.current : globalImportsRef.current
+      const updatedFiles = store.files.map(f => f.name === name ? { ...f, content } : f)
+      // Update only the ref during typing to avoid re-renders,
+      // persist directly to IndexedDB
+      if (scope === 'skript') {
+        skriptImportsRef.current = { files: updatedFiles }
+        if (skriptId) userDataService.save(skriptId, 'python-imports', { files: updatedFiles })
+      } else {
+        globalImportsRef.current = { files: updatedFiles }
+        userDataService.save('__global__', 'python-imports', { files: updatedFiles })
+      }
+      return
+    }
 
     // Update the ref (not state!) so persistence reads the latest content.
     // We deliberately avoid setFiles() here — updating React state triggers a re-render
@@ -620,7 +724,7 @@ export const CodeEditor = memo(function CodeEditor({
       canvasTransform,
       highlights,
     })
-  }, [activeFileIndex, pageId, componentId, fontSize, lineWrapping, editorWidth, canvasTransform, highlights])
+  }, [activeFileIndex, pageId, componentId, fontSize, lineWrapping, editorWidth, canvasTransform, highlights, skriptId])
 
   // Ref to avoid debouncedSaveContent as a dependency in the editor effect
   const debouncedSaveContentRef = useRef(debouncedSaveContent)
@@ -1558,6 +1662,12 @@ export const CodeEditor = memo(function CodeEditor({
   useLayoutEffect(() => { filesRef.current = files }, [files])
   const activeFileIndexRef = useRef(activeFileIndex)
   useLayoutEffect(() => { activeFileIndexRef.current = activeFileIndex }, [activeFileIndex])
+  const activeTabRef = useRef(activeTab)
+  useLayoutEffect(() => { activeTabRef.current = activeTab }, [activeTab])
+  const skriptImportsRef = useRef(skriptImports)
+  useLayoutEffect(() => { skriptImportsRef.current = skriptImports }, [skriptImports])
+  const globalImportsRef = useRef(globalImports)
+  useLayoutEffect(() => { globalImportsRef.current = globalImports }, [globalImports])
 
   useEffect(() => {
     // Wait for saved data to load before creating the editor so we can
@@ -1877,20 +1987,51 @@ export const CodeEditor = memo(function CodeEditor({
     setActivePanel('output')
   }
 
-  // Save current file content
+  // Save current file/import content from editor
   const saveCurrentFile = () => {
-    if (editorViewRef.current) {
-      const content = editorViewRef.current.state.doc.toString()
+    if (!editorViewRef.current) return
+    const content = editorViewRef.current.state.doc.toString()
+
+    if (activeTab.type === 'local') {
       setFiles(prev => prev.map((file, idx) =>
-        idx === activeFileIndex ? { ...file, content } : file
+        idx === activeTab.index ? { ...file, content } : file
       ))
+    } else if (activeTab.type === 'import') {
+      const { scope, name } = activeTab
+      const store = scope === 'skript' ? skriptImports : globalImports
+      const updater = scope === 'skript' ? saveSkriptImports : saveGlobalImports
+      if (store) {
+        const updatedFiles = store.files.map(f => f.name === name ? { ...f, content } : f)
+        updater({ files: updatedFiles })
+      }
     }
   }
 
-  // Switch to a different file
+  // Switch to a local file tab
   const switchToFile = (index: number) => {
     saveCurrentFile()
     setActiveFileIndex(index)
+    setActiveTab({ type: 'local', index })
+  }
+
+  // Switch to an import tab
+  const switchToImport = (scope: 'skript' | 'global', name: string) => {
+    saveCurrentFile()
+    setActiveTab({ type: 'import', scope, name })
+    // Ensure this import is in openImports
+    setOpenImports(prev => {
+      if (prev.some(i => i.scope === scope && i.name === name)) return prev
+      return [...prev, { name, scope }]
+    })
+  }
+
+  // Get the content for the currently active tab
+  const getActiveContent = (): string => {
+    if (activeTab.type === 'local') {
+      return files[activeTab.index]?.content || initialCode
+    }
+    const store = activeTab.scope === 'skript' ? skriptImports : globalImports
+    return store?.files.find(f => f.name === activeTab.name)?.content || ''
   }
 
   // Add a new file
@@ -1903,6 +2044,7 @@ export const CodeEditor = memo(function CodeEditor({
     }
     setFiles(prev => [...prev, newFile])
     setActiveFileIndex(files.length)
+    setActiveTab({ type: 'local', index: files.length })
   }
 
   // Remove a file
@@ -1914,6 +2056,101 @@ export const CodeEditor = memo(function CodeEditor({
     setFiles(prev => prev.filter((_, idx) => idx !== index))
     if (activeFileIndex >= index && activeFileIndex > 0) {
       setActiveFileIndex(prev => prev - 1)
+    }
+    // If removing the active local tab, switch back
+    if (activeTab.type === 'local' && activeTab.index >= index && activeTab.index > 0) {
+      setActiveTab({ type: 'local', index: activeTab.index - 1 })
+    }
+  }
+
+  // Move a local file to imports
+  const makeImport = (fileIndex: number, scope: 'skript' | 'global') => {
+    const file = files[fileIndex]
+    if (!file) return
+    const store = scope === 'skript' ? skriptImports : globalImports
+    const updater = scope === 'skript' ? saveSkriptImports : saveGlobalImports
+    if (!store) return
+
+    // Check for duplicate name in target scope
+    if (store.files.some(f => f.name === file.name)) {
+      addOutput(`A file named "${file.name}" already exists in ${scope === 'skript' ? 'Skript' : 'Global'} scope`, OutputLevel.WARNING)
+      return
+    }
+
+    // Add to import store
+    updater({ files: [...store.files, { name: file.name, content: file.content }] })
+    // Remove from local files
+    setFiles(prev => prev.filter((_, idx) => idx !== fileIndex))
+    // Open as import tab
+    setOpenImports(prev => [...prev, { name: file.name, scope }])
+    setActiveTab({ type: 'import', scope, name: file.name })
+    if (activeFileIndex >= fileIndex && activeFileIndex > 0) {
+      setActiveFileIndex(prev => prev - 1)
+    }
+  }
+
+  // Close an import tab (just removes from view, doesn't delete the file)
+  const closeImportTab = (scope: 'skript' | 'global', name: string) => {
+    // Save editor content before closing if this is the active tab
+    if (activeTab.type === 'import' && activeTab.scope === scope && activeTab.name === name) {
+      saveCurrentFile()
+      setActiveTab({ type: 'local', index: 0 })
+      setActiveFileIndex(0)
+    }
+    setOpenImports(prev => prev.filter(i => !(i.scope === scope && i.name === name)))
+  }
+
+  // Delete an import file entirely
+  const deleteImportFile = (scope: 'skript' | 'global', name: string) => {
+    const store = scope === 'skript' ? skriptImports : globalImports
+    const updater = scope === 'skript' ? saveSkriptImports : saveGlobalImports
+    if (!store) return
+    updater({ files: store.files.filter(f => f.name !== name) })
+    closeImportTab(scope, name)
+  }
+
+  // Create a new import file
+  const createImportFile = (scope: 'skript' | 'global') => {
+    const store = scope === 'skript' ? skriptImports : globalImports
+    const updater = scope === 'skript' ? saveSkriptImports : saveGlobalImports
+    if (!store) return
+
+    const existing = store.files.map(f => f.name)
+    let num = 1
+    let name = `helpers.py`
+    while (existing.includes(name)) {
+      num++
+      name = `helpers${num}.py`
+    }
+    updater({ files: [...store.files, { name, content: '# Shared import file\n' }] })
+    setOpenImports(prev => [...prev, { name, scope }])
+    setActiveTab({ type: 'import', scope, name })
+  }
+
+  // Move import between scopes (drag-and-drop in dropdown)
+  const moveImportScope = (name: string, fromScope: 'skript' | 'global', toScope: 'skript' | 'global') => {
+    if (fromScope === toScope) return
+    const fromStore = fromScope === 'skript' ? skriptImports : globalImports
+    const toStore = toScope === 'skript' ? skriptImports : globalImports
+    const fromUpdater = fromScope === 'skript' ? saveSkriptImports : saveGlobalImports
+    const toUpdater = toScope === 'skript' ? saveSkriptImports : saveGlobalImports
+    if (!fromStore || !toStore) return
+
+    const file = fromStore.files.find(f => f.name === name)
+    if (!file) return
+    if (toStore.files.some(f => f.name === name)) {
+      addOutput(`A file named "${name}" already exists in ${toScope === 'skript' ? 'Skript' : 'Global'} scope`, OutputLevel.WARNING)
+      return
+    }
+
+    fromUpdater({ files: fromStore.files.filter(f => f.name !== name) })
+    toUpdater({ files: [...toStore.files, file] })
+    // Update openImports to reflect new scope
+    setOpenImports(prev => prev.map(i =>
+      i.scope === fromScope && i.name === name ? { ...i, scope: toScope } : i
+    ))
+    if (activeTab.type === 'import' && activeTab.scope === fromScope && activeTab.name === name) {
+      setActiveTab({ type: 'import', scope: toScope, name })
     }
   }
 
@@ -1964,22 +2201,23 @@ export const CodeEditor = memo(function CodeEditor({
     setFontSize(prev => Math.max(prev - 2, 8)) // Min 8px
   }
 
-  // Update editor when active file changes
+  // Update editor when active tab changes (local file or import)
   useEffect(() => {
-    if (editorViewRef.current && files[activeFileIndex]) {
-      const content = files[activeFileIndex].content
-      const view = editorViewRef.current
-      const transaction = view.state.update({
-        changes: {
-          from: 0,
-          to: view.state.doc.length,
-          insert: content
-        },
-        annotations: programmaticChange.of(true)
-      })
-      view.dispatch(transaction)
-    }
-  }, [activeFileIndex, files])
+    if (!editorViewRef.current) return
+    const content = activeTab.type === 'local'
+      ? (files[activeFileIndex]?.content || '')
+      : ((activeTab.scope === 'skript' ? skriptImports : globalImports)?.files.find(f => f.name === activeTab.name)?.content || '')
+    const view = editorViewRef.current
+    const transaction = view.state.update({
+      changes: {
+        from: 0,
+        to: view.state.doc.length,
+        insert: content
+      },
+      annotations: programmaticChange.of(true)
+    })
+    view.dispatch(transaction)
+  }, [activeFileIndex, activeTab, files, skriptImports, globalImports])
 
   // Run code
   const runCode = () => {
@@ -2134,6 +2372,22 @@ export const CodeEditor = memo(function CodeEditor({
             return userFile.content
           }
 
+          // Search skript-scoped imports, then global imports
+          const findInImports = (importFiles: PythonFile[] | undefined) => {
+            if (!importFiles) return undefined
+            return importFiles.find(f => {
+              if (f.name === baseName || f.name === filename) return true
+              if (f.name === baseName + ext || f.name === filename + ext) return true
+              const nameWithoutExt = f.name.replace(extPattern, '')
+              if (nameWithoutExt === baseName || nameWithoutExt === filename) return true
+              return false
+            })
+          }
+          const skriptFile = findInImports(skriptImports?.files)
+          if (skriptFile) return skriptFile.content
+          const globalFile = findInImports(globalImports?.files)
+          if (globalFile) return globalFile.content
+
           // Read Python modules from the stdlib
           if (Sk.builtinFiles && Sk.builtinFiles['files'][filename]) {
             return Sk.builtinFiles['files'][filename]
@@ -2285,12 +2539,12 @@ plt.show = lambda: None
       // Write all files to Pyodide's virtual filesystem (for multi-file support)
       if (files.length > 1) {
         for (const file of files) {
-          const fileName = file.name
-          const fileContent = file.content
-
-          // Write file to Pyodide's filesystem
-          pyodide.FS.writeFile(fileName, fileContent)
+          pyodide.FS.writeFile(file.name, file.content)
         }
+      }
+      // Write import files (skript-scoped then global) so they're importable
+      for (const file of [...(skriptImports?.files || []), ...(globalImports?.files || [])]) {
+        pyodide.FS.writeFile(file.name, file.content)
       }
 
       // Run the code
@@ -2548,7 +2802,7 @@ plots
             }}
           >
             {/* Floating Toolbar - Top Right (highlighter + zoom controls + kernel indicator) */}
-            <div ref={kernelMenuRef} className="absolute top-1 right-1 z-30 flex items-center gap-0.5 bg-background/80 backdrop-blur-sm rounded px-1 py-0.5">
+            <div ref={kernelMenuRef} className="absolute top-1 right-1 z-30 flex items-center gap-0.5 bg-background/80 backdrop-blur-sm rounded px-1">
               {/* Highlighter Button */}
               <div className="relative">
                 <Button
@@ -2628,10 +2882,157 @@ plots
                 <WrapText className="w-3 h-3" />
               </button>
 
+              {/* Global Files button - Python only */}
+              {isPython && (
+                <>
+                  <div className="w-px h-4 bg-border mx-1" />
+                  <div className="relative" ref={importsDropdownRef}>
+                    <button
+                      onClick={() => {
+                        if (!showImportsDropdown && importsDropdownRef.current) {
+                          const rect = importsDropdownRef.current.getBoundingClientRect()
+                          setImportsDropdownPosition({
+                            top: rect.bottom + 4,
+                            left: rect.right - 200,
+                          })
+                        }
+                        setShowImportsDropdown(prev => !prev)
+                      }}
+                      className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-muted text-blue-600 dark:text-blue-400"
+                      title="Global files"
+                    >
+                      <Package className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Global files dropdown - rendered via portal */}
+                  {showImportsDropdown && importsDropdownPosition && typeof document !== 'undefined' && createPortal(
+                    <div
+                      ref={importsDropdownPortalRef}
+                      className="fixed bg-popover border rounded-lg shadow-lg p-2 min-w-[200px] z-[9999]"
+                      style={{
+                        top: `${importsDropdownPosition.top}px`,
+                        left: `${importsDropdownPosition.left}px`,
+                      }}
+                    >
+                      {/* Skript scope section */}
+                      {skriptId && (
+                        <>
+                          <div
+                            className="text-xs font-medium text-muted-foreground px-2 py-1"
+                            onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('bg-blue-50', 'dark:bg-blue-900/20') }}
+                            onDragLeave={(e) => { e.currentTarget.classList.remove('bg-blue-50', 'dark:bg-blue-900/20') }}
+                            onDrop={(e) => {
+                              e.preventDefault()
+                              e.currentTarget.classList.remove('bg-blue-50', 'dark:bg-blue-900/20')
+                              const data = e.dataTransfer.getData('text/plain')
+                              try {
+                                const { name, scope } = JSON.parse(data)
+                                if (scope !== 'skript') moveImportScope(name, scope, 'skript')
+                              } catch {}
+                            }}
+                          >
+                            Skript scope
+                          </div>
+                          {(skriptImports?.files || []).map(f => (
+                            <div
+                              key={`skript-${f.name}`}
+                              className="flex items-center justify-between px-2 py-1 text-sm rounded hover:bg-muted cursor-pointer"
+                              draggable
+                              onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ name: f.name, scope: 'skript' }))}
+                              onClick={() => { switchToImport('skript', f.name); setShowImportsDropdown(false) }}
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <Package className="w-3 h-3 text-blue-500" />
+                                {f.name}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  if (f.content.trim() && f.content !== '# Shared import file') {
+                                    if (!window.confirm(`Delete "${f.name}"?`)) return
+                                  }
+                                  deleteImportFile('skript', f.name)
+                                }}
+                                className="h-5 w-5 flex items-center justify-center rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                          {(skriptImports?.files || []).length === 0 && (
+                            <div className="text-xs text-muted-foreground/50 px-2 py-1 italic">No files</div>
+                          )}
+                          <div className="border-t my-1" />
+                        </>
+                      )}
+
+                      {/* Global scope section */}
+                      <div
+                        className="text-xs font-medium text-muted-foreground px-2 py-1"
+                        onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('bg-blue-50', 'dark:bg-blue-900/20') }}
+                        onDragLeave={(e) => { e.currentTarget.classList.remove('bg-blue-50', 'dark:bg-blue-900/20') }}
+                        onDrop={(e) => {
+                          e.preventDefault()
+                          e.currentTarget.classList.remove('bg-blue-50', 'dark:bg-blue-900/20')
+                          const data = e.dataTransfer.getData('text/plain')
+                          try {
+                            const { name, scope } = JSON.parse(data)
+                            if (scope !== 'global') moveImportScope(name, scope, 'global')
+                          } catch {}
+                        }}
+                      >
+                        Global scope
+                      </div>
+                      {(globalImports?.files || []).map(f => (
+                        <div
+                          key={`global-${f.name}`}
+                          className="flex items-center justify-between px-2 py-1 text-sm rounded hover:bg-muted cursor-pointer"
+                          draggable
+                          onDragStart={(e) => e.dataTransfer.setData('text/plain', JSON.stringify({ name: f.name, scope: 'global' }))}
+                          onClick={() => { switchToImport('global', f.name); setShowImportsDropdown(false) }}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <Package className="w-3 h-3 text-blue-500" />
+                            {f.name}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (f.content.trim() && f.content !== '# Shared import file') {
+                                if (!window.confirm(`Delete "${f.name}"?`)) return
+                              }
+                              deleteImportFile('global', f.name)
+                            }}
+                            className="h-5 w-5 flex items-center justify-center rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                      {(globalImports?.files || []).length === 0 && (
+                        <div className="text-xs text-muted-foreground/50 px-2 py-1 italic">No files</div>
+                      )}
+
+                      <div className="border-t my-1" />
+                      <button
+                        onClick={() => { createImportFile(skriptId ? 'skript' : 'global'); setShowImportsDropdown(false) }}
+                        className="w-full text-left px-2 py-1 text-sm rounded hover:bg-muted text-blue-600 dark:text-blue-400"
+                      >
+                        <Plus className="w-3 h-3 inline mr-1" />
+                        New global file
+                      </button>
+                    </div>,
+                    document.body
+                  )}
+                </>
+              )}
+
               {/* Python Kernel Indicator */}
               {language === 'python' && (
                 <>
-                  <div className="w-px h-4 bg-border mx-1" />
                   <button
                     ref={kernelButtonRef}
                     onClick={() => {
@@ -2718,8 +3119,9 @@ plots
             {!singleFile && (
               <div className="flex items-center gap-1 px-2 py-1 border-b bg-muted/10 pr-24">
                   <div className="flex items-center gap-1 overflow-x-auto flex-1">
+                    {/* Local file tabs */}
                     {files.map((file, index) => (
-                      <div key={index} className="flex items-center">
+                      <div key={`local-${index}`} className="flex items-center">
                         {renamingIndex === index ? (
                           <input
                             type="text"
@@ -2738,36 +3140,88 @@ plots
                             style={{ width: '120px' }}
                           />
                         ) : (
-                          <>
-                            <Button
-                              size="sm"
-                              variant={activeFileIndex === index ? 'secondary' : 'ghost'}
-                              onClick={() => switchToFile(index)}
-                              onDoubleClick={() => startRename(index)}
-                              className="h-7 px-2 text-xs gap-1"
-                              title="Double-click to rename"
+                          <Button
+                            size="sm"
+                            variant={activeTab.type === 'local' && activeFileIndex === index ? 'secondary' : 'ghost'}
+                            onClick={() => switchToFile(index)}
+                            onDoubleClick={() => startRename(index)}
+                            onContextMenu={(e) => {
+                              e.preventDefault()
+                              setTabContextMenu({ index, x: e.clientX, y: e.clientY })
+                            }}
+                            onPointerDown={(e) => {
+                              // Long-press for touch/stylus (500ms)
+                              if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+                                tabLongPressRef.current = setTimeout(() => {
+                                  setTabContextMenu({ index, x: e.clientX, y: e.clientY })
+                                }, 500)
+                              }
+                            }}
+                            onPointerUp={() => {
+                              if (tabLongPressRef.current) {
+                                clearTimeout(tabLongPressRef.current)
+                                tabLongPressRef.current = null
+                              }
+                            }}
+                            onPointerCancel={() => {
+                              if (tabLongPressRef.current) {
+                                clearTimeout(tabLongPressRef.current)
+                                tabLongPressRef.current = null
+                              }
+                            }}
+                            className="h-7 pl-2 pr-1 text-xs gap-1 group/tab"
+                            title="Double-click to rename · Right-click for options"
+                          >
+                            <FileText className="w-3 h-3" />
+                            {file.name}
+                            <span
+                              className={`w-4 h-4 inline-flex items-center justify-center rounded-sm hover:bg-foreground/10 ${
+                                files.length <= 1 ? 'invisible' :
+                                activeTab.type === 'local' && activeFileIndex === index ? 'opacity-60 hover:opacity-100' : 'opacity-0 group-hover/tab:opacity-60 hover:!opacity-100'
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                removeFile(index)
+                              }}
+                              title="Remove file"
                             >
-                              <FileText className="w-3 h-3" />
-                              {file.name}
-                            </Button>
-                            {files.length > 1 && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  removeFile(index)
-                                }}
-                                className="h-6 w-6 p-0 ml-1"
-                                title="Remove file"
-                              >
-                                <X className="w-3 h-3" />
-                              </Button>
-                            )}
-                          </>
+                              <X className="w-3 h-3" />
+                            </span>
+                          </Button>
                         )}
                       </div>
                     ))}
+
+                    {/* Open import tabs (visually distinct) */}
+                    {isPython && openImports.map((imp) => {
+                      const isActive = activeTab.type === 'import' && activeTab.scope === imp.scope && activeTab.name === imp.name
+                      return (
+                        <Button
+                          key={`import-${imp.scope}-${imp.name}`}
+                          size="sm"
+                          variant={isActive ? 'secondary' : 'ghost'}
+                          onClick={() => switchToImport(imp.scope, imp.name)}
+                          className={`h-7 pl-2 pr-1 text-xs gap-1 group/tab ${isActive ? 'bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50' : 'text-blue-600 dark:text-blue-400'}`}
+                          title={`${imp.scope === 'skript' ? 'Skript scope' : 'Global scope'}`}
+                        >
+                          <Package className="w-3 h-3" />
+                          {imp.name}
+                          <span
+                            className={`w-4 h-4 inline-flex items-center justify-center rounded-sm hover:bg-foreground/10 ${
+                              isActive ? 'opacity-60 hover:opacity-100' : 'opacity-0 group-hover/tab:opacity-60 hover:!opacity-100'
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              closeImportTab(imp.scope, imp.name)
+                            }}
+                            title="Close tab"
+                          >
+                            <X className="w-3 h-3" />
+                          </span>
+                        </Button>
+                      )
+                    })}
+
                     <Button
                       size="sm"
                       variant="ghost"
@@ -2779,6 +3233,50 @@ plots
                     </Button>
                   </div>
               </div>
+            )}
+
+            {/* Tab context menu - rendered via portal */}
+            {tabContextMenu && typeof document !== 'undefined' && createPortal(
+              <div
+                ref={tabContextMenuRef}
+                className="fixed bg-popover border rounded-lg shadow-lg py-1 min-w-[160px] z-[9999]"
+                style={{ top: `${tabContextMenu.y}px`, left: `${tabContextMenu.x}px` }}
+              >
+                <button
+                  onClick={() => { startRename(tabContextMenu.index); setTabContextMenu(null) }}
+                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted"
+                >
+                  Rename
+                </button>
+                {isPython && (
+                  <>
+                    <button
+                      onClick={() => { makeImport(tabContextMenu.index, 'skript'); setTabContextMenu(null) }}
+                      className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted"
+                    >
+                      Move to Skript scope
+                    </button>
+                    <button
+                      onClick={() => { makeImport(tabContextMenu.index, 'global'); setTabContextMenu(null) }}
+                      className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted"
+                    >
+                      Move to Global scope
+                    </button>
+                  </>
+                )}
+                {files.length > 1 && (
+                  <>
+                    <div className="border-t my-1" />
+                    <button
+                      onClick={() => { removeFile(tabContextMenu.index); setTabContextMenu(null) }}
+                      className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted text-destructive"
+                    >
+                      Remove
+                    </button>
+                  </>
+                )}
+              </div>,
+              document.body
             )}
 
             {/* CodeMirror Editor */}
