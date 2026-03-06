@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { MarkdownRenderer } from '@/components/markdown/markdown-renderer.client'
 import type { VideoInfo } from '@/lib/skript-files'
 
@@ -22,8 +23,8 @@ export function InteractivePreview({
   skriptId,
   onExcalidrawEdit,
 }: InteractivePreviewProps) {
-  // Filter out directories from the file list
-  const filteredFileList = fileList?.filter(f => !f.isDirectory)
+  // Memoize to avoid new array reference on every parent re-render
+  const filteredFileList = useMemo(() => fileList?.filter(f => !f.isDirectory), [fileList])
 
   return (
     <div className="prose-theme" key="markdown-preview">

@@ -89,10 +89,10 @@ const CodeMirrorEditor = function CodeMirrorEditor({
   const isDark = resolvedTheme === 'dark'
   const alert = useAlertDialog()
 
-  // Track current heading/paragraph (use refs to avoid re-renders on every keystroke)
-  const [currentHeading, setCurrentHeading] = useState<string>('')
-  const [selectionStartLine, setSelectionStartLine] = useState<number>(1)
-  const [selectionEndLine, setSelectionEndLine] = useState<number>(1)
+  // Track current heading/paragraph (refs to avoid re-renders on every keystroke/click)
+  const currentHeadingRef = useRef<string>('')
+  const selectionStartLineRef = useRef<number>(1)
+  const selectionEndLineRef = useRef<number>(1)
 
   // Debounce ref for selection updates - avoids excessive re-renders while typing
   const selectionDebounceRef = useRef<NodeJS.Timeout | null>(null)
@@ -565,13 +565,14 @@ const CodeMirrorEditor = function CodeMirrorEditor({
                   clearTimeout(selectionDebounceRef.current)
                 }
 
-                // Apply state updates after 100ms of inactivity
+                // Apply ref updates and highlight after 100ms of inactivity
                 selectionDebounceRef.current = setTimeout(() => {
                   const pending = pendingSelectionRef.current
                   if (pending) {
-                    setSelectionStartLine(pending.start)
-                    setSelectionEndLine(pending.end)
-                    setCurrentHeading(pending.heading)
+                    selectionStartLineRef.current = pending.start
+                    selectionEndLineRef.current = pending.end
+                    currentHeadingRef.current = pending.heading
+                    highlightCurrentParagraph()
                   }
                 }, 100)
               }
@@ -754,15 +755,16 @@ const CodeMirrorEditor = function CodeMirrorEditor({
     }
   }, [isMounted, showEditor, showPreview, useSimpleEditor])
 
-  // Highlight current paragraph(s) in preview
-  useEffect(() => {
+  // Highlight current paragraph(s) in preview — called directly from selection debounce
+  const highlightCurrentParagraph = useCallback(() => {
     if (!previewRef.current || !showPreview) return
 
-    // Use requestAnimationFrame to ensure DOM is updated
+    const selectionStart = selectionStartLineRef.current
+    const selectionEnd = selectionEndLineRef.current
+
     requestAnimationFrame(() => {
       if (!previewRef.current) return
 
-      // Find all elements with source line data
       const allElements = previewRef.current.querySelectorAll('[data-source-line-start]')
 
       // Remove previous highlights
@@ -776,8 +778,7 @@ const CodeMirrorEditor = function CodeMirrorEditor({
         const elementStart = parseInt(element.getAttribute('data-source-line-start') || '0', 10)
         const elementEnd = parseInt(element.getAttribute('data-source-line-end') || '0', 10)
 
-        // Check if ranges overlap: elementStart <= selectionEnd && elementEnd >= selectionStart
-        if (elementStart <= selectionEndLine && elementEnd >= selectionStartLine) {
+        if (elementStart <= selectionEnd && elementEnd >= selectionStart) {
           matchingElements.push(element)
         }
       })
@@ -794,13 +795,12 @@ const CodeMirrorEditor = function CodeMirrorEditor({
         const containerRect = container.getBoundingClientRect()
         const elementRect = firstElement.getBoundingClientRect()
 
-        // Check if element is outside viewport
         if (elementRect.top < containerRect.top || elementRect.bottom > containerRect.bottom) {
           firstElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }
       }
     })
-  }, [selectionStartLine, selectionEndLine, showPreview, content])
+  }, [showPreview])
 
   // Handle click on preview to jump to source line in editor
   const handlePreviewClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
