@@ -92,19 +92,23 @@ export async function PATCH(request: NextRequest) {
         }
       }
 
+      // Build update data with only the fields that were provided,
+      // so saving profile settings doesn't wipe out page settings and vice versa
+      const updateData: Record<string, unknown> = {
+        name: validatedData.name,
+        needsProfileCompletion: false,
+      }
+      if ('pageSlug' in body) updateData.pageSlug = validatedData.pageSlug
+      if ('pageName' in body) updateData.pageName = validatedData.pageName || null
+      if ('pageDescription' in body) updateData.pageDescription = validatedData.pageDescription || null
+      if ('pageIcon' in body) updateData.pageIcon = validatedData.pageIcon || null
+      if ('title' in body) updateData.title = validatedData.title || null
+      if ('bio' in body) updateData.bio = validatedData.bio || null
+
       // Update the user profile and clear needsProfileCompletion flag
       return await prisma.user.update({
         where: { id: session.user.id },
-        data: {
-          name: validatedData.name,
-          pageSlug: validatedData.pageSlug,
-          pageName: validatedData.pageName || null,
-          pageDescription: validatedData.pageDescription || null,
-          pageIcon: validatedData.pageIcon || null,
-          title: validatedData.title || null,
-          bio: validatedData.bio || null,
-          needsProfileCompletion: false, // Clear the flag when profile is updated
-        },
+        data: updateData,
         select: {
           id: true,
           name: true,
