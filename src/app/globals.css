@@ -763,7 +763,7 @@ article.prose-theme > div > :first-child {
   background-image:
     linear-gradient(var(--spacer-line-color) 1px, transparent 1px),
     linear-gradient(90deg, var(--spacer-line-color) 1px, transparent 1px);
-  background-size: 20px 20px;
+  background-size: 23px 23px;
 }
 
 .spacer-lines {
@@ -775,7 +775,7 @@ article.prose-theme > div > :first-child {
 .spacer-dots {
   background-image:
     radial-gradient(circle, var(--spacer-line-color) 1px, transparent 1px);
-  background-size: 20px 20px;
+  background-size: 25px 25px;
 }
 
 /* Smaller pattern variants for toolbar preview swatches (fits in 32x32 boxes).

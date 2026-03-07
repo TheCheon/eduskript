@@ -1967,19 +1967,6 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
       spacerDiv.style.height = `${spacer.height}px`
 
       targetChild.after(spacerDiv)
-
-      // For checkered pattern, adjust square size to evenly fill the width
-      if (spacer.pattern === 'checkered') {
-        const width = spacerDiv.offsetWidth
-        if (width > 0) {
-          const targetSize = 20
-          const cols = Math.round(width / targetSize)
-          if (cols > 0) {
-            const size = width / cols
-            spacerDiv.style.backgroundSize = `${size}px ${size}px`
-          }
-        }
-      }
     }
 
     // Recalculate heading positions since content shifted
@@ -1988,6 +1975,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
 
   // Track ID of the most recently created spacer so the floating panel auto-opens
   const [lastCreatedSpacerId, setLastCreatedSpacerId] = useState<string | null>(null)
+  const [spacerResizing, setSpacerResizing] = useState(false)
 
   // Spacer CRUD operations
   const handleAddSpacer = useCallback((afterBlockIndex: number) => {
@@ -2003,12 +1991,17 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
     updateSpacersData({ spacers: [...current, newSpacer] })
   }, [spacerPattern, spacersData, updateSpacersData])
 
+  // Use ref to avoid stale closure — resize saves height, then pattern change
+  // must read the latest spacersData (not the one captured before resize)
+  const spacersDataRef = useRef(spacersData)
+  spacersDataRef.current = spacersData
+
   const handleUpdateSpacer = useCallback((id: string, updates: Partial<Spacer>) => {
-    const current = spacersData?.spacers || []
+    const current = spacersDataRef.current?.spacers || []
     updateSpacersData({
       spacers: current.map(s => s.id === id ? { ...s, ...updates } : s)
     })
-  }, [spacersData, updateSpacersData])
+  }, [updateSpacersData])
 
   const handleRemoveSpacer = useCallback((id: string) => {
     // Optionally delete annotations whose avgY falls within the spacer's vertical range
@@ -2113,18 +2106,20 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
   // Uses PointerEvent to support both touch and stylus input
   const handleSpacerPlacement = useCallback((e: React.PointerEvent) => {
     if (mode !== 'spacer') return
+    // Don't place during an active resize drag
+    if (spacerResizing) return
     const index = findNearestGap(e.clientY)
     if (index === null) return
 
     handleAddSpacer(index)
     setSpacerInsertIndex(null)
-  }, [mode, handleAddSpacer, findNearestGap])
+  }, [mode, handleAddSpacer, findNearestGap, spacerResizing])
 
   // Hover/move: highlight nearest gap
   const handleSpacerHover = useCallback((e: React.PointerEvent) => {
-    if (mode !== 'spacer') return
+    if (mode !== 'spacer' || spacerResizing) return
     setSpacerInsertIndex(findNearestGap(e.clientY))
-  }, [mode, findNearestGap])
+  }, [mode, findNearestGap, spacerResizing])
 
   // Ref for the save function that accepts options (used when switching targets)
   const performSaveWithOptionsRef = useRef<((options?: SyncedUserDataOptions) => Promise<void>) | null>(null)
@@ -3379,8 +3374,9 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
           onPointerMove={handleSpacerHover}
           onPointerLeave={() => setSpacerInsertIndex(null)}
         >
-          {/* All gap indicators - subtle lines at every possible insertion point */}
-          {spacerGapPositions.map((gap) => (
+          {/* All gap indicators - subtle lines at every possible insertion point.
+              Hidden during spacer resize to avoid distraction. */}
+          {!spacerResizing && spacerGapPositions.map((gap) => (
             <div
               key={gap.index}
               className="spacer-insertion-indicator"
@@ -3405,6 +3401,7 @@ export function AnnotationLayer({ pageId, content, children, publicAnnotations =
           active={mode === 'spacer'}
           lastCreatedSpacerId={lastCreatedSpacerId}
           onLastCreatedConsumed={() => setLastCreatedSpacerId(null)}
+          onResizingChange={setSpacerResizing}
         />
       )}
 

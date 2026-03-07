@@ -25,6 +25,7 @@ interface SpacersDisplayProps {
   readOnly?: boolean
   lastCreatedSpacerId?: string | null  // Auto-open panel for newly created spacer
   onLastCreatedConsumed?: () => void   // Signal that we've consumed the lastCreatedSpacerId
+  onResizingChange?: (resizing: boolean) => void
 }
 
 const MIN_SPACER_HEIGHT = 20
@@ -46,6 +47,7 @@ export function SpacersDisplay({
   readOnly = false,
   lastCreatedSpacerId,
   onLastCreatedConsumed,
+  onResizingChange,
 }: SpacersDisplayProps) {
   // Track resize state in a ref (shared across pointer event handlers)
   const resizeRef = useRef<{
@@ -63,6 +65,8 @@ export function SpacersDisplay({
   const onUpdateRef = useRef(onUpdateSpacer)
   useEffect(() => { zoomRef.current = zoom }, [zoom])
   useEffect(() => { onUpdateRef.current = onUpdateSpacer }, [onUpdateSpacer])
+  const onResizingChangeRef = useRef(onResizingChange)
+  useEffect(() => { onResizingChangeRef.current = onResizingChange }, [onResizingChange])
 
   // Close panel when clicking outside
   useEffect(() => {
@@ -110,6 +114,7 @@ export function SpacersDisplay({
       )
       onUpdateRef.current(resizeRef.current.spacerId, { height: Math.round(newHeight) })
       resizeRef.current = null
+      onResizingChangeRef.current?.(false)
     }
 
     window.addEventListener('pointermove', handleMove)
@@ -163,7 +168,9 @@ export function SpacersDisplay({
         e.stopPropagation()
         setPanelSpacerId(spacer.id)
       }
+      const handleBodyEnter = () => setPanelSpacerId(spacer.id)
       bodyOverlay.addEventListener('pointerup', handleBodyTap)
+      bodyOverlay.addEventListener('pointerenter', handleBodyEnter)
       controls.appendChild(bodyOverlay)
 
       // Resize handle
@@ -174,6 +181,7 @@ export function SpacersDisplay({
         const pe = e as PointerEvent
         pe.preventDefault()
         pe.stopPropagation()
+        onResizingChangeRef.current?.(true)
         resizeRef.current = {
           spacerId: spacer.id,
           startY: pe.clientY,
@@ -188,6 +196,7 @@ export function SpacersDisplay({
       cleanupFns.push(() => {
         resizeHandle.removeEventListener('pointerdown', handleResizeStart)
         bodyOverlay.removeEventListener('pointerup', handleBodyTap)
+        bodyOverlay.removeEventListener('pointerenter', handleBodyEnter)
         controls.remove()
         el.classList.remove('spacer-active')
         el.style.zIndex = ''
